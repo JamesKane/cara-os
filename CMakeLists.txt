@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.25)
 project(cara-os
     VERSION 0.0.1
     DESCRIPTION "CaraOS: a C23/RISC-V cleanroom reimplementation of the AmigaOS Release 2 spec"
-    LANGUAGES C
+    LANGUAGES C ASM
 )
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
@@ -13,6 +13,19 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Default build type" FORCE)
 endif()
+
+# --- Target selection --------------------------------------------------------
+# CARA_TARGET selects what we are building for in this configure:
+#   host    - native build for unit tests + host-side tools
+#   riscv64 - cross-build for splanc.efi + croi.elf on RISC-V
+# Pick exactly one per build directory; flip directories when you need both.
+set(CARA_TARGET "host" CACHE STRING "Cara build target: host or riscv64")
+set_property(CACHE CARA_TARGET PROPERTY STRINGS host riscv64)
+if(NOT CARA_TARGET STREQUAL "host" AND NOT CARA_TARGET STREQUAL "riscv64")
+    message(FATAL_ERROR
+        "CARA_TARGET must be 'host' or 'riscv64'; got '${CARA_TARGET}'.")
+endif()
+message(STATUS "CaraOS target: ${CARA_TARGET}")
 
 # --- Toolchain gate: clang only ----------------------------------------------
 # CaraOS targets clang exclusively (Apple Clang on macOS hosts is accepted).
@@ -105,6 +118,13 @@ else()
         "Install LLVM (e.g. `brew install llvm`) to enable them.")
 endif()
 
+# --- Source tree -------------------------------------------------------------
+# src/ contains both shared modules (built always) and target-specific code
+# (gated inside src/CMakeLists.txt by CARA_TARGET).
+add_subdirectory(src)
+
 # --- Tests -------------------------------------------------------------------
-enable_testing()
-add_subdirectory(tests)
+if(CARA_TARGET STREQUAL "host")
+    enable_testing()
+    add_subdirectory(tests)
+endif()
