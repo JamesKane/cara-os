@@ -1,0 +1,53 @@
+# Build artefacts
+build/
+build-*/
+out/
+.cache/
+
+# CMake / clangd outputs (caught by build/ already, listed for safety
+# in case someone configures in-tree)
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+compile_commands.json
+
+# Compiler / linker outputs
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.elf
+*.efi
+*.bin
+*.img
+*.exe
+
+# Coverage / profiling
+*.gcno
+*.gcda
+*.profraw
+*.profdata
+coverage/
+
+# Editors / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Local-only overrides — anything ending in .local
+*.local
+
+# Per-developer Claude Code session settings
+.claude/settings.local.json
+
+# Reference-only inputs — Commodore-Amiga RKMs are copyrighted material
+# and live on local disk only. Project docs reference them by path.
+amigaos_kb_markdown/

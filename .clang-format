@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: BSD-2-Clause
+---
+# CaraOS C style: K&R with 4-space indents.
+# - Opening brace on the same line, EXCEPT after a function definition.
+# - 4 spaces, never tabs.
+# - Pointers right-aligned (`int *p`).
+Language: Cpp
+BasedOnStyle: LLVM
+
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+ContinuationIndentWidth: 4
+
+# K&R / Linux brace wrapping: function definitions break before brace,
+# everything else (control flow, struct/union/enum, extern, etc.) attaches.
+BreakBeforeBraces: Linux
+
+PointerAlignment: Right
+ReferenceAlignment: Pointer
+
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+AlwaysBreakAfterReturnType: None
+BinPackArguments: true
+BinPackParameters: true
+
+IndentCaseLabels: false
+IndentPPDirectives: None
+
+SpaceAfterCStyleCast: false
+SpaceBeforeParens: ControlStatements
+SpacesBeforeTrailingComments: 1
+
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
+
+# Keep struct/array initializers readable.
+Cpp11BracedListStyle: false
+
+# Penalties tuned to discourage breaking just to fit ColumnLimit.
+PenaltyBreakAssignment: 25
+PenaltyBreakBeforeFirstCallParameter: 19
+PenaltyExcessCharacter: 100
+---
