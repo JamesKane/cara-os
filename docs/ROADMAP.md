@@ -220,7 +220,10 @@ API to the X1 GPU.
 > microcode firmware blob (the documented "necessary blob" exception
 > in `docs/PRINCIPLES.md`). 2D acceleration measurably outperforms
 > the Phase 1 CPU blitter on the same workload; 3D runs a non-trivial
-> demo.
+> demo. The composited Clar desktop sustains **1920 × 1080 at 60 Hz
+> with triple-buffered presentation** through Leargas on the RV2 —
+> see `docs/PRINCIPLES.md` §4.1, the project-level performance budget
+> this phase has to satisfy.
 
 ### RTG scoping (from the 1993 Conference RTG Specification)
 

@@ -5,7 +5,7 @@ the architecture: an architectural decision can change without rewriting
 this document; a violation of one of these principles needs an explicit,
 documented exception.
 
-There are five principles. The first three are policy. The last two are
+There are six principles. The first four are policy. The last two are
 development style.
 
 ---
@@ -122,7 +122,86 @@ demonstrably leaks into ours, that's a bug.
 
 ---
 
-## 4. QEMU-first development
+## 4. Performance and resource budgets
+
+CaraOS commits to two quantitative budgets up front. They are not
+aspirations; they are the line below which the project has failed.
+Every change is measured against them, and a regression on either
+blocks a merge the same way a correctness regression does.
+
+### 4.1 1080p triple-buffered at 60 Hz, sustained
+
+The composited Clar desktop must run **1920×1080 at 60 Hz with
+triple-buffered presentation** on the OrangePi RV2's GPU, sustained,
+without frame drops or tearing during typical interactive use.
+
+If we can't, we have failed.
+
+Why this is the line:
+
+- 1920 × 1080 × 4 bytes × 3 surfaces ≈ 24 MiB of framebuffer; the
+  frame budget is 16.67 ms. The X1 GPU has the bandwidth and shader
+  throughput to do this comfortably. Missing it means we have left
+  performance on the floor in the driver, the compositor, or both —
+  not that the silicon can't keep up.
+- 60 Hz with three surfaces (front + back + working) eliminates
+  tearing without the input-lag penalty of strict double-buffered
+  vsync. Below this, the desktop *feels* worse than the 1992
+  baseline, which makes the entire project pointless.
+- The constraint forces the GPU driver (Phase 4), Leargas's
+  compositor, and `dath.library`'s flip path to be measured rather
+  than hand-waved. It also forecloses lazy designs (single
+  framebuffer, blit-on-vblank) that would compromise responsiveness.
+
+How to apply: every change touching the display path is benchmarked
+against this. The Phase 4 success criterion in `docs/ROADMAP.md`
+states it explicitly and is verified end-to-end on RV2 silicon.
+
+### 4.2 128 MiB ceiling for kernel + system services
+
+Croi plus all in-kernel and resident system services — libraries,
+device drivers, daemons — must fit within **128 MiB of resident
+physical memory** under typical interactive load.
+
+If we exceed it, we have failed.
+
+The implication is that **CaraOS does not page anonymous memory to
+disk.** No swap, no page-out daemon, no working-set tracking. RAM is
+RAM; if a workload doesn't fit, it doesn't fit, and the user gets a
+clear out-of-memory diagnostic rather than latency cliffs and disk
+thrashing.
+
+Why this is the line:
+
+- A base 2 GiB OrangePi RV2 is the cheapest tier and the assumed
+  target. The project's friendliness charter is that the user enjoys
+  CaraOS on the silicon they bought. If the OS itself eats meaningful
+  fractions of the machine, that promise breaks.
+- 128 MiB ≈ 6% of 2 GiB. It is generous for a SASOS kernel — Exec
+  fit in single-digit megabytes — but tight enough to forbid casual
+  bloat. The remaining ~1.9 GiB is the user's: Gleasanna, file
+  caches, GPU surfaces, application working sets.
+- No swap removes an entire category of complexity (page-out paths,
+  swap accounting, eviction policy) and an entire category of bad
+  behaviour (latency spikes, swap death). The SASOS layout in
+  `docs/ARCHITECTURE.md` §4 already assumes that virtual addresses
+  back stable physical residency; this principle makes that
+  assumption explicit and binding.
+- It forces every decision about resident state — caches, font
+  atlases, kept-warm allocations, debug ring buffers — to be
+  quantified. Code that wants memory has to justify why it lives.
+
+How to apply: the kernel image, the resident library text/rodata,
+the kernel heap high-water mark, and every always-resident driver or
+service together respect the 128 MiB envelope. New always-resident
+state earns its share of that envelope or it does not merge.
+Periodic measurement (a `Stiur Mem`-style report broken down by
+component) lands as soon as there is enough kernel to measure;
+budget tracking goes into CI alongside it.
+
+---
+
+## 5. QEMU-first development
 
 The default development loop is:
 
@@ -157,7 +236,7 @@ Practical implications:
 
 ---
 
-## 5. Phase discipline
+## 6. Phase discipline
 
 Work belongs to a phase. Phases are ordered and we don't skip ahead.
 
