@@ -71,6 +71,12 @@ void Croi_TaskSetSelfPriority(i32 pri);
 
 struct Task *Sched_Current(void);
 
+// Walk the dead-task list, freeing each entry's kstack, handle table,
+// and Task struct. Safe to call any time — tasks reach the dead list
+// only after they've been removed from the run queue and the sleeper
+// queue, and they cannot resume after Croi_TaskExit.
+void Sched_ReapDead(void);
+
 // ---- Signals (Exec-style) -------------------------------------------------
 //
 // Each task owns three 32-bit masks: sigrecvd (set bits = pending),

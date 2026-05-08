@@ -5,6 +5,7 @@
 // and emits a PASS/FAIL line plus an aggregate summary.
 
 #include <cara/log.h>
+#include <cara/sched.h>
 #include <cara/test.h>
 #include <cara/types.h>
 
@@ -34,6 +35,9 @@ void Test_RunAll(void)
             LOG_INFO("test", "%s ... PASS", e->name);
             passed++;
         }
+        // Reap any tasks the test spawned and exited so the heap
+        // doesn't accumulate state across the suite.
+        Sched_ReapDead();
     }
 
     LOG_INFO("test", "kernel tests: %u passed, %u failed", passed, failed);

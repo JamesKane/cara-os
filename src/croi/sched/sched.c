@@ -207,6 +207,20 @@ void Sched_Trampoline(void)
     Croi_TaskExit();
 }
 
+void Sched_ReapDead(void)
+{
+    while (!ListIsEmpty(&g_dead)) {
+        struct ListNode *n = ListRemHead(&g_dead);
+        struct Task *t = node_to_task(n);
+        if (t->kstack) {
+            Croi_Free(t->kstack);
+            t->kstack = nullptr;
+        }
+        HandleTable_Destroy(&t->handles);
+        Croi_Free(t);
+    }
+}
+
 // ---- Signals ------------------------------------------------------------
 
 [[nodiscard]] i32 Croi_AllocSignal(void)
