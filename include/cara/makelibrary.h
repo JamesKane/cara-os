@@ -35,7 +35,20 @@ enum : Tag {
     // contiguous lib_NegSize + lib_PosSize region with the
     // libBase pointer at the boundary, and Croi_MakeLibrary just
     // populates the fields and copies the vec table down.
-    MKL_BASE             = TAG_USER + 9,    // struct Library *  (optional)
+    //
+    // For the linker-placed case where the library is in a region
+    // that's only mapped in user PTs (the .exec_lib region at
+    // user-VA 0x4000_0000), MKL_BASE is the *user-view* pointer
+    // — what user code will see when calling OpenLibrary, and
+    // what gets stored in the kernel's library registry. The
+    // kernel's own page table doesn't map that VA, so the
+    // construction-time writes (vec table copy + struct Library
+    // populate) must go through a different pointer; pass that as
+    // MKL_BASE_KERNEL_WRITE. If MKL_BASE_KERNEL_WRITE is absent,
+    // MakeLibrary writes through MKL_BASE (the heap-allocated
+    // case where both views coincide).
+    MKL_BASE              = TAG_USER + 9,    // struct Library *  (user-view)
+    MKL_BASE_KERNEL_WRITE = TAG_USER + 10,   // struct Library *  (kernel-view; optional)
 };
 
 #endif

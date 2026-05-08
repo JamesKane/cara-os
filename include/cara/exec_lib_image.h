@@ -40,13 +40,20 @@ struct Library;
 struct PageTable;
 
 // Map the .exec_lib physical pages into `pt` at user VA 0x4000_0000+
-// with PTE_USER_RX. Called from every user-task spawn path so user
-// code can read+execute the vec table and trampolines.
+// with PTE_USER_RWX. Called from every user-task spawn path so user
+// code can read+execute the vec table and trampolines AND so kernel
+// code running with that PT (via SUM=1) can update lib_OpenCnt.
 [[nodiscard]] int Croi_ExecLib_InstallMapping(struct PageTable *pt);
 
+// Install the same mapping in the boot PT (the one kmain runs with
+// before any user task is scheduled). Reads SATP to locate the
+// current PT root. Called once at boot before Croi_MakeLibrary.
+[[nodiscard]] int Croi_ExecLib_InstallInBootPT(void);
+
 // Return the kernel-side (upper-half direct-map) pointer to the
-// exec.library struct Library. Used by Croi_MakeLibrary to write
-// the V36+ fields and copy the vec table.
+// exec.library struct Library. Used by tests that want to verify
+// the kernel-direct-map view; the construction code now writes
+// through user-VA 0x4000_0800 directly thanks to InstallInBootPT.
 struct Library *Croi_ExecLib_KernelView(void);
 
 // Bytes available in the positive-side region past struct Library

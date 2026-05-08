@@ -7,8 +7,11 @@ set(_croi_lds "${CMAKE_CURRENT_SOURCE_DIR}/croi.lds")
 
 set(_user_blob_s "${CMAKE_CURRENT_BINARY_DIR}/user_blob.S")
 set(_userhello_elf "${CMAKE_BINARY_DIR}/src/userland/userhello.elf")
+set(_userexec_elf  "${CMAKE_BINARY_DIR}/src/userland/userexec.elf")
 file(WRITE ${_user_blob_s}
-"// Auto-generated. Embeds userhello.elf into croi.elf .user_elf section.
+"// Auto-generated. Embeds userhello.elf and userexec.elf into croi.elf
+// under the .user_elf section. Each ELF is wrapped in start/end
+// symbols so kernel-side test code can hand the loader a span.
 .section .user_elf, \"a\"
 .balign 8
 .globl __userhello_elf_start
@@ -16,9 +19,15 @@ file(WRITE ${_user_blob_s}
 __userhello_elf_start:
 .incbin \"${_userhello_elf}\"
 __userhello_elf_end:
+.balign 8
+.globl __userexec_elf_start
+.globl __userexec_elf_end
+__userexec_elf_start:
+.incbin \"${_userexec_elf}\"
+__userexec_elf_end:
 ")
 set_source_files_properties(${_user_blob_s} PROPERTIES
-    OBJECT_DEPENDS ${_userhello_elf}
+    OBJECT_DEPENDS "${_userhello_elf};${_userexec_elf}"
 )
 
 add_executable(croi
@@ -36,7 +45,7 @@ add_executable(croi
     ns16550.c
     platform_init.c
 )
-add_dependencies(croi userhello)
+add_dependencies(croi userhello userexec)
 target_link_libraries(croi PRIVATE
     cara_kernel_flags
     cara_headers

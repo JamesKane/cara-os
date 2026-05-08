@@ -36,7 +36,10 @@ SECTIONS
         *(.sdata .sdata.*)
     } :data
 
-    .bss (NOLOAD) : ALIGN(16) {
+    /* ALIGN(4K) — when .data is empty (no initialized globals), this
+     * keeps .bss on its own page so the kernel ELF loader doesn't try
+     * to map the same page twice with conflicting RX vs RW flags. */
+    .bss (NOLOAD) : ALIGN(4K) {
         *(.bss .bss.*)
         *(.sbss .sbss.*)
         *(COMMON)

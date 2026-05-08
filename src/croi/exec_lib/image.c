@@ -57,9 +57,20 @@ usize Croi_ExecLib_PrivateSize(void)
         return CARA_EINVAL;
     }
 
+    // R+W+X+U so the same VA serves three needs:
+    //   - user mode reads the vec table and executes trampolines
+    //   - kernel mode (running with the user task's PT during a
+    //     syscall) writes lib_OpenCnt via the same address
+    //   - kernel mode at boot (with the boot PT, which we also
+    //     install this mapping into) writes the initial vec table
+    //     and struct Library fields during Croi_MakeLibrary.
+    // V0 hardening tradeoff: a malicious user could rewrite vec
+    // entries to redirect calls within its own address space, but
+    // can't escalate privilege — every call still ecalls into the
+    // kernel and the kernel doesn't trust the vec table itself.
     u64 va = CARA_EXEC_LIB_USER_VA;
     for (u64 off = 0; off < size; off += CARA_PAGE_SIZE) {
-        int rc = Page_Map(pt, va + off, lma_start + off, PTE_USER_RX);
+        int rc = Page_Map(pt, va + off, lma_start + off, PTE_USER_RWX);
         if (rc != CARA_EOK) {
             LOG_FATAL("execli",
                       "Page_Map(0x%llx -> 0x%llx) failed: %d",
@@ -68,4 +79,23 @@ usize Croi_ExecLib_PrivateSize(void)
         }
     }
     return CARA_EOK;
+}
+
+[[nodiscard]] int Croi_ExecLib_InstallInBootPT(void)
+{
+    // Read SATP to find the current (boot) PT's root, wrap it in a
+    // PageTable struct, and install the same mapping there. After
+    // this, kmain (which runs with the boot PT) can read+write
+    // 0x4000_0000+ — Croi_MakeLibrary uses this view to populate
+    // struct Library and the vec table.
+    u64 satp;
+    __asm__ volatile("csrr %0, satp" : "=r"(satp));
+    u64 ppn = satp & ((1ull << 44) - 1);
+    u64 *root = (u64 *)Mm_PhysToVirt(ppn << 12);
+
+    struct PageTable boot_pt = {
+        .root = root,
+        .asid = 0,
+    };
+    return Croi_ExecLib_InstallMapping(&boot_pt);
 }

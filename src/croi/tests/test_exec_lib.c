@@ -37,9 +37,12 @@ KERNEL_TEST(exec_lib_smoke)
     TEST_ASSERT(ctx, base != nullptr,
                 "OpenLibrary('exec.library', 36) returned null");
 
-    struct Library *base_kview = Croi_ExecLib_KernelView();
-    TEST_ASSERT(ctx, base == base_kview,
-                "OpenLibrary returned a different base than KernelView");
+    // OpenLibrary returns the user-view base (0x4000_0800) so it
+    // matches what user-mode code sees through SysBase. The kernel
+    // can also dereference this VA — the boot PT and every user PT
+    // map the .exec_lib region (R+W+X+U).
+    TEST_ASSERT(ctx, (u64)(uptr)base == CARA_EXEC_LIB_USER_BASE,
+                "OpenLibrary did not return the user-VA libBase");
 
     // ---- 2. version/revision from entry.c -----------------------------
     TEST_ASSERT(ctx, base->lib_Version == 36, "lib_Version != 36");

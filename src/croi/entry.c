@@ -265,10 +265,24 @@ static void console_putc(char c)
     //      LibList; user-mode code reaches it via OpenLibrary
     //      starting in Phase D.
     {
-        struct Library *kbase = Croi_ExecLib_KernelView();
+        // First install the .exec_lib mapping in the boot PT so
+        // kmain can read+write the user-VA 0x4000_0000 region.
+        // (Croi_ExecLib_InstallMapping has already been wired into
+        // every user task's PT in the spawn paths, but kmain itself
+        // runs with the boot PT until it spawns user tasks.)
+        if (Croi_ExecLib_InstallInBootPT() != CARA_EOK) {
+            LOG_FATAL("entry", "InstallInBootPT(.exec_lib) failed");
+            Croi_Halt();
+        }
+
+        // exec.library is linker-placed at user-VA 0x4000_0800.
+        // Both kernel and user mode see this VA after the boot-PT
+        // install above plus per-task PT install in spawn paths.
+        struct Library *user_base =
+            (struct Library *)CARA_EXEC_LIB_USER_BASE;
         struct TagItem mklib_tags[] = {
             { MKL_NAME,         (IPTR)"exec.library" },
-            { MKL_BASE,         (IPTR)kbase },
+            { MKL_BASE,         (IPTR)user_base },
             { MKL_VEC_TABLE,    (IPTR)exec_lib_vec },
             { MKL_VEC_COUNT,    (IPTR)exec_lib_vec_count },
             { MKL_VERSION,      36 },

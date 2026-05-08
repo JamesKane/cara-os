@@ -47,8 +47,17 @@ struct Library *Croi_MakeLibrary(const struct TagItem *tags)
     ULONG  priv_size = (ULONG)Croi_GetTagData(tags, MKL_PRIVATE_SIZE, 0);
     void (*init_fn)(struct Library *) =
         (void (*)(struct Library *))Croi_GetTagData(tags, MKL_INIT_FN, 0);
+    // MKL_BASE is the user-view (what user code sees and what we
+    // store in the registry). MKL_BASE_KERNEL_WRITE is the
+    // kernel-view used for construction-time writes (since the
+    // kernel's PT doesn't map user-VA addresses for linker-placed
+    // libraries). When MKL_BASE_KERNEL_WRITE is absent we write
+    // through MKL_BASE (the heap-allocated case where the views
+    // coincide).
     struct Library *base =
         (struct Library *)Croi_GetTagData(tags, MKL_BASE, 0);
+    struct Library *kwrite =
+        (struct Library *)Croi_GetTagData(tags, MKL_BASE_KERNEL_WRITE, 0);
 
     if (!name) {
         LOG_FATAL("mklib", "Croi_MakeLibrary: missing MKL_NAME");
@@ -69,7 +78,10 @@ struct Library *Croi_MakeLibrary(const struct TagItem *tags)
     if (!base) {
         // Heap-allocate the library image. Layout:
         //     [neg_size bytes (vec table)] [pos_size bytes (struct Library + private)]
-        // libBase = allocation_start + neg_size.
+        // libBase = allocation_start + neg_size. Heap addresses live
+        // in the upper-half direct map and are equally accessible
+        // from kernel and user mode (SASOS shared heap), so kernel-view
+        // and user-view coincide here.
         u8 *block = (u8 *)Croi_Alloc((usize)neg_size + (usize)pos_size);
         if (!block) {
             LOG_FATAL("mklib", "%s: heap alloc failed (%u + %u bytes)",
@@ -78,52 +90,63 @@ struct Library *Croi_MakeLibrary(const struct TagItem *tags)
         }
         base = (struct Library *)(block + neg_size);
     }
+    if (!kwrite) {
+        kwrite = base;
+    }
 
-    // Populate the negative-side function-pointer table.
-    // ((void **)base)[-1 - i] receives vec[i] — see docs/LVO.md §3.
-    void **vec_dst = (void **)base;
+    // Populate the negative-side function-pointer table via the
+    // kernel-write view. ((void **)kwrite)[-1 - i] receives vec[i]
+    // — see docs/LVO.md §3.
+    void **vec_dst = (void **)kwrite;
     for (ULONG i = 0; i < vec_count; i++) {
         vec_dst[-1 - (long)i] = vec[i];
     }
 
-    // V36+ struct Library fields.
-    // V36+ ln_Name / lib_IdString are non-const `char *` / `APTR` per
-    // the public ABI. The cast through (uintptr_t) makes the
-    // const-strip from `const char *name` explicit; the storage is
-    // owned by the caller (typically a string literal in .rodata)
-    // and the kernel never writes through it.
-    base->lib_Node.ln_Type = NT_LIBRARY;
-    base->lib_Node.ln_Pri  = 0;
-    base->lib_Node.ln_Name = (char *)(uintptr_t)name;
-    base->lib_Node.ln_Succ = nullptr;          // set by Croi_RegisterLibrary
-    base->lib_Node.ln_Pred = nullptr;
-    base->lib_Flags        = 0;
-    base->lib_pad          = 0;
-    base->lib_NegSize      = neg_size;
-    base->lib_PosSize      = pos_size;
-    base->lib_Version      = version;
-    base->lib_Revision     = revision;
-    base->lib_IdString     = (APTR)(uintptr_t)name;
-    base->lib_Sum          = 0;
-    base->lib_OpenCnt      = 0;
+    // V36+ struct Library fields, written through the kernel-write
+    // view. ln_Name / lib_IdString are non-const `char *` / `APTR`
+    // per the public ABI; the cast through (uintptr_t) makes the
+    // const-strip from `const char *name` explicit.
+    kwrite->lib_Node.ln_Type = NT_LIBRARY;
+    kwrite->lib_Node.ln_Pri  = 0;
+    kwrite->lib_Node.ln_Name = (char *)(uintptr_t)name;
+    kwrite->lib_Node.ln_Succ = nullptr;          // set by Croi_RegisterLibrary
+    kwrite->lib_Node.ln_Pred = nullptr;
+    kwrite->lib_Flags        = 0;
+    kwrite->lib_pad          = 0;
+    kwrite->lib_NegSize      = neg_size;
+    kwrite->lib_PosSize      = pos_size;
+    kwrite->lib_Version      = version;
+    kwrite->lib_Revision     = revision;
+    kwrite->lib_IdString     = (APTR)(uintptr_t)name;
+    kwrite->lib_Sum          = 0;
+    kwrite->lib_OpenCnt      = 0;
 
     // Zero the private state past the public prefix so the library's
     // own init_fn sees a clean slate.
     if (priv_size > 0) {
-        u8 *priv = (u8 *)base + sizeof(struct Library);
+        u8 *priv = (u8 *)kwrite + sizeof(struct Library);
         for (ULONG i = 0; i < priv_size; i++) {
             priv[i] = 0;
         }
     }
 
-    Croi_RegisterLibrary(base);
+    // The registry tracks the kernel-write view: subsequent
+    // OpenLibrary/CloseLibrary impls update lib_OpenCnt and the
+    // kernel must be able to write to the field. The lookup
+    // returns this kernel-view pointer; Croi_OpenLibrary_Impl
+    // translates it back to user-view before returning to user
+    // mode.
+    Croi_RegisterLibrary(kwrite);
 
     if (init_fn) {
         init_fn(base);
     }
 
-    LOG_INFO("mklib", "registered '%s' V%u.%u (neg=%u, pos=%u, base=0x%llx)",
+    LOG_INFO("mklib",
+             "registered '%s' V%u.%u (neg=%u, pos=%u, user=0x%llx, kw=0x%llx)",
              name, (unsigned)version, (unsigned)revision,
-             (unsigned)neg_size, (unsigned)pos_size, (u64)(uptr)base);
+             (unsigned)neg_size, (unsigned)pos_size,
+             (u64)(uptr)base, (u64)(uptr)kwrite);
     return base;
 }
+

@@ -105,6 +105,7 @@ void Page_Free(struct PageAllocator *pa, u64 phys, u32 n_pages);
 #define PTE_USER_RW    (PTE_V | PTE_R | PTE_W | PTE_U |         PTE_A | PTE_D)
 #define PTE_USER_RX    (PTE_V | PTE_R |         PTE_X | PTE_U |         PTE_A)
 #define PTE_USER_RO    (PTE_V | PTE_R |                 PTE_U |         PTE_A)
+#define PTE_USER_RWX   (PTE_V | PTE_R | PTE_W | PTE_X | PTE_U | PTE_A | PTE_D)
 
 struct PageTable {
     u64 *root;             // upper-half VA pointer to the 4 KiB L2 root
