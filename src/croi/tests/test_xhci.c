@@ -152,8 +152,23 @@ KERNEL_TEST(xhci_smoke)
     TEST_ASSERT(ctx, seen_mouse,
                 "no HID/Boot/Mouse interface found across all slots");
 
+    // UC.3 assertions: every parsed-config slot has been driven through
+    // SET_CONFIGURATION over EP0 and reports usb_configured = true.
+    TEST_ASSERT(ctx, g_xhci.n_usb_configured_slots >= 2,
+                "expected >= 2 slots with USB SET_CONFIGURATION applied");
+    for (u32 sid = 1; sid <= CARA_XHCI_MAX_SLOTS; sid++) {
+        if (!g_xhci.slots[sid].in_use) {
+            continue;
+        }
+        if (!g_xhci.slots[sid].configuration_descriptor.valid) {
+            continue;
+        }
+        TEST_ASSERT(ctx, g_xhci.slots[sid].usb_configured,
+                    "in-use slot did not receive SET_CONFIGURATION");
+    }
+
     LOG_INFO("xhcsm",
-             "qemu-xhci at %x: v0x%x slots=%u ports=%u connected=%u addressed=%u described=%u configured=%u",
+             "qemu-xhci at %x: v0x%x slots=%u ports=%u connected=%u addressed=%u described=%u configured=%u usbcfg=%u",
              ((u32)g_xhci.pci_bus << 16) | ((u32)g_xhci.pci_device << 8)
                  | g_xhci.pci_function,
              (unsigned)g_xhci.hci_version,
@@ -162,5 +177,6 @@ KERNEL_TEST(xhci_smoke)
              (unsigned)g_xhci.n_connected_ports,
              (unsigned)g_xhci.n_addressed_slots,
              (unsigned)g_xhci.n_described_slots,
-             (unsigned)g_xhci.n_configured_slots);
+             (unsigned)g_xhci.n_configured_slots,
+             (unsigned)g_xhci.n_usb_configured_slots);
 }

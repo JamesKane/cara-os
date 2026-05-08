@@ -515,6 +515,87 @@ static void parse_config_tree(struct XhciController *c, u8 slot_id)
     return CARA_EOK;
 }
 
+// ---- UC.3: SET_CONFIGURATION ---------------------------------------------
+//
+// USB 2.0 §9.4.7: no-data, host-to-device, standard, recipient=device,
+// bRequest=SET_CONFIGURATION, wValue=bConfigurationValue. After the
+// status stage completes the device transitions to the Configured
+// state (USB §9.1.1.5) — its endpoints other than EP0 become valid
+// for transfers. The xHCI Slot State doesn't change yet; that's UC.5
+// (Configure Endpoint Command).
+
+[[nodiscard]] int Croi_Xhci_SetConfiguration(struct XhciController *c,
+                                             u8 slot_id,
+                                             u8 configuration_value)
+{
+    if (!c || !c->running
+        || slot_id == 0 || slot_id > CARA_XHCI_MAX_SLOTS) {
+        return CARA_EINVAL;
+    }
+    if (!c->slots[slot_id].in_use) {
+        return CARA_EINVAL;
+    }
+
+    struct UsbSetupPacket setup = {
+        .bmRequestType = USB_DIR_HOST_TO_DEVICE | USB_TYPE_STANDARD
+                       | USB_RECIP_DEVICE,
+        .bRequest      = USB_REQ_SET_CONFIGURATION,
+        .wValue        = (u16)configuration_value,
+        .wIndex        = 0,
+        .wLength       = 0,
+    };
+    int rc = Croi_Xhci_ControlTransfer(c, slot_id, &setup,
+                                       nullptr, 0, nullptr);
+    if (rc != CARA_EOK) {
+        return rc;
+    }
+    c->slots[slot_id].usb_configured = true;
+    return CARA_EOK;
+}
+
+[[nodiscard]] int Croi_Xhci_ConfigureSlots(struct XhciController *c)
+{
+    if (!c || !c->running) {
+        return CARA_EINVAL;
+    }
+
+    c->n_usb_configured_slots = 0;
+    for (u8 sid = 1; sid <= CARA_XHCI_MAX_SLOTS; sid++) {
+        auto slot = &c->slots[sid];
+        if (!slot->in_use || !slot->configuration_descriptor.valid) {
+            continue;
+        }
+        if (slot->usb_configured) {
+            c->n_usb_configured_slots++;
+            continue;
+        }
+        u8 cfg_value = slot->configuration_descriptor.bConfigurationValue;
+        if (cfg_value == 0) {
+            // bConfigurationValue=0 means "unconfigured". A real device
+            // can't deliberately advertise that; treat as malformed.
+            LOG_WARN("xhci",
+                     "slot=%u configuration_value=0; skipping SET_CONFIGURATION",
+                     (unsigned)sid);
+            continue;
+        }
+        int rc = Croi_Xhci_SetConfiguration(c, sid, cfg_value);
+        if (rc != CARA_EOK) {
+            LOG_WARN("xhci",
+                     "slot=%u SET_CONFIGURATION(%u) failed: %d",
+                     (unsigned)sid, (unsigned)cfg_value, rc);
+            continue;
+        }
+        LOG_INFO("xhci",
+                 "slot=%u USB configured (cfgValue=%u)",
+                 (unsigned)sid, (unsigned)cfg_value);
+        c->n_usb_configured_slots++;
+    }
+    LOG_INFO("xhci", "%u of %u parsed slots USB-configured",
+             (unsigned)c->n_usb_configured_slots,
+             (unsigned)c->n_configured_slots);
+    return CARA_EOK;
+}
+
 [[nodiscard]] int Croi_Xhci_ReadDescriptors(struct XhciController *c)
 {
     if (!c || !c->running) {

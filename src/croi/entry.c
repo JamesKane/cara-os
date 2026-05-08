@@ -323,6 +323,13 @@ static void console_putc(char c)
                                     LOG_WARN("xhci",
                                              "ReadConfigurations failed: %d",
                                              crc);
+                                } else {
+                                    int sc = Croi_Xhci_ConfigureSlots(&g_xhci);
+                                    if (sc != CARA_EOK) {
+                                        LOG_WARN("xhci",
+                                                 "ConfigureSlots failed: %d",
+                                                 sc);
+                                    }
                                 }
                             }
                         }

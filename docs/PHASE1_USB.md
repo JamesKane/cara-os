@@ -28,19 +28,23 @@ read.
 canonical short-then-full read pair: 9 bytes for `wTotalLength`,
 then a full read of the contiguous configuration tree. The walker
 records every Interface descriptor and the first interrupt-IN
-Endpoint under each into `c->slots[].interfaces[]`. Under QEMU we
-correctly identify slot 1 as HID/Boot/Keyboard (interface class
-3/1/1, EP 0x81 mps=8) and slot 2 as HID/Boot/Mouse (3/1/2, EP 0x81
-mps=4). The cached configuration blob is preserved for the eventual
-Tier 3 HID Gleas to re-walk if it needs the HID Report descriptor.
+Endpoint under each into `c->slots[].interfaces[]`.
+
+**UC.3 shipped.** `Croi_Xhci_SetConfiguration` issues a no-data
+control transfer (bmRequestType=0x00, bRequest=9) to drive the
+device into the Configured state. `Croi_Xhci_ConfigureSlots`
+runs it across every parsed slot using the cached
+`bConfigurationValue`. Both `usb-kbd` and `usb-mouse` report
+`usb_configured = true` post-boot. Note: the xHCI Slot State stays
+at Addressed (2) until UC.5's Configure Endpoint Command runs;
+USB-configured and xHCI-configured are intentionally tracked as
+distinct states.
 
 UB.6/UB.7 substrate (TRB ring helpers, polling event-ring consumer)
 landed alongside UB.5. Interrupt-driven event handling is still
 deferred — Phase 1 polls.
 
 Still to ship before Tier 2 exits:
-- UC.3 — SET_CONFIGURATION (always selects bConfigurationValue from
-  the parsed cache; usually 1).
 - UC.4 — Interface dispatch by class code (HID → HID class driver;
   mass-storage / audio / etc. logged as unsupported in Phase 1).
 - UC.5 — Configure Endpoint Command for the HID interrupt-IN

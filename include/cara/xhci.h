@@ -432,10 +432,16 @@ struct XhciController {
             u8   ep_interval;
         } interfaces[CARA_XHCI_MAX_INTERFACES_PER_SLOT];
         u8 n_interfaces;
+        // True after a successful USB SET_CONFIGURATION over EP0 (UC.3).
+        // The xHCI Slot State stays at Addressed until UC.5 runs the
+        // Configure Endpoint Command — this flag is the device-side
+        // bookkeeping that subsequent control / interrupt transfers rely on.
+        bool usb_configured;
     } slots[CARA_XHCI_MAX_SLOTS + 1];   // index 0 unused (slot IDs are 1-based)
     u32 n_addressed_slots;
     u32 n_described_slots;              // count of slots whose dev desc was read
     u32 n_configured_slots;             // count of slots whose config was read+parsed
+    u32 n_usb_configured_slots;         // count of slots that received SET_CONFIGURATION
 };
 
 // Discover and reset the xHCI controller behind `func_index` in
@@ -534,5 +540,18 @@ struct UsbDeviceDescriptor;
 // For each described slot that hasn't yet had its configuration read,
 // run Croi_Xhci_GetConfigurationDescriptor. Updates n_configured_slots.
 [[nodiscard]] int Croi_Xhci_ReadConfigurations(struct XhciController *c);
+
+// UC.3: USB SET_CONFIGURATION over EP0 — no-data control transfer
+// telling the device to enter the Configured state with the given
+// bConfigurationValue (typically 1, taken from the cached config
+// descriptor). On success, c->slots[slot_id].usb_configured = true.
+[[nodiscard]] int Croi_Xhci_SetConfiguration(struct XhciController *c,
+                                             u8 slot_id,
+                                             u8 configuration_value);
+
+// For each configured-descriptor slot that hasn't yet been
+// SET_CONFIGURATION'd, run Croi_Xhci_SetConfiguration with the slot's
+// cached bConfigurationValue. Updates n_usb_configured_slots.
+[[nodiscard]] int Croi_Xhci_ConfigureSlots(struct XhciController *c);
 
 #endif
