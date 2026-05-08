@@ -17,7 +17,8 @@
 typedef enum : u32 {
     TASK_STATE_READY    = 1,
     TASK_STATE_RUNNING  = 2,
-    TASK_STATE_DEAD     = 3,
+    TASK_STATE_BLOCKED  = 3,    // sleeping in Croi_Wait
+    TASK_STATE_DEAD     = 4,
 } TaskState;
 
 // 16 callee-saved registers we round-trip across a voluntary yield:
@@ -35,6 +36,9 @@ struct Task {
     usize           kstack_size;
     void          (*entry_fn)(void *);
     void           *entry_arg;
+    u32             sigrecvd;        // bits set when Signal() targets this task
+    u32             sigwait;         // bits the task is currently Wait()ing on
+    u32             sigalloc;        // bits handed out by AllocSignal()
     struct ListNode sched_node;
 };
 
@@ -62,5 +66,30 @@ void Croi_Yield(void);
 void Croi_TaskSetSelfPriority(i32 pri);
 
 struct Task *Sched_Current(void);
+
+// ---- Signals (Exec-style) -------------------------------------------------
+//
+// Each task owns three 32-bit masks: sigrecvd (set bits = pending),
+// sigwait (set bits = the task is asleep waiting on these), and
+// sigalloc (set bits = AllocSignal handed them out). Bit 0..31 are
+// per-task; the same bit number in different tasks is independent.
+
+// Allocate the lowest-numbered free signal bit for the current task.
+// Returns 0..31 on success or -1 if all 32 bits are in use.
+[[nodiscard]] i32 Croi_AllocSignal(void);
+
+// Release a signal bit allocated by Croi_AllocSignal.
+void Croi_FreeSignal(i32 sig);
+
+// Set bits in target's sigrecvd. If the target is blocked in
+// Croi_Wait and any of those bits are in its sigwait mask, the target
+// is moved back to the run queue. Safe from any task context.
+void Croi_Signal(struct Task *target, u32 mask);
+
+// Sleep until any bit in `mask` is observed in sigrecvd. Returns the
+// subset of bits that fired (the matching bits are atomically cleared
+// from sigrecvd before returning). If a matching bit is already
+// pending on entry, returns immediately without sleeping.
+u32 Croi_Wait(u32 mask);
 
 #endif

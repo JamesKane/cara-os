@@ -16,6 +16,7 @@ void Sched_Trampoline(void);
 
 static struct Task    *g_current = nullptr;
 static struct MinList  g_runq;
+static struct MinList  g_sleepers;          // tasks blocked in Croi_Wait
 static struct MinList  g_dead;
 static bool            g_inited = false;
 
@@ -63,6 +64,7 @@ void Sched_Init(void)
         return;
     }
     ListInit(&g_runq);
+    ListInit(&g_sleepers);
     ListInit(&g_dead);
 
     struct Task *boot = (struct Task *)Croi_Alloc(sizeof(struct Task));
@@ -192,4 +194,90 @@ void Sched_Trampoline(void)
         t->entry_fn(t->entry_arg);
     }
     Croi_TaskExit();
+}
+
+// ---- Signals ------------------------------------------------------------
+
+[[nodiscard]] i32 Croi_AllocSignal(void)
+{
+    if (!g_current) {
+        return -1;
+    }
+    for (u32 b = 0; b < 32; b++) {
+        u32 mask = 1u << b;
+        if (!(g_current->sigalloc & mask)) {
+            g_current->sigalloc |= mask;
+            g_current->sigrecvd &= ~mask;     // start clean
+            return (i32)b;
+        }
+    }
+    return -1;
+}
+
+void Croi_FreeSignal(i32 sig)
+{
+    if (sig < 0 || sig >= 32 || !g_current) {
+        return;
+    }
+    u32 mask = 1u << (u32)sig;
+    g_current->sigalloc &= ~mask;
+    g_current->sigrecvd &= ~mask;
+}
+
+void Croi_Signal(struct Task *target, u32 mask)
+{
+    if (!target || mask == 0) {
+        return;
+    }
+    target->sigrecvd |= mask;
+    if (target->state == TASK_STATE_BLOCKED
+        && (target->sigrecvd & target->sigwait) != 0) {
+        // Move from sleepers to runq.
+        ListRemove(&target->sched_node);
+        target->state = TASK_STATE_READY;
+        target->sigwait = 0;
+        runq_add(target);
+    }
+}
+
+u32 Croi_Wait(u32 mask)
+{
+    if (!g_current || mask == 0) {
+        return 0;
+    }
+    while (true) {
+        u32 hit = g_current->sigrecvd & mask;
+        if (hit != 0) {
+            g_current->sigrecvd &= ~hit;
+            g_current->sigwait = 0;
+            return hit;
+        }
+
+        // Block: move self off the run queue and switch to whoever's next.
+        g_current->sigwait = mask;
+        g_current->state = TASK_STATE_BLOCKED;
+
+        if (ListIsEmpty(&g_runq)) {
+            // No one to switch to. With Tier 1's setup that's usually a
+            // bug — Wait without a possible signaler is a deadlock — but
+            // we tolerate it by spinning in WFI; an external interrupt
+            // (timer) will eventually wake us via the trap path once
+            // those land. For now, panic.
+            LOG_FATAL("schd",
+                      "Croi_Wait by '%s' with empty runq (deadlock)",
+                      g_current->name);
+            for (;;) {
+                __asm__ volatile("wfi");
+            }
+        }
+        struct Task *old = g_current;
+        ListAddTail(&g_sleepers, &old->sched_node);
+
+        struct ListNode *n = ListRemHead(&g_runq);
+        struct Task *next = node_to_task(n);
+        next->state = TASK_STATE_RUNNING;
+        g_current = next;
+        croi_ctx_switch(old->saved_regs, next->saved_regs);
+        // resume here when re-scheduled — loop and re-check sigrecvd
+    }
 }
