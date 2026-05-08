@@ -109,8 +109,8 @@ applies at three levels:
    `amigaos_kb_markdown/` are the functional specification — they
    cover Release 2 (Kickstart 2.04), which is a strict superset of
    1.3 by every API CaraOS targets. We never copy code or text from
-   the original sources into CaraOS. Naming follows the Irish-derived
-   nomenclature (Croi, Logaic, Leargas, …) — see ARCHITECTURE.md §13.
+   the original sources into CaraOS, but we are bound to the spec's
+   *names and shapes* — see §3.1 below.
 2. **Hardware.** The Spacemit/Ky X1 hardware addresses come from the
    linux-orangepi vendor DTS. We *parse* the DTB at boot rather than
    transcribing constants — see ARCHITECTURE.md §9 and DTS_PARSER.md.
@@ -119,6 +119,106 @@ applies at three levels:
 
 Read references, but write fresh. If a reference's code structure
 demonstrably leaks into ours, that's a bug.
+
+### 3.1 Brand namespace vs API namespace
+
+CaraOS keeps two disjoint namespaces and lets neither bleed into the
+other. The contract is:
+
+> **A well-written AmigaOS V36+ source program compiles for CaraOS.**
+
+That contract is the load-bearing reason this rule exists. If a program
+written against the 3rd Edition RKMs needs identifiers renamed before
+it builds for CaraOS, the project has failed at its single biggest
+source-compatibility promise. Source compatibility is *not* binary
+compatibility — Phase 9 covers the 68k → RV64 translator; Phase 3
+covers the source-level surface. The rule below is what makes Phase 3
+buildable from existing AmigaOS source listings without textual edits.
+
+**Brand namespace** — applies to everything *under* the API. Identifiers
+the user's program never sees:
+
+- The project: **CaraOS**, **Cara**.
+- Kernel binary: **`croi.elf`**. Boot loader: **`splanc.efi`**.
+- Source tree directories: `src/croi/`, `src/leargas/`, `src/logaic/`,
+  `src/clar/`, `src/guth/`, `src/dath/`, …
+- Internal kernel-only C symbols: `Croi_TrapDispatch`, `Croi_Time_Now`,
+  `Croi_Page_Alloc`, `Dath_Framebuffer_FromFdt`, etc. — anything that
+  exists *only* inside the kernel, never linked by user programs.
+- Marketing, documentation prose, glossary terms.
+
+The brand namespace draws from Irish-derived nomenclature — see the
+table in ARCHITECTURE.md §13 — and is where CaraOS's identity lives.
+
+**API namespace** — applies to everything a user program references.
+This namespace is **verbatim AmigaOS V36+** as documented in
+`amigaos_kb_markdown/`. No renames, no prefixes, no decorations.
+Specifically:
+
+- **Library filenames** in the resident library region (lower-half VA
+  `0x4000_0000`+, see ARCHITECTURE.md §4.3): `exec.library`,
+  `dos.library`, `intuition.library`, `graphics.library`,
+  `utility.library`, `gadtools.library`, `asl.library`,
+  `iffparse.library`, `commodities.library`, `icon.library`,
+  `diskfont.library`, `expansion.library`, `keymap.library`,
+  `layers.library`, `workbench.library`, `mathieeesingbas.library`,
+  `mathieeedoubbas.library`, `mathieeesingtrans.library`,
+  `mathieeedoubtrans.library`, `translator.library`, `version.library`.
+- **Device filenames**: `audio.device`, `console.device`,
+  `gameport.device`, `input.device`, `keyboard.device`,
+  `narrator.device`, `parallel.device`, `printer.device`,
+  `ramdrive.device`, `scsi.device`, `serial.device`, `timer.device`,
+  `trackdisk.device`.
+- **Public C symbols**: `OpenLibrary`, `CloseLibrary`, `AllocMem`,
+  `FreeMem`, `AddTail`, `AddHead`, `RemHead`, `RemTail`, `Remove`,
+  `NewList`, `PutMsg`, `GetMsg`, `WaitPort`, `Wait`, `Signal`,
+  `AllocSignal`, `FreeSignal`, `SetTaskPri`, `OpenDevice`, `DoIO`,
+  `Move`, `Draw`, `RectFill`, `OpenScreen`, `OpenWindow`,
+  `GetTagData`, `FindTagItem`, `NextTagItem`, … — every spelling as
+  the autodocs print it.
+- **Public C struct names**: `Library`, `Task`, `MsgPort`, `Message`,
+  `Node`, `MinNode`, `List`, `MinList`, `IORequest`, `Device`,
+  `RastPort`, `BitMap`, `Window`, `Screen`, `Gadget`, `IntuiMessage`,
+  `TagItem`, … — verbatim, including field-name prefixes
+  (`ln_Succ`, `mp_MsgList`, `tc_Node`, etc.).
+- **LVO numbers**: every library exports its functions at the LVO
+  offsets the V36+ autodocs document. The four per-library reserved
+  slots (LIB_OPEN, LIB_CLOSE, LIB_EXPUNGE, LIB_EXTFUNC) are at -6,
+  -12, -18, -24; user-defined functions start at -30 (LIB_USERDEF).
+  Every per-library LVO matches the canonical V36+ value.
+- **Tag IDs**, **IDCMP class flags**, **IFF chunk type codes**,
+  **error code numerics** — all as documented.
+
+The namespaces meet only at the trampoline: an `exec.library` LVO
+entry (e.g. `_LVOAllocMem` at `LIB_BASE - 30 - n*6`) jumps to a
+brand-namespace implementation function (e.g. internal
+`Croi_AllocMem_Impl`). Programs never see the brand-side symbol;
+implementations never expose the LVO trampoline as their canonical
+name.
+
+**Where the line falls in headers.** The kernel's internal headers
+(`include/cara/*.h`) belong to the brand namespace and may use `Croi_`,
+`Dath_`, etc. The Phase 3+ public AmigaOS-shaped headers
+(`include/exec/*.h`, `include/dos/*.h`, `include/intuition/*.h`,
+`include/graphics/*.h`, …) belong to the API namespace and use AmigaOS
+names verbatim — the same `<exec/lists.h>` / `<exec/memory.h>` /
+`<intuition/intuition.h>` paths a 1992 program `#include`d.
+
+**How to apply.**
+
+- When you write a function that user programs may call, the C
+  symbol's name is whatever the AmigaOS autodocs print. No discretion.
+- When you write a struct that user programs may reference (by name,
+  by `sizeof`, or by field), the name and field names are whatever
+  the AmigaOS includes show. No discretion.
+- When you write something user programs cannot see (kernel scheduler,
+  page tables, the FDT parser, the GPU driver-side glue under
+  graphics.library), name it from the brand namespace.
+- If you find yourself wanting a `Croi_AllocMem` or a `Cara_OpenLibrary`
+  in a public header, you've crossed the line — drop the prefix.
+- If you find an AmigaOS name (`Task`, `Message`, `OpenLibrary`) used
+  for something internal that has no AmigaOS analogue, rename to the
+  brand namespace — squatting on the name closes off the trampoline.
 
 ---
 
@@ -148,10 +248,11 @@ Why this is the line:
   tearing without the input-lag penalty of strict double-buffered
   vsync. Below this, the desktop *feels* worse than the 1992
   baseline, which makes the entire project pointless.
-- The constraint forces the GPU driver (Phase 4), Leargas's
-  compositor, and `dath.library`'s flip path to be measured rather
-  than hand-waved. It also forecloses lazy designs (single
-  framebuffer, blit-on-vblank) that would compromise responsiveness.
+- The constraint forces the GPU driver (Phase 4 — internally branded
+  the **Dath** driver), the Leargas compositor under `intuition.library`,
+  and the `graphics.library` flip path to be measured rather than
+  hand-waved. It also forecloses lazy designs (single framebuffer,
+  blit-on-vblank) that would compromise responsiveness.
 
 How to apply: every change touching the display path is benchmarked
 against this. The Phase 4 success criterion in `docs/ROADMAP.md`

@@ -18,6 +18,9 @@ specification (the 3rd Edition RKMs in `amigaos_kb_markdown/`, V36+).
 - `docs/HARDWARE_RV2.md` — concrete X1 / OrangePi RV2 register snapshot
   (derived, never imported into source).
 - `docs/DTS_PARSER.md` — design of the FDT parser referenced from §9.
+- `docs/LVO.md` — library / driver bridge (the `lvo-gen` model).
+  Specifies the runtime mechanism §7 leaves abstract and answers
+  the open questions §14.4 and (per-LVO) §14.7.
 
 ---
 
@@ -25,14 +28,24 @@ specification (the 3rd Edition RKMs in `amigaos_kb_markdown/`, V36+).
 
 ### 1.1 Goals
 
-1. **Functional fidelity to AmigaOS Release 2 (V36+).** The contracts of
-   Exec, AmigaDOS, and Intuition — message ports, libraries, LVO jumps,
-   intrusive lists, signals, tasks, drawers, gadgets, screens, windows —
-   plus the Release 2 additions (utility, gadtools, asl, BOOPSI, iffparse,
-   commodities, icon, diskfont) are reproduced under the CaraOS names
-   (Croi, Logaic, Leargas, Clar, Guth, Bosca, Inntin, Gleas). Behavioural
-   parity, not source parity. The 3rd Edition RKMs in
-   `amigaos_kb_markdown/` are the spec.
+1. **Source-level fidelity to AmigaOS Release 2 (V36+).** The
+   contracts of Exec, AmigaDOS, Intuition, and graphics — message
+   ports, libraries, LVO jumps, intrusive lists, signals, tasks,
+   drawers, gadgets, screens, windows, RastPorts — plus the Release 2
+   additions (`utility.library`, `gadtools.library`, `asl.library`,
+   BOOPSI, `iffparse.library`, `commodities.library`, `icon.library`,
+   `diskfont.library`) are reproduced as the verbatim AmigaOS V36+
+   API surface: the libraries on disk are `exec.library`,
+   `dos.library`, `intuition.library`, `graphics.library`,
+   `utility.library`, `gadtools.library`, …; the public C symbols and
+   struct names are spelled exactly as the 3rd Edition RKM autodocs
+   print them; the LVO numbers match the canonical V36+ values. The
+   contract is that a well-written AmigaOS V36+ source program builds
+   for CaraOS without textual edits — see PRINCIPLES.md §3.1
+   (brand-vs-API split). The CaraOS-branded names (Croi, Logaic,
+   Leargas, Clar, Splanc, Guth, Bosca, Inntin, Gleas, Dath) name the
+   *implementations* and the project, not the public API. The 3rd
+   Edition RKMs in `amigaos_kb_markdown/` are the spec.
 2. **Pointer-passing IPC ergonomics.** A producer hands a virtual pointer to a
    consumer and the consumer dereferences it. No marshalling, no serialization,
    no copy. This is what made the original system feel fast and what we keep.
@@ -155,7 +168,7 @@ discover (`/EFI/BOOT/BOOTRISCV64.EFI`).
 
 CaraOS is single-user. All Gleasanna run as the same logical principal.
 There is no `setuid`, no capability ring, no permission check on whether
-"this Gleas" is "allowed to" open `logaic.library`. If you have a handle, you
+"this Gleas" is "allowed to" open `dos.library`. If you have a handle, you
 can use it. If you don't, you can ask for one and you will get it.
 
 What the MMU enforces is **address validity**, not **permission**:
@@ -216,8 +229,8 @@ via shallow-copied top-level entries — see §4.4).
 |----------------------------|-----------|------------------------------------------------------|-----------------------------|
 | `0x0000_0000_0000_0000`    | 1 MiB     | Null guard, never mapped.                            | unmapped                    |
 | `0x0000_0000_0010_0000`    | ~1 GiB    | Splanc transient image; reclaimed after boot.        | unmapped after handoff      |
-| `0x0000_0000_4000_0000`    | 4 GiB     | **Shared library text/rodata.** `croi.library`, `logaic.library`, `leargas.library`, etc. live here at fixed virtual addresses. | RX, all tasks |
-| `0x0000_0001_0000_0000`    | 64 GiB    | **Shared system heap.** `Croi_Alloc` allocates from here. Every allocation lives at a stable virtual address. | RW *only* on the owning task; no-access elsewhere. Tasks that need a peer's allocation receive an explicit map-grant via Croi syscall. |
+| `0x0000_0000_4000_0000`    | 4 GiB     | **Shared library text/rodata.** `exec.library`, `dos.library`, `intuition.library`, `graphics.library`, `utility.library`, `gadtools.library`, … live here at fixed virtual addresses. | RX, all tasks |
+| `0x0000_0001_0000_0000`    | 64 GiB    | **Shared system heap.** `AllocMem` (exec.library) allocates from here. Every allocation lives at a stable virtual address. | RW *only* on the owning task; no-access elsewhere. Tasks that need a peer's allocation receive an explicit map-grant via syscall. |
 | `0x0000_0011_0000_0000`    | 176 GiB   | **Per-task private slabs.** Each Gleas owns a slab for its stack, BSS, and local heap. Each slab is at a stable virtual address chosen at task creation. | RW on owner; no-access on all others |
 | `0x0000_003F_0000_0000`    | 4 GiB     | **IPC ring buffer pool.** Pages mapped pairwise into producer + consumer page tables. | RW on producer + consumer; no-access elsewhere |
 
@@ -230,7 +243,7 @@ Two consequences worth calling out:
    leaving its PTE invalid.
 2. Allocators never have to revisit returned addresses. Once a virtual
    address has been handed out, that address means that data forever, until
-   it is freed. This is what makes `Croi_Send` zero-copy.
+   it is freed. This is what makes `PutMsg` zero-copy.
 
 ### 4.4 Upper-half (kernel)
 
@@ -318,9 +331,17 @@ A `Handle` exposed to user space is a 32-bit value:
 +------------------+------------------+
 ```
 
-`Croi_OpenLib`, `Croi_Alloc` (when an allocation is exposed as a memregion
-Kobj for sharing), `Croi_CreatePort`, etc. return Handles. On every Croi
-syscall that takes a Handle, the kernel checks:
+Public AmigaOS calls (`OpenLibrary`, `AllocMem`, `CreateMsgPort`, etc.)
+return their canonical types — `struct Library *`, `void *`,
+`struct MsgPort *` — and those pointers are valid in the calling task
+because of SASOS. *Internally*, where the kernel needs a typed,
+generation-checked reference (signal allocations, device units,
+cross-task grants of memory regions, opaque IPC objects whose
+SASOS-pointer would be too capability-leaky) it uses **Handles**:
+opaque 32-bit identifiers backed by the per-task handle table. Handles
+are a kernel-side mechanism only; programs see canonical AmigaOS
+pointers. On every kernel syscall that takes a Handle, the kernel
+checks:
 
 1. Slot index is within `cap`.
 2. `slots[idx].target != nullptr`.
@@ -370,41 +391,41 @@ travel.
 
 ### 5.4 Intrusive lists
 
-Doubly-linked intrusive lists are the connective tissue of Exec. We keep
-them, but C23 lets us drop the manual casts:
+Doubly-linked intrusive lists are the connective tissue of Exec. The
+public API surface is verbatim AmigaOS — `struct Node`, `struct List`,
+`struct MinNode`, `struct MinList`, with `AddTail` / `AddHead` /
+`RemHead` / `RemTail` / `Remove` exported from `exec.library` at their
+canonical LVOs (see §7). User programs `#include <exec/lists.h>` and
+write `AddTail(list, node)` exactly as on the original Amiga.
+
+For kernel-internal use we additionally provide a C23 `typeof`-based
+macro form that adapts to any embedding type. These live in the brand
+namespace (kernel-internal only, never exported through `exec.library`):
 
 ```c
-struct ListNode {
-    struct ListNode *succ;
-    struct ListNode *pred;
-};
-
-struct MinList {
-    struct ListNode  head;     // head.succ → first real node
-    struct ListNode  tail;     // tail.pred → last real node
-    // head.pred and tail.succ are nullptr; sentinels guard both ends
-};
-
-#define Croi_AddTail(listp, nodep) do {                  \
+#define MinList_AddTail(listp, nodep) do {               \
     typeof(listp) _l = (listp);                          \
     typeof(nodep) _n = (nodep);                          \
-    _n->node.pred       = _l->tail.pred;                 \
-    _n->node.succ       = &_l->tail;                     \
-    _l->tail.pred->succ = &_n->node;                     \
-    _l->tail.pred       = &_n->node;                     \
+    _n->node.mln_Pred         = _l->mlh_TailPred;        \
+    _n->node.mln_Succ         = (struct MinNode *)&_l->mlh_Tail; \
+    _l->mlh_TailPred->mln_Succ = &_n->node;              \
+    _l->mlh_TailPred          = &_n->node;               \
 } while (0)
 ```
 
-The `typeof` form makes the macro symmetric across whichever struct embeds
-a `ListNode` named `node`. We will provide `Croi_AddHead`, `Croi_RemHead`,
-`Croi_RemTail`, and `Croi_Remove` with the same shape.
+Sibling macros `MinList_AddHead`, `MinList_RemHead`, `MinList_RemTail`,
+`MinList_Remove` cover the rest. These compile to the same memory
+operations as the `AddTail`/etc. exec.library entries; they exist purely
+to skip the LVO trampoline on the kernel-internal hot path.
 
-> Note: this implementation uses a head + tail sentinel layout. Classic
-> Exec used a single header with `lh_Head`, `lh_Tail`, `lh_TailPred` where
-> the `lh_Tail` field doubled as a sentinel. The two are isomorphic; the
-> sentinel form is easier to read and to verify. The wire-level layout
-> matters only for `croi.library` exported types — see §7 for which structs
-> are ABI-frozen.
+> Note on layout: classic Exec uses the three-pointer header
+> `{ lh_Head, lh_Tail, lh_TailPred }` with `lh_Tail` doubling as a
+> sentinel. CaraOS preserves this exact layout — both `struct List` and
+> `struct MinList` are wire-compatible with the V36+ includes — because
+> programs may walk these structures field-by-field and field offsets
+> are part of the ABI. (`MinList`'s `mlh_Head`/`mlh_Tail`/`mlh_TailPred`
+> are the canonical AmigaOS field names.) The implementation files in
+> `src/croi/` link against the same struct definitions.
 
 ---
 
@@ -464,7 +485,7 @@ bool Ring_Enqueue(struct RingHeader *r, struct RingSlot s) {
     if ((h - t) == r->capacity) return false;       // full
     r->slots[h & r->mask] = s;                       // payload pointer is SASOS-stable
     atomic_store_explicit(&r->head, h + 1, memory_order_release);
-    if (h == t) Croi_Signal(r->signal_kobj);          // empty → nonempty
+    if (h == t) Signal_Kobj(r->signal_kobj);          // empty → nonempty (kernel-internal raise)
     return true;
 }
 ```
@@ -486,18 +507,22 @@ bool Ring_Dequeue(struct RingHeader *r, struct RingSlot *out) {
 }
 ```
 
-The consumer drains until empty before re-entering `Croi_Wait` on its
-signal mask. This matches the classic MsgPort idiom (`while ((m = GetMsg))`)
-and gives us the same coalesced wakeup behavior.
+The consumer drains until empty before re-entering `Wait()` (from
+`exec.library`) on its signal mask. This matches the classic MsgPort
+idiom (`while ((m = GetMsg(port)))`) and gives us the same coalesced
+wakeup behaviour.
 
 ### 6.5 Payload semantics
 
 The `payload` pointer is a SASOS virtual address. The producer must:
 
-1. Allocate the payload from a region the consumer can be given access to
-   (typically `Croi_AllocShared(target_task, size)`, which maps the page
-   into the consumer's page table read-only or read-write per the producer's
-   choice).
+1. Allocate the payload from a region the consumer can be given access
+   to. Classic AmigaOS code uses `AllocMem(size, MEMF_PUBLIC)`; CaraOS
+   honours that semantically (the resulting allocation is map-grantable
+   into the recipient). For producers that already know which task will
+   read the message, the CaraOS extension `AllocShared(target, size,
+   flags)` (LVO past V36+, see §7.2) maps the page into the consumer's
+   page table at allocation time, read-only or read-write per flags.
 2. Not mutate the payload after enqueue, unless the protocol agreed with
    the consumer says it may.
 3. Free the payload only after the consumer acknowledges (e.g., a reply
@@ -509,13 +534,29 @@ discipline is per-protocol and lives in the library that defines the ring's
 
 ### 6.6 What MsgPort becomes
 
-A classic `MsgPort` is now: a `KOBJ_MSGPORT` Kobj that owns one inbound
-ring + a signal allocation on the owning task. `Croi_Send(port, msg)`
-resolves to `Ring_Enqueue` + (if needed) `Croi_Signal`. `Croi_Receive(port)`
-resolves to `Ring_Dequeue`. The `LVO_Send` and `LVO_Recv` entries in
-`croi.library` are thin wrappers around these. Existing code patterns
-(`PutMsg(port, &msg); WaitPort(port); m = GetMsg(port);`) translate
-line-for-line into the Croi names.
+A classic `MsgPort` is still a `MsgPort` — same name, same struct shape
+(`mp_Node`, `mp_Flags`, `mp_SigBit`, `mp_SigTask`, `mp_MsgList`),
+allocated by `CreateMsgPort()` from `exec.library`. Underneath, the
+implementation is a `KOBJ_MSGPORT` Kobj that owns one inbound ring + a
+signal allocation on the owning task. `PutMsg(port, msg)` resolves to
+`Ring_Enqueue` + (if needed) `Signal()`; `GetMsg(port)` resolves to
+`Ring_Dequeue`; `WaitPort(port)` resolves to `Wait()` on the port's
+signal bit. The `_LVOPutMsg`, `_LVOGetMsg`, `_LVOWaitPort`,
+`_LVOCreateMsgPort`, and `_LVODeleteMsgPort` entries in `exec.library`
+are thin trampolines into these implementations.
+
+Existing AmigaOS code patterns translate **without renames**:
+
+```c
+struct MsgPort *p = CreateMsgPort();
+PutMsg(p, &msg);
+WaitPort(p);
+struct Message *m = GetMsg(p);
+```
+
+compiles unchanged. The CaraOS-internal symbols (`Croi_PutMsg_Impl`,
+`Ring_Enqueue`, etc.) are not visible to user programs and live in the
+brand namespace.
 
 ---
 
@@ -523,85 +564,165 @@ line-for-line into the Croi names.
 
 ### 7.1 The model
 
-A CaraOS library is a Kobj of type `KOBJ_LIBRARY` plus a fixed-address
-mapping of its `.text`/`.rodata` in the lower half (region at
-`0x0000_0000_4000_0000` — see §4.3). Calling a library function is:
+A CaraOS library is, on disk and in memory, the AmigaOS V36+ library
+shape. Each library file (`exec.library`, `dos.library`,
+`intuition.library`, `graphics.library`, `utility.library`,
+`gadtools.library`, …) is mapped into the lower-half library region at
+`0x0000_0000_4000_0000` (see §4.3) at a stable virtual address shared
+across every task. The implementation is, on the kernel side, also a
+`KOBJ_LIBRARY` so the kernel can refcount and lifecycle-manage it; user
+programs do not see that.
 
-1. User has a `Handle` to the library, returned by `Croi_OpenLib("croi", 0)`.
-2. The library's *base* (a virtual address in the shared library region) is
-   stored in the slot, available via `Croi_HandleBase(h)`.
-3. Functions live at **negative offsets** from the base — the LVO. The
-   first function is at `base - 6` in classic Exec; we keep this. On
-   RISC-V, "−6" addresses a 6-byte slot containing a single trampoline
-   instruction sequence (a 4-byte `auipc` + 2-byte `c.jr`, or a 4-byte
-   `jal` to a fixed target — final encoding chosen by the linker script).
+Calling a library function follows the canonical AmigaOS pattern,
+unchanged:
 
-The LVO numbers are not a calling convention detail; they are an ABI
-contract. We encode them as `constexpr int32_t` so that any code
-referencing them does the math at compile time and the resulting jump
-table is a static slice of read-only data.
+1. `OpenLibrary("name.library", version)` → returns a `struct Library *`
+   (the library base). Because CaraOS is SASOS (§4), this pointer is
+   stable across all tasks; OpenLibrary's job in CaraOS is to
+   refcount-bump the library and (on first open in a task) ensure the
+   library's pages are mapped into the calling task. The pointer
+   itself does not need wrapping in a Handle; it is what user programs
+   already pass in `A6`-equivalent (RV64: a fixed register the
+   trampoline shim spills) on every call.
+2. Functions live at **negative offsets** from the base — the LVO.
+   On RV64 each slot holds a function pointer rather than executable
+   trampoline bytes; the public stub in `<proto/<libname>.h>` lowers
+   the call to a load-fnptr-from-LVO-table + `jalr`. The function
+   pointer's target decides whether the function runs in-process,
+   `ecall`s into Croi, or `PutMsg`s to a U-mode driver Gleas — one
+   call shape, three implementation flavours. The canonical V36+ LVO
+   numbers (`-30`, `-198`, `-552`, …) survive as header constants in
+   `<exec/libraries.h>` and `<<library>/lvo.h>` for source-level
+   V36+ compatibility and as Phase 9 binary-translator lookup keys;
+   they are *not* the physical memory offsets of the function
+   pointers at runtime on RV64. Full mechanism, including the
+   `tools/lvo-gen` flow that generates the stubs and the per-LVO
+   `local` / `syscall` / `server` flavour selection, is specified in
+   `docs/LVO.md`.
+3. `CloseLibrary(libraryBase)` decrements the refcount; on last close
+   the kernel may unmap and tear down.
 
-### 7.2 Croi LVO map (initial)
+The LVO numbers are an ABI contract, not a calling-convention detail.
+They match the V36+ values printed in the autodocs.
 
-The numbers below are aligned with classic Exec where the function
-exists in both. New Croi-only functions get fresh slots beyond the
-classic range.
+### 7.2 LVO discipline (canonical V36+ values)
 
-| Croi function       | LVO     | Original Exec analogue | Notes                            |
-|---------------------|---------|------------------------|----------------------------------|
-| `Croi_Open`         | `-30`   | `Open` (lib base op)   | Reserved per RKM convention      |
-| `Croi_Close`        | `-36`   | `Close`                |                                  |
-| `Croi_Expunge`      | `-42`   | `Expunge`              |                                  |
-| `Croi_Reserved`     | `-48`   | `Reserved`             | Always 0; per spec               |
-| `Croi_AddHead`      | `-240`  | `AddHead`              |                                  |
-| `Croi_AddTail`      | `-246`  | `AddTail`              |                                  |
-| `Croi_RemHead`      | `-258`  | `RemHead`              |                                  |
-| `Croi_RemTail`      | `-264`  | `RemTail`              |                                  |
-| `Croi_Alloc`        | `-198`  | `AllocMem`             | Returns SASOS virtual pointer    |
-| `Croi_Free`         | `-210`  | `FreeMem`              |                                  |
-| `Croi_AllocShared`  | `-696`  | (new)                  | Maps into a target task too      |
-| `Croi_CreatePort`   | `-354`  | `CreatePort` (amiga.lib) Croi-side built-in |       |
-| `Croi_DeletePort`   | `-360`  |                        |                                  |
-| `Croi_Send`         | `-366`  | `PutMsg`               |                                  |
-| `Croi_Receive`      | `-372`  | `GetMsg`               |                                  |
-| `Croi_WaitPort`     | `-384`  | `WaitPort`             |                                  |
-| `Croi_Signal`       | `-324`  | `Signal`               |                                  |
-| `Croi_Wait`         | `-318`  | `Wait`                 |                                  |
-| `Croi_OpenLib`      | `-552`  | `OpenLibrary`          | Returns a Handle, not a base     |
-| `Croi_CloseLib`     | `-414`  | `CloseLibrary`         |                                  |
-| `Croi_HandleBase`   | `-702`  | (new)                  | Resolves Handle → library base   |
+Every per-library LVO matches the value in the V36+ autodocs / `.i`
+include. The four reserved-per-library slots are fixed by
+`<exec/libraries.h>`:
 
-In C23:
+| Slot           | Offset   | Purpose                                      |
+|----------------|----------|----------------------------------------------|
+| `LIB_OPEN`     | `-6`     | Library Open hook                            |
+| `LIB_CLOSE`    | `-12`    | Library Close hook                           |
+| `LIB_EXPUNGE`  | `-18`    | Library Expunge hook                         |
+| `LIB_EXTFUNC`  | `-24`    | Reserved; must return zero (per RKM)         |
+| `LIB_USERDEF`  | `-30`    | First user-defined function in any library   |
+| `LIB_VECTSIZE` | `6`      | Stride between successive LVOs (header constant — see note) |
 
-```c
-constexpr int32_t LVO_Open       = -30;
-constexpr int32_t LVO_Close      = -36;
-constexpr int32_t LVO_Alloc      = -198;
-constexpr int32_t LVO_Free       = -210;
-constexpr int32_t LVO_Send       = -366;
-constexpr int32_t LVO_Receive    = -372;
-constexpr int32_t LVO_OpenLib    = -552;
-constexpr int32_t LVO_HandleBase = -702;
-// ...
-```
+> **RV64 runtime layout note.** `LIB_VECTSIZE = 6` is a 68k-era
+> header constant preserved verbatim for V36+ source-level
+> compatibility. The runtime function-pointer table on RV64 uses
+> `sizeof(void *) = 8`-byte stride; runtime ordinals (declaration
+> order in the library's `.conf`) replace negative-byte-offset
+> arithmetic at dispatch time. The V36+ negative offsets remain the
+> canonical wire identity for documentation and for the Phase 9
+> binary translator's lookup table. See `docs/LVO.md` §3.1.
 
-A `lvo.h` header in `include/cara/` will own the canonical list. Generating
-the assembly trampoline table from this header is a build-time step; no
-runtime reflection required.
+Per-library user-defined LVOs come straight from the canonical
+autodocs. A representative sample for `exec.library`:
+
+| Function         | LVO    |
+|------------------|--------|
+| `AllocMem`       | `-198` |
+| `FreeMem`        | `-210` |
+| `AddHead`        | `-240` |
+| `AddTail`        | `-246` |
+| `RemHead`        | `-252` |
+| `RemTail`        | `-258` |
+| `Remove`         | `-264` |
+| `Enqueue`        | `-270` |
+| `FindTask`       | `-294` |
+| `SetTaskPri`     | `-300` |
+| `Wait`           | `-318` |
+| `Signal`         | `-324` |
+| `AllocSignal`    | `-330` |
+| `FreeSignal`     | `-336` |
+| `PutMsg`         | `-366` |
+| `GetMsg`         | `-372` |
+| `ReplyMsg`       | `-378` |
+| `WaitPort`       | `-384` |
+| `OpenDevice`     | `-444` |
+| `CloseDevice`    | `-450` |
+| `DoIO`           | `-456` |
+| `OldOpenLibrary` | `-408` |
+| `CloseLibrary`   | `-414` |
+| `OpenLibrary`    | `-552` |
+
+This is **not** an authoritative list — `amigaos_kb_markdown/` is. The
+authoritative numbers for every CaraOS library come straight from the
+3rd Edition autodocs / .i files. A build-time tool (`tools/lvo-gen/`)
+parses the canonical autodocs into `include/exec/libraries.h`,
+`include/dos/dos.h`, `include/intuition/intuition.h`, etc., and emits
+the matching trampoline table for each library; manual editing of the
+LVO numbers in CaraOS source is not allowed. Drift here is an
+ABI break.
+
+CaraOS-only **extensions** to a library go at LVOs *past* the highest
+V36+ slot the autodocs document. They are clearly marked as
+extensions and never collide with classic numbers. Examples — none of
+which exist in V36+ exec, all of which CaraOS may add:
+
+- `AllocShared(target, size, flags)` — memory visible in the target
+  task as well as the caller. Useful for the IPC payload pattern
+  (§6.5). LVO: first free slot past the V36+ exec range.
+
+If a CaraOS extension would *replace* an AmigaOS function, don't —
+extend instead, and let the V36+ original keep its slot. Programs that
+don't know about the extension still work.
 
 ### 7.3 ABI-frozen structures
 
-These structs are part of the public ABI and must not change layout once
-v1.0 ships:
+These structs are part of the public ABI and must not change layout
+once v1.0 ships. Their definitions are verbatim AmigaOS V36+:
 
-- `struct ListNode`, `struct MinList`
-- `struct RingHeader`, `struct RingSlot`
-- `struct Message` (the prefix every IPC payload starts with)
-- `struct Task` *visible portion* — the kernel-private portion sits behind
-  an opaque pointer; the visible portion holds `name`, `pri`, `sigrecvd`,
-  and the embedded `MinList` of owned ports.
+- **`struct Node`, `struct MinNode`** (from `<exec/nodes.h>`) — fields
+  `ln_Succ`/`ln_Pred`/`ln_Type`/`ln_Pri`/`ln_Name`, and
+  `mln_Succ`/`mln_Pred`.
+- **`struct List`, `struct MinList`** (from `<exec/lists.h>`) — three-pointer
+  header `lh_Head`/`lh_Tail`/`lh_TailPred` and the minimal
+  `mlh_Head`/`mlh_Tail`/`mlh_TailPred`.
+- **`struct Library`** (from `<exec/libraries.h>`) — the library base
+  prefix every library exposes (`lib_Node`, `lib_Flags`, `lib_pad`,
+  `lib_NegSize`, `lib_PosSize`, `lib_Version`, `lib_Revision`,
+  `lib_IdString`, `lib_Sum`, `lib_OpenCnt`).
+- **`struct Task`** (from `<exec/tasks.h>`) — `tc_Node`, `tc_Flags`,
+  `tc_State`, `tc_IDNestCnt`, `tc_TDNestCnt`, `tc_SigAlloc`,
+  `tc_SigWait`, `tc_SigRecvd`, `tc_SigExcept`, `tc_TrapAlloc`,
+  `tc_TrapAble`, `tc_ExceptData`, `tc_ExceptCode`, `tc_TrapData`,
+  `tc_TrapCode`, `tc_SPReg`, `tc_SPLower`, `tc_SPUpper`, `tc_Switch`,
+  `tc_Launch`, `tc_MemEntry`, `tc_UserData`. Anything kernel-private
+  (page tables, RV64 saved register tile, ASID) hangs off `tc_UserData`
+  or behind an internal sibling structure — never inside `struct Task`.
+- **`struct MsgPort`** (from `<exec/ports.h>`) — `mp_Node`, `mp_Flags`,
+  `mp_SigBit`, `mp_SigTask`, `mp_MsgList`. The CaraOS implementation
+  attaches a ring/signal Kobj to the port out-of-band; `struct MsgPort`
+  itself stays the canonical V36+ shape.
+- **`struct Message`** (from `<exec/ports.h>`) — `mn_Node`,
+  `mn_ReplyPort`, `mn_Length`. Every IPC payload begins with this
+  prefix.
+- **`struct IORequest`, `struct IOStdReq`** (from `<exec/io.h>`).
+- **`struct RastPort`, `struct BitMap`** (from `<graphics/rastport.h>`,
+  `<graphics/gfx.h>`).
+- **`struct Window`, `struct Screen`, `struct IntuiMessage`**, **`struct
+  Gadget`**, **`struct Menu`** (from `<intuition/intuition.h>` and
+  friends).
+- **`struct TagItem`** (from `<utility/tagitem.h>`).
 
-Everything else is internal and may move.
+Internal-only structures used to back these (`struct RingHeader`,
+`struct RingSlot`, `struct Kobj`, `struct HandleTable`, …) belong to
+the brand namespace and may evolve. They never appear in user-program
+headers.
 
 ---
 
@@ -646,7 +767,7 @@ Everything else is internal and may move.
        per-hart-stack slot keyed by hartid, and joins the scheduler.
     6. Allocate the bootstrap Task, attach a handle table, and start
        `guth` (the CLI) as the first Gleas. Stdin/stdout are wired to
-       the console UART through `croi.library`'s console port.
+       the console UART through `exec.library`'s console port.
 
 ### 8.2 Splanc handoff blob
 
@@ -720,7 +841,8 @@ Lives at `src/croi/fdt/` (header in `include/cara/fdt.h`). It is:
 
 - **Read-only**: never modifies the blob.
 - **Allocation-free**: callers pass any output buffers; the parser never
-  calls `Croi_Alloc`. This makes it safe to use before the heap exists.
+  calls into the kernel heap. This makes it safe to use before the heap
+  exists.
 - **MMU-free**: the API takes physical or virtual pointers indifferently
   — Splanc calls it pre-paging, Croi calls it post-paging.
 - **Big-endian aware**: FDT integers are big-endian on disk regardless of
@@ -845,40 +967,72 @@ cara-os/
 │   ├── ARCHITECTURE.md         (this file)
 │   ├── BOOT.md                 (TBD: detailed Splanc / Croi handoff)
 │   ├── IPC.md                  (TBD: ring buffer protocol details)
-│   ├── LVO.md                  (TBD: full LVO table + generation script)
+│   ├── LVO.md                  library / driver bridge: the lvo-gen model
 │   └── TOOLCHAIN.md            (TBD: clang/GCC matrix)
-├── include/
-│   └── cara/
-│       ├── fdt.h               FDT parser API (read-only, alloc-free)
-│       ├── handle.h            Handle type, error codes
-│       ├── list.h              ListNode/MinList + typeof macros
-│       ├── lvo.h               constexpr LVO numbers
-│       ├── msgport.h           Message, MsgPort, ring slot kinds
-│       ├── platform.h          struct CroiPlatform (post-FDT-parse snapshot)
-│       ├── ring.h              RingHeader + Ring_Enqueue/Dequeue
-│       └── types.h             Cara fixed-width types, attributes
+├── include/                    Two-namespace split (PRINCIPLES.md §3.1):
+│   ├── cara/                   BRAND namespace — kernel-internal only.
+│   │   ├── fdt.h               FDT parser API (read-only, alloc-free)
+│   │   ├── handle.h            Handle type, error codes
+│   │   ├── platform.h          struct CroiPlatform (post-FDT-parse snapshot)
+│   │   ├── ring.h              RingHeader + Ring_Enqueue/Dequeue (internal)
+│   │   ├── kobj.h              Kobj base, type tags
+│   │   └── types.h             Cara fixed-width types, attributes
+│   ├── exec/                   API namespace — verbatim AmigaOS V36+
+│   │   ├── lists.h             struct Node/List/MinNode/MinList, AddTail, …
+│   │   ├── memory.h            AllocMem, FreeMem, MEMF_*
+│   │   ├── ports.h             struct MsgPort/Message, PutMsg, GetMsg, …
+│   │   ├── tasks.h             struct Task, Wait, Signal, AllocSignal, …
+│   │   ├── libraries.h         struct Library, OpenLibrary, CloseLibrary, …
+│   │   ├── io.h                struct IORequest, OpenDevice, DoIO, …
+│   │   ├── nodes.h             NT_* node types
+│   │   ├── semaphores.h
+│   │   └── types.h             ULONG, UWORD, BPTR, APTR — AmigaOS-shape
+│   ├── dos/                    API namespace — `dos.library` surface
+│   ├── intuition/              API namespace — `intuition.library` surface
+│   ├── graphics/               API namespace — `graphics.library` surface
+│   │   ├── rastport.h          struct RastPort, Move, Draw, RectFill, …
+│   │   ├── gfx.h               struct BitMap, BLITTER ops
+│   │   └── …
+│   ├── utility/                API namespace — `utility.library` (V36+) tags
+│   ├── libraries/              API namespace — gadtools/asl/iffparse/etc.
+│   ├── devices/                API namespace — `*.device` surfaces
+│   └── workbench/              API namespace — icon.library, .info shapes
 ├── src/
 │   ├── splanc/                 UEFI bootstrap (splanc.efi)
-│   ├── croi/                   Kernel: scheduler, MMU, handles, IPC, syscalls
-│   │   └── fdt/                FDT parser + struct CroiPlatform population
-│   ├── logaic/                 DOS layer: volumes, locks, files, drawers
-│   ├── leargas/                Windowing: screens, windows, gadgets, events
-│   ├── clar/                   Desktop / file environment (Workbench analogue)
-│   ├── guth/                   CLI shell
+│   ├── croi/                   Kernel: scheduler, MMU, handles, IPC, syscalls,
+│   │   │                       implements `exec.library` underneath
+│   │   ├── fdt/                FDT parser + struct CroiPlatform population
+│   │   └── lib/                exec.library trampolines, LVO table
+│   ├── logaic/                 Implements `dos.library`
+│   ├── leargas/                Implements `intuition.library`
+│   ├── dath/                   Implements `graphics.library` + GPU driver glue
+│   ├── clar/                   Workbench analogue (the desktop environment)
+│   ├── guth/                   CLI shell (uses dos.library + console.device)
 │   └── libcara/                Userspace runtime stubs that resolve LVO calls
 ├── boards/
 │   └── orangepi-rv2/           Linker offsets, bring-up notes, captured DTBs
 ├── tools/
-│   ├── lvo-gen/                Generates lvo.h + library trampoline tables
+│   ├── lvo-gen/                Parses RKM autodocs → public headers
+│   │                           and library trampoline tables
 │   └── img-build/              Builds an ESP image with splanc.efi + croi.bin
 └── tests/
     ├── unit/                   Hosted-build unit tests of pure data structures
     └── boot/                   QEMU boot smoke tests
 ```
 
-`src/croi` is the only module that runs in S-mode; everything in `src/leargas`,
-`src/clar`, `src/guth`, and the `*.library` modules link against `libcara`
-and run as Gleasanna in U-mode.
+The directory tree under `include/` is the brand-vs-API split made
+concrete: `include/cara/*` is what kernel code includes; `include/exec/*`,
+`include/dos/*`, `include/intuition/*`, `include/graphics/*` etc. are
+what user programs include — and a 1992 program's
+`#include <exec/lists.h>` finds the same surface.
+
+`src/croi` is the only module that runs in S-mode; everything in
+`src/leargas`, `src/dath`, `src/logaic`, `src/clar`, `src/guth`, and the
+other library implementations link against `libcara` and run as
+Gleasanna in U-mode. The brand-namespace source-directory names
+(`logaic`/`leargas`/`dath`/etc.) describe *which CaraOS team owns the
+implementation*; the produced binary is the API-namespace library
+(`dos.library`/`intuition.library`/`graphics.library`).
 
 ---
 
@@ -904,18 +1058,40 @@ section is intentionally a sketch.
 
 ## 13. Glossary
 
-| CaraOS    | Irish meaning      | Amiga analogue         |
-|-----------|--------------------|------------------------|
-| Cara      | "friend"           | AmigaOS                |
-| Croi      | "heart"            | Exec / kernel          |
-| Logaic    | "logic"            | AmigaDOS               |
-| Leargas   | "insight, clarity" | Intuition              |
-| Clar      | "board, surface"   | Workbench              |
-| Splanc    | "flash, spark"     | Kickstart              |
-| Guth      | "voice"            | CLI / Shell            |
-| Bosca     | "box"              | Drawer                 |
-| Inntin    | "mind, intent"     | Gadget                 |
-| Gleas     | "tool, apparatus"  | Tool / executable      |
+### 13.1 Brand namespace (CaraOS-internal — see PRINCIPLES.md §3.1)
+
+These names appear in the project, source directories, the kernel
+binary, internal symbols, and prose. They never appear in the public
+API surface a user program references.
+
+| CaraOS    | Irish meaning      | What it implements                     | API library / binary it produces |
+|-----------|--------------------|----------------------------------------|----------------------------------|
+| Cara      | "friend"           | The OS itself                          | (whole product)                  |
+| Croi      | "heart"            | Microkernel, scheduler, MMU, IPC, handles | `croi.elf` + `exec.library`   |
+| Splanc    | "flash, spark"     | UEFI bootstrap                         | `splanc.efi`                     |
+| Logaic    | "logic"            | Volumes, locks, files, drawers         | `dos.library`                    |
+| Leargas   | "insight, clarity" | Windowing, IDCMP, gadgets, screens     | `intuition.library`              |
+| Dath      | "colour"           | RastPort drawing, RTG-style GPU driver | `graphics.library`               |
+| Clar      | "board, surface"   | Desktop / file environment             | (Workbench analogue Gleas)       |
+| Guth      | "voice"            | CLI shell                              | (Guth Gleas, like the original CLI) |
+| Bosca     | "box"              | Container concept (a "drawer")         | (UI vocabulary, not a library)   |
+| Inntin    | "mind, intent"     | Interactive UI element concept         | (UI vocabulary; struct Gadget)   |
+| Gleas     | "tool, apparatus"  | An executable                          | (file kind, not a library)       |
+
+A CaraOS hacker reading kernel source sees brand-namespace names
+everywhere. A user-program author including `<exec/libraries.h>` and
+calling `OpenLibrary("intuition.library", 36)` never has to know any of
+the brand names exist.
+
+### 13.2 API namespace (verbatim AmigaOS V36+)
+
+The libraries, devices, struct names, function names, and LVO offsets
+are spelled exactly as the 3rd Edition autodocs print them. No
+exhaustive enumeration here — the autodocs in `amigaos_kb_markdown/`
+are the spec. The library and device filenames CaraOS ships are
+listed in `PRINCIPLES.md §3.1`.
+
+### 13.3 General terms
 
 | Term      | Meaning |
 |-----------|---------|
@@ -943,12 +1119,15 @@ exposes them.
 3. **Stack overflow detection.** Guard pages on per-task stacks are easy;
    reporting them as `Guru Meditation` rather than a silent kill needs a
    dedicated trap path.
-4. **Hot-path syscall encoding.** `ecall` + a single register selector
-   vs. an LVO-style virtual-address jump that traps. The classic pattern
-   was just a JSR through the library base; the modern pattern is a
-   trapped syscall. We may end up with both: `Croi_Send` short-circuits
-   into a userspace ring update and only traps if the consumer needs a
-   wake.
+4. **Hot-path syscall encoding.** **Resolved (2026-05-08, see
+   `docs/LVO.md`).** Every library function is a function-pointer
+   call through its LVO table; the pointer's target picks the
+   dispatch — `local` (in-process call), `syscall` (a tiny `ecall`
+   stub), or `server` (`PutMsg` round-trip to a Gleas). `PutMsg`
+   itself is a `syscall`-flavoured `exec.library` LVO that
+   short-circuits into the producer-side ring update and only traps
+   if the consumer needs a wake — the ring primitive in §6 already
+   handles that edge.
 5. **Filesystem.** Logaic v0 will likely target FAT (since the ESP is
    already FAT and U-Boot understands it). A native CaraFS is a
    post-v0 question.
@@ -957,11 +1136,16 @@ exposes them.
    vs. global queue) is deferred to when we actually have a load to
    measure. The X1's two-cluster, 4+4 topology may push us toward
    per-cluster runqueues.
-7. **Driver model.** Devices in classic Exec were units behind
-   `OpenDevice`; that maps cleanly to Handles + Kobjs here. The open
-   question is whether drivers run as Gleasanna (U-mode + IOMMU/PMP) or
-   as Croi-linked S-mode modules. Stability argues U-mode; latency may
-   force some hot drivers into S-mode.
+7. **Driver model.** **Mechanism resolved per-LVO (2026-05-08, see
+   `docs/LVO.md`); flavour-per-LVO still a per-library design call.**
+   Devices in classic Exec were units behind `OpenDevice`; that maps
+   cleanly to Handles + Kobjs here. Each library's `.conf` declares
+   per-LVO whether the implementation is `local` (in-process),
+   `syscall` (in Croi), or `server` (a U-mode driver Gleas), and a
+   library may mix flavours freely. *Which* flavour for *which* LVO
+   is decided when each library's `.conf` is authored — stability
+   argues `server` for hardware-touching operations; latency may
+   keep specific hot paths in `syscall`.
 8. **RVV in the kernel.** Using V for `memcpy`/`memset` and page-clear
    inside Croi is attractive (X1 has it), but it grows the per-trap save
    surface unless we gate kernel V use behind explicit windows that

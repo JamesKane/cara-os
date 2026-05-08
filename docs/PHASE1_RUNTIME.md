@@ -4,6 +4,17 @@
 > (console). Pairs with `docs/ROADMAP.md` (which scopes Phase 1) and
 > `docs/ARCHITECTURE.md` (which defines the contracts every Story below
 > implements). Updated as Stories land.
+>
+> **Naming note.** Every `Croi_*`, `Dath_*`, `Page_*`, `Ring_*` symbol
+> in this document is **kernel-internal**, in the brand namespace
+> defined by `docs/PRINCIPLES.md` §3.1. Phase 1 has no userspace
+> AmigaOS trampolines yet — that work belongs to Phase 3, where these
+> internals are exposed to user programs through `exec.library` LVOs
+> (`AllocMem`, `Wait`, `Signal`, `PutMsg`, `GetMsg`, `WaitPort`,
+> `AllocSignal`, `FreeSignal`, …) at their canonical V36+ offsets.
+> The Phase 1 contracts here are the *implementations* those LVOs
+> trampoline into; they are not themselves an API user programs see,
+> and they are free to use the brand namespace.
 
 ---
 
@@ -14,7 +25,8 @@ Tier 2 (general runtime): E, F, G, I, J **shipped**; H deferred.
 Tier 3 (userspace prep): K **shipped** (full — embedded asm-section
 spawn AND parsed-ELF spawn from a separately-compiled cross binary).
 
-Phase 1 Subgoal 4 (framebuffer / dath.library core): **first cut
+Phase 1 Subgoal 4 (framebuffer / `graphics.library` foundation under
+the brand-namespace **Dath** module): **first cut
 shipped** — DathFramebuffer + draw primitives + simple-framebuffer
 FDT discovery + 8x8 bitmap font + DrawChar/DrawString. QEMU virt has
 no framebuffer node by default so the boot logs "headless boot"; the
@@ -551,7 +563,7 @@ After Tier 3 lands, Phase 1 Subgoals 4–7 begin and each gets its own
 plan document. The likely shape:
 
 - **`docs/PHASE1_FRAMEBUFFER.md`** — `simple-framebuffer` discovery
-  from FDT, CPU blitter, the `dath.library` minimum needed by Clar.
+  from FDT, CPU blitter, the `graphics.library` (Dath) minimum needed by Clar.
 - **`docs/PHASE1_USB.md`** — xHCI host driver, USB enumeration, HID
   class. Input arrives here. Many of the runtime contracts get
   exercised for the first time end-to-end (DMA, IRQs, IPC).

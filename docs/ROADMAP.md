@@ -47,7 +47,7 @@ build targets a bootable artefact.
 2. **Croi runtime.** Trap vector, paging (Sv39), ASID allocation, frame
    allocator from FDT memory map, kernel heap, scheduler with at least
    two harts running, signals, MsgPort/Ring IPC, Handle table.
-3. **Console.** Croi has a working `Croi_Print` against the X1's UART0
+3. **Console.** Croi has a working kernel-internal `Croi_Print` against the X1's UART0
    discovered from the DTB. SBI early console up to that point.
 4. **Framebuffer.** A simple framebuffer Clar can draw into. v0
    inherits whatever U-Boot set up (the FDT will expose it as a
@@ -130,26 +130,44 @@ must work; QEMU is the daily driver.
 
 > Every library and standard tool documented in the 3rd Edition AmigaOS
 > ROM Kernel Reference Manuals (the markdown set in
-> `amigaos_kb_markdown/`) has a CaraOS analogue with behaviourally
-> equivalent semantics. A representative sample of Release 2
-> application *concepts* (not binaries) — text editor, paint, file
-> manager — runs as Gleasanna and matches the spec'd behaviour on the
-> spec'd test cases.
+> `amigaos_kb_markdown/`) ships under its canonical V36+ name —
+> `exec.library`, `dos.library`, `intuition.library`,
+> `graphics.library`, etc. — with the canonical function names, struct
+> shapes, and LVO offsets, behaviourally equivalent to the spec. **A
+> well-written Release 2 application source listing builds against
+> CaraOS headers and runs as a Gleas without source edits.** A
+> representative sample of Release 2 applications (text editor, paint,
+> file manager) is rebuilt from canonical-style source and validated
+> against the spec'd test cases.
+
+> **API-namespace rule.** The libraries below are produced under their
+> verbatim AmigaOS V36+ filenames and ship the canonical function
+> names, struct names, and LVO numbers (see PRINCIPLES.md §3.1 and
+> ARCHITECTURE.md §7). The CaraOS-branded module name in parentheses
+> is the *implementation team* — Croi/Logaic/Leargas/Dath — not the
+> library a program calls. A program written for AmigaOS V36+ reaches
+> these libraries by their AmigaOS names; the brand only appears in
+> CaraOS source.
 
 **Subgoals — 1.3 baseline (carried forward intact):**
 
-1. **`croi.library`** (Exec): every documented Exec function has a
-   Croi counterpart.
-2. **`logaic.library`** (DOS): locks, packets, console handler,
-   FileLock semantics.
-3. **`leargas.library`** (Intuition): screens, windows, requesters,
-   menus, gadgets, IDCMP message types.
-4. **`dath.library`** (graphics): rastport drawing, fonts, blits,
-   sprites. The actual GPU binding is **Phase 4** work — Phase 3
-   produces the API surface and a CPU rasteriser; Phase 4 wires the
-   X1 GPU under it via the RTG-style driver model.
+1. **`exec.library`** (implemented by Croi): every documented V36+ Exec
+   function — list/memory/task/signal/port/library/device primitives —
+   exposed at its canonical LVO with its canonical signature.
+2. **`dos.library`** (implemented by Logaic): locks, packets, console
+   handler, FileLock semantics, the AmigaDOS process model.
+3. **`intuition.library`** (implemented by Leargas): screens, windows,
+   requesters, menus, gadgets, IDCMP message types.
+4. **`graphics.library`** (implemented by Dath): RastPort drawing,
+   fonts, blits, sprites, BitMap/View/ViewPort. The actual GPU binding
+   is **Phase 4** work — Phase 3 produces the canonical API surface
+   and a CPU rasteriser; Phase 4 wires the X1 GPU under it via the
+   RTG-style driver model.
 5. **Devices**: `console.device`, `input.device`, `serial.device`,
-   `timer.device` — each a Croi `KOBJ_DEVICE`.
+   `timer.device`, `keyboard.device`, `gameport.device` — each a
+   `KOBJ_DEVICE` internally, exposed via `OpenDevice` /
+   `CloseDevice` / `DoIO` / `SendIO` / `CheckIO` / `WaitIO` /
+   `AbortIO`.
 
 **Subgoals — V36 / Release 2 additions (the deltas the 3rd Edition adds):**
 
@@ -179,10 +197,14 @@ must work; QEMU is the daily driver.
 
 15. Standard tools (Gleasanna): `Ed`, `Format`, `Info`, `Status`,
     `List`, `Copy`, `Type`, `Search`, etc.
-16. **Application porting recipes**: a `docs/PORTING.md` that walks
-    an author through writing a Cara-native application using the
-    3rd Edition RKM as their reference, with the name-translation
-    rules.
+16. **Application source-build recipes**: a `docs/PORTING.md` that
+    walks an author through building a 3rd Edition RKM application
+    against CaraOS headers and demonstrates that the existing source —
+    `OpenLibrary("intuition.library", 36)`, `AllocMem`, `AddTail`,
+    `OpenScreen`, `OpenWindow`, IDCMP, …  — compiles and runs without
+    textual changes. The "porting" effort is rebuild-and-link only;
+    there is no name translation because there is no name divergence
+    (PRINCIPLES.md §3.1).
 
 **Out of scope for Phase 3:**
 
@@ -202,18 +224,19 @@ must work; QEMU is the daily driver.
 
 ## Phase 4 — GPU (RTG-flavoured driver model + the X1 GPU)
 
-**Depends on:** Phase 3's `dath.library` (the graphics API surface).
+**Depends on:** Phase 3's `graphics.library` (the verbatim AmigaOS V36+
+graphics API surface, implemented internally by the **Dath** module).
 Phase 4 does **not** invent a new graphics API; it provides an
-RTG-style driver that sits underneath `dath.library` and binds the
+RTG-style driver that sits underneath `graphics.library` and binds the
 API to the X1 GPU.
 
 **Success criterion:**
 
 > A cleanroom CaraOS GPU driver runs 2D and 3D acceleration through
-> Leargas on the X1's GPU. The driver registers with `dath.library`
-> via the RTG vector-table model adapted from the 1993 Developer
-> Conference "Retargetable Graphics Specification": it provides
-> driver entry points (`drv_LoadView` / `drv_MakeVPort` /
+> `intuition.library` on the X1's GPU. The driver registers with
+> `graphics.library` via the RTG vector-table model adapted from the
+> 1993 Developer Conference "Retargetable Graphics Specification": it
+> provides driver entry points (`drv_LoadView` / `drv_MakeVPort` /
 > `drv_VideoControl` / etc.), populates the graphics database with
 > ModeIDs the X1 actually supports, and exposes a true-colour pixel
 > type. The only third-party binary in the CaraOS image is the GPU's
@@ -221,9 +244,9 @@ API to the X1 GPU.
 > in `docs/PRINCIPLES.md`). 2D acceleration measurably outperforms
 > the Phase 1 CPU blitter on the same workload; 3D runs a non-trivial
 > demo. The composited Clar desktop sustains **1920 × 1080 at 60 Hz
-> with triple-buffered presentation** through Leargas on the RV2 —
-> see `docs/PRINCIPLES.md` §4.1, the project-level performance budget
-> this phase has to satisfy.
+> with triple-buffered presentation** through `intuition.library` on
+> the RV2 — see `docs/PRINCIPLES.md` §4.1, the project-level
+> performance budget this phase has to satisfy.
 
 ### RTG scoping (from the 1993 Conference RTG Specification)
 
@@ -238,14 +261,16 @@ for the X1 — one device, no chip set — and Phase 4 implements a
 **What CaraOS adopts from the RTG spec:**
 
 1. **Vectored driver model.** The X1 GPU driver is a set of routines
-   hooked into `dath.library`'s entry points. The driver-base pointer
-   travels in a stable kernel-side register; the `dath.library` base
-   (analogous to RTG's GfxBase in A6) is supplied by the runtime.
+   hooked into `graphics.library`'s entry points. The driver-base
+   pointer travels in a stable kernel-side register; the
+   `graphics.library` base — i.e. classic AmigaOS `GfxBase`, which
+   programs hold in `A6`-equivalent — is supplied by the runtime.
 2. **Graphics database.** ModeIDs identify (resolution × pixel-type
-   × refresh) tuples. A `Dath_AddMode(...)` API populates the
-   database from the driver at init. Apps query via
-   `Dath_BestModeID` (RTG's `BestModeID`) and iterate via
-   `Dath_NextDisplayInfo` (RTG's display-info traversal).
+   × refresh) tuples. The canonical `BestModeID()` and
+   `NextDisplayInfo()` calls from V36+ `graphics.library` query and
+   iterate it; a CaraOS-extension `AddDisplayMode(...)` (LVO past the
+   classic range, see ARCHITECTURE.md §7.2) lets the driver populate
+   the database from the driver-init path.
 3. **PixelType IDs.** RTG's 4-character pixel-type tags (`HAM`,
    `EHB`, `TRUE`, `PLUT`, `PRGB`). For Phase 4 we register **`TRUE`**
    (32-bit RGBA true-colour) as the X1's only pixel type. `HAM` /
@@ -253,9 +278,10 @@ for the X1 — one device, no chip set — and Phase 4 implements a
    compatibility but never appear on the X1 mode list.
 4. **Friend-bitmap pattern.** RTG's "friend bitmap" idiom — passing
    a skeleton bitmap to `AllocBitMap` so the allocator picks
-   device-compatible storage. We adopt this directly:
-   `Dath_AllocBitMap(width, height, friend)` consults the friend's
-   ModeID to choose the X1 GPU's tiling and stride.
+   device-compatible storage. The canonical `AllocBitMap(width,
+   height, depth, flags, friend)` from V36+ `graphics.library`
+   consults the friend's ModeID to choose the X1 GPU's tiling and
+   stride.
 5. **Driver entry-point subset** sufficient for Phase 4:
    `drv_LoadView`, `drv_UnloadView`, `drv_MakeVPort`, `drv_MakeView`,
    `drv_ObtainDBufInfo`, `drv_ReleaseDBufInfo`, `drv_VideoControl`
@@ -272,8 +298,13 @@ for the X1 — one device, no chip set — and Phase 4 implements a
 - **`MonitorSpec` scan-rate-subcode bit packing.** RTG packed
   device-class / scan-rate / unit into a 16-bit ModeID for the
   classic chip-set generations. The X1 has one display engine; our
-  ModeID space is laid out CaraOS-natively. Format documented in
-  `include/cara/dath/modeid.h` (TBD).
+  ModeID space is laid out CaraOS-natively (the implementation lives
+  under the brand-namespace **Dath** module). Programs see canonical
+  V36+ ModeID values from `<graphics/displayinfo.h>`; the bit-pack
+  layout under those values differs from classic AGA, which is
+  invisible to user code that uses `BestModeID`/`NextDisplayInfo`
+  rather than constructing ModeIDs by hand. Format documented in
+  `src/dath/modeid.h` (TBD; brand-namespace internal).
 - **Conditional ECS / AA / AAA codepaths.** Irrelevant on RV2.
 - **Multi-driver coexistence.** RTG envisaged native chip set + one
   or more third-party graphics boards alive simultaneously. Phase 4
@@ -286,19 +317,20 @@ for the X1 — one device, no chip set — and Phase 4 implements a
    DTS exposes `dpu_reserved` for the DPU; the 3D GPU is separate
    and needs locating in the SoC reference manual (TBD task).
 2. **Cleanroom kernel-mode-setting driver.** Mode set, framebuffer
-   ownership, page-flipping. Hooked into `dath.library` via the
+   ownership, page-flipping. Hooked into `graphics.library` via the
    RTG-style vector table above.
 3. **Command-stream submission.** Ring buffer of GPU commands,
    fences, exception handling.
 4. **The microcode blob.** Tracked in `firmware/x1-gpu/` with
    provenance and SHA-256 in the directory README. Loaded at GPU
    init only; never modified at runtime.
-5. **`dath.library` RTG glue.** Implements `Dath_AddMode`,
-   `Dath_BestModeID`, friend-aware `Dath_AllocBitMap`, and the
-   vector-table dispatch pattern.
-6. **Leargas integration.** Hardware-accelerated rastport ops where
-   the GPU can do them, CPU fallback otherwise. The Phase 1 CPU
-   blitter remains as the fallback path.
+5. **`graphics.library` RTG glue.** Implements canonical
+   `AddDisplayMode` / `BestModeID` / friend-aware `AllocBitMap` and
+   the RTG-style vector-table dispatch pattern. Implementation lives
+   in `src/dath/`.
+6. **`intuition.library` integration.** Hardware-accelerated RastPort
+   ops where the GPU can do them, CPU fallback otherwise. The Phase 1
+   CPU blitter remains as the fallback path.
 
 ### Out of scope for Phase 4
 
@@ -613,7 +645,8 @@ binaries call into). May force some additional 2.x library work
 5. **Library call remapping.** When 68k code executes the canonical
    `JSR -nnn(A6)` library-call form, the translator recognises the
    LVO and emits a direct RV64 call to the corresponding CaraOS
-   Phase 3 entry point — `Croi_Alloc`, `Logaic_Open`, etc. The LVO
+   Phase 3 entry point — `AllocMem` (exec.library), `Open` (dos.library),
+   etc. The LVO
    map of every CaraOS library is declarative input to the
    translator. **This is the technically interesting content of
    Phase 9.**
