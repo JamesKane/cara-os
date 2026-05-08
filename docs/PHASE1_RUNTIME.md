@@ -593,27 +593,31 @@ the line appears in the kernel log ring.
 
 After Tier 3 landed, two strands run in parallel:
 
-**Phase 1 Subgoals 4–7** — kept in this doc family because they
-extend Phase 1's runtime substrate:
+**Phase 1 Subgoals 4–7** — extend Phase 1's runtime substrate.
+All four plan docs now exist:
 
-- **`docs/PHASE1_FRAMEBUFFER.md`** — `simple-framebuffer` discovery
-  from FDT, CPU blitter, the `graphics.library` (Dath) minimum needed
-  by Clar. *First cut already shipped per the Status section above.*
-- **`docs/PHASE1_USB.md`** — xHCI host driver, USB enumeration, HID
-  class. Input arrives here. Many of the runtime contracts get
-  exercised for the first time end-to-end (DMA, IRQs, IPC).
-- **`docs/PHASE1_LEARGAS.md`** — Intuition-equivalent: pointer,
-  windows, IDCMP, gadgets.
-- **`docs/PHASE1_CLAR.md`** — Workbench-equivalent: screens, drawer,
-  one Inntin (gadget) text input.
+- **`docs/PHASE1_FRAMEBUFFER.md`** *(Subgoal 4 — first cut shipped)*
+  — `simple-framebuffer` discovery from FDT, CPU blitter, the Dath
+  rasteriser Clar will draw through.
+- **`docs/PHASE1_USB.md`** *(Subgoal 5 — not started)* —
+  virtio-input under QEMU first (Tier 1, smallest path to events
+  for Leargas/Clar dev), then xHCI on real RV2 silicon, then HID
+  class driver as a Gleas.
+- **`docs/PHASE1_LEARGAS.md`** *(Subgoal 6 — not started)* —
+  pointer, screen, window, focus, keyboard routing, string gadget.
+  Phase 1 minimum substrate; Phase 3's `intuition.library` wraps
+  this with the V36+ LVO surface.
+- **`docs/PHASE1_CLAR.md`** *(Subgoal 7 — not started)* —
+  Workbench analogue: backdrop screen, one Bosca (drawer), one
+  Inntin (text-input gadget). When this works under QEMU with
+  virtio-input, Phase 1's QEMU equivalent ships.
 
 **Phase 3 (V36+ AmigaOS API parity)** — kicked off with exec.library
 per the Status section above. Subsequent libraries each land via the
 same lvo-gen pipeline and don't need a per-library plan document; the
 shared design is `docs/LVO.md`. Roadmap order is roughly utility →
 intuition → graphics → dos → gadtools → asl → iffparse → the rest of
-ROADMAP.md §Phase 3.
-
-Each PHASE1_* doc will be written when the previous Tier ships, so
-the requirements are grounded in the actual runtime rather than
-guessed up front.
+ROADMAP.md §Phase 3. Subgoal 6 (Leargas) and Phase 3's
+`intuition.library` are the same milestone wearing two hats — Leargas
+is the brand-namespace impl, intuition.library is its V36+ public
+face.
