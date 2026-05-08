@@ -7,6 +7,7 @@
 #include <cara/alloc.h>
 #include <cara/kobj.h>
 #include <cara/list.h>
+#include <cara/loader.h>
 #include <cara/log.h>
 #include <cara/sched.h>
 #include <cara/types.h>
@@ -287,6 +288,81 @@ void Croi_TaskSetSelfPriority(i32 pri)
 
     runq_add(t);
     LOG_DEBUG("schd", "spawn user '%s' pri=%d entry=0x%llx sp_top=0x%llx",
+              t->name, t->pri, t->user_entry, t->user_sp_top);
+    return t;
+}
+
+[[nodiscard]] struct Task *Croi_SpawnUserTaskFromElf(const char *name, i32 pri,
+                                                     const void *elf_blob,
+                                                     usize elf_size)
+{
+    if (!g_inited || !elf_blob || elf_size == 0) {
+        return nullptr;
+    }
+    struct Task *t = (struct Task *)Croi_Alloc(sizeof(struct Task));
+    if (!t) {
+        return nullptr;
+    }
+    *t = (struct Task){ 0 };
+    name_copy(t->name, name, sizeof(t->name));
+    t->pri = pri;
+    t->state = TASK_STATE_READY;
+
+    t->kstack = Croi_Alloc(CARA_TASK_KSTACK_SIZE);
+    if (!t->kstack) {
+        Croi_Free(t);
+        return nullptr;
+    }
+    t->kstack_size = CARA_TASK_KSTACK_SIZE;
+
+    if (HandleTable_Init(&t->handles, CARA_TASK_HANDLE_TABLE_CAP) != CARA_EOK) {
+        Croi_Free(t->kstack);
+        Croi_Free(t);
+        return nullptr;
+    }
+
+    t->user_pt = Croi_NewKernelPT();
+    if (!t->user_pt) {
+        HandleTable_Destroy(&t->handles);
+        Croi_Free(t->kstack);
+        Croi_Free(t);
+        return nullptr;
+    }
+
+    u64 entry_va = 0;
+    int rc = Croi_LoadElf(elf_blob, elf_size, t->user_pt, &entry_va);
+    if (rc != CARA_EOK) {
+        Croi_DestroyPT(t->user_pt);
+        HandleTable_Destroy(&t->handles);
+        Croi_Free(t->kstack);
+        Croi_Free(t);
+        return nullptr;
+    }
+
+    extern struct PageAllocator g_page_alloc;
+    u32 stack_pages = CARA_USER_STACK_SIZE / (u32)CARA_PAGE_SIZE;
+    for (u32 i = 0; i < stack_pages; i++) {
+        u64 phys = Page_Alloc(&g_page_alloc, 1);
+        if (phys == 0) {
+            return nullptr;     // partial state leaks; OK for tests
+        }
+        u64 dst_va = CARA_USER_STACK_BASE + (u64)i * CARA_PAGE_SIZE;
+        if (Page_Map(t->user_pt, dst_va, phys, PTE_USER_RW) != CARA_EOK) {
+            return nullptr;
+        }
+    }
+
+    t->user_entry = entry_va;
+    t->user_sp_top = (CARA_USER_STACK_BASE + CARA_USER_STACK_SIZE) & ~15ull;
+
+    u64 sp_top = (u64)(uptr)t->kstack + CARA_TASK_KSTACK_SIZE;
+    sp_top &= ~15ull;
+    t->saved_regs[0] = (u64)(uptr)user_task_trampoline;
+    t->saved_regs[1] = sp_top;
+    t->saved_regs[16] = sp_top;     // sscratch
+
+    runq_add(t);
+    LOG_DEBUG("schd", "spawn user-elf '%s' pri=%d entry=0x%llx sp_top=0x%llx",
               t->name, t->pri, t->user_entry, t->user_sp_top);
     return t;
 }

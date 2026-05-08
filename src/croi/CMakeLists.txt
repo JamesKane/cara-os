@@ -5,10 +5,27 @@
 # cara_kernel_flags.
 set(_croi_lds "${CMAKE_CURRENT_SOURCE_DIR}/croi.lds")
 
+set(_user_blob_s "${CMAKE_CURRENT_BINARY_DIR}/user_blob.S")
+set(_userhello_elf "${CMAKE_BINARY_DIR}/src/userland/userhello.elf")
+file(WRITE ${_user_blob_s}
+"// Auto-generated. Embeds userhello.elf into croi.elf .user_elf section.
+.section .user_elf, \"a\"
+.balign 8
+.globl __userhello_elf_start
+.globl __userhello_elf_end
+__userhello_elf_start:
+.incbin \"${_userhello_elf}\"
+__userhello_elf_end:
+")
+set_source_files_properties(${_user_blob_s} PROPERTIES
+    OBJECT_DEPENDS ${_userhello_elf}
+)
+
 add_executable(croi
     _start.S
     trap_entry.S
     user_program.S
+    ${_user_blob_s}
     entry.c
     trap.c
     time.c
@@ -19,6 +36,7 @@ add_executable(croi
     ns16550.c
     platform_init.c
 )
+add_dependencies(croi userhello)
 target_link_libraries(croi PRIVATE
     cara_kernel_flags
     cara_headers
@@ -29,6 +47,7 @@ target_link_libraries(croi PRIVATE
     cara_sched
     cara_ipc
     cara_syscall
+    cara_loader
     -Wl,--whole-archive
     cara_kernel_tests
     -Wl,--no-whole-archive

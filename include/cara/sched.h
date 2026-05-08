@@ -81,6 +81,15 @@ void Sched_Init(void);
                                               usize user_text_size,
                                               u64 user_entry_va);
 
+// Spawn a U-mode task from a static RISC-V ELF64 blob. The loader
+// walks PT_LOAD entries, allocates user pages, copies file bytes,
+// zero-fills the .bss tail, and maps each page with PTE_USER_ flags
+// derived from p_flags. The user stack is allocated at the same fixed
+// VA as Croi_SpawnUserTask (CARA_USER_STACK_BASE).
+[[nodiscard]] struct Task *Croi_SpawnUserTaskFromElf(const char *name, i32 pri,
+                                                     const void *elf_blob,
+                                                     usize elf_size);
+
 // Yield the CPU. Picks the highest-priority READY task from the run
 // queue; if every other ready task has lower priority than the
 // current one, no switch happens and the call returns immediately.

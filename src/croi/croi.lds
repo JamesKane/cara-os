@@ -86,6 +86,16 @@ SECTIONS
         __user_text_end = .;
     } > RAM_VIRT AT > RAM_PHYS :rodata
 
+    /* Embedded U-mode ELF. The build generates a small .S that
+     * .incbin's the userhello.elf cross-build artefact into this
+     * section; Croi_SpawnUserTaskFromElf parses these bytes via the
+     * loader and maps PT_LOAD segments into a fresh user PT. */
+    .user_elf : ALIGN(8) {
+        __user_elf_start = .;
+        KEEP(*(.user_elf))
+        __user_elf_end = .;
+    } > RAM_VIRT AT > RAM_PHYS :rodata
+
     /* Literal pool of kernel-image extents. The pre-MMU low-phys
      * symbols can't be referenced from upper-half code via PC-relative
      * (39-bit gap exceeds auipc+addi); we materialise their values into

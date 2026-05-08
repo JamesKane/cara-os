@@ -10,6 +10,6 @@ add_library(cara_sched STATIC
     user_trampoline.c
 )
 target_link_libraries(cara_sched
-    PUBLIC cara_headers cara_kobj
+    PUBLIC cara_headers cara_kobj cara_loader
     PRIVATE cara_kernel_flags
 )
