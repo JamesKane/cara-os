@@ -229,4 +229,35 @@ KERNEL_TEST(dath_smoke)
     if (g_buf[6 * W + 7] != 0xFF000000u) {
         TEST_FAIL(ctx, "DrawRect: interior leaked");
     }
+
+    // 15. Lowercase + digit coverage. Render '0' (font row 0 = 0x70 =
+    //     01110000): cols 1..3 set, others clear.
+    Dath_Clear(&tfb, Dath_RGB(0, 0, 0));
+    Dath_DrawChar(&tfb, &dath_font_8x8, 0, 0, '0', white,
+                  Dath_RGB(0, 0, 0));
+    static const u8 zero_row0[8] = { 0, 1, 1, 1, 0, 0, 0, 0 };
+    for (u32 x = 0; x < 8; x++) {
+        u32 expected = zero_row0[x] ? 0xFFFFFFFFu : 0xFF000000u;
+        if (g_text_buf[0 * 16 + x] != expected) {
+            TEST_FAIL(ctx, "DrawChar '0' row 0 mismatch");
+        }
+    }
+    // 'a' has empty rows 0 and 1 (the cap-line gap), body in rows 2..6.
+    Dath_Clear(&tfb, Dath_RGB(0, 0, 0));
+    Dath_DrawChar(&tfb, &dath_font_8x8, 0, 0, 'a', white,
+                  Dath_RGB(0, 0, 0));
+    for (u32 x = 0; x < 8; x++) {
+        if (g_text_buf[0 * 16 + x] != 0xFF000000u
+            || g_text_buf[1 * 16 + x] != 0xFF000000u) {
+            TEST_FAIL(ctx, "DrawChar 'a' rows 0..1 should be background");
+        }
+    }
+    // Row 2 of 'a' = 0x70 = 01110000.
+    static const u8 a_row2[8] = { 0, 1, 1, 1, 0, 0, 0, 0 };
+    for (u32 x = 0; x < 8; x++) {
+        u32 expected = a_row2[x] ? 0xFFFFFFFFu : 0xFF000000u;
+        if (g_text_buf[2 * 16 + x] != expected) {
+            TEST_FAIL(ctx, "DrawChar 'a' row 2 mismatch");
+        }
+    }
 }
