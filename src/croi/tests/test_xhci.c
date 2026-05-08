@@ -190,6 +190,40 @@ KERNEL_TEST(xhci_smoke)
         }
     }
 
+    // UC.5 assertions: every HID-dispatched interface ran the
+    // Configure Endpoint Command and has a per-EP Transfer Ring; the
+    // owning slot transitioned to xHCI Configured state (3).
+    TEST_ASSERT(ctx, g_xhci.n_xhci_configured_interfaces >= 2,
+                "expected >= 2 xHCI-configured HID interrupt-IN endpoints");
+    for (u32 sid = 1; sid <= CARA_XHCI_MAX_SLOTS; sid++) {
+        if (!g_xhci.slots[sid].in_use) {
+            continue;
+        }
+        bool any_hid = false;
+        for (u32 j = 0; j < g_xhci.slots[sid].n_interfaces; j++) {
+            const auto iface = &g_xhci.slots[sid].interfaces[j];
+            if (iface->dispatch != XHCI_HID_KEYBOARD
+                && iface->dispatch != XHCI_HID_MOUSE) {
+                continue;
+            }
+            any_hid = true;
+            TEST_ASSERT(ctx, iface->ep_xhci_configured,
+                        "HID interface failed Configure Endpoint Command");
+            TEST_ASSERT(ctx, iface->int_ep_dci >= 2,
+                        "HID interface DCI < 2 (collides with EP0/Slot)");
+            TEST_ASSERT(ctx, iface->int_ring_phys != 0,
+                        "HID interface int-IN ring not allocated");
+            TEST_ASSERT(ctx, iface->int_ring != nullptr,
+                        "HID interface int-IN ring kva null");
+        }
+        if (any_hid) {
+            TEST_ASSERT(ctx,
+                        g_xhci.slots[sid].slot_state
+                            == XHCI_SLOT_STATE_CONFIGURED,
+                        "HID slot did not transition to Configured");
+        }
+    }
+
     LOG_INFO("xhcsm",
              "qemu-xhci at %x: v0x%x slots=%u ports=%u connected=%u addressed=%u described=%u configured=%u usbcfg=%u",
              ((u32)g_xhci.pci_bus << 16) | ((u32)g_xhci.pci_device << 8)

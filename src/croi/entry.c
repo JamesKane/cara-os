@@ -336,6 +336,14 @@ static void console_putc(char c)
                                             LOG_WARN("xhci",
                                                      "DispatchInterfaces failed: %d",
                                                      dr);
+                                        } else {
+                                            int er = Croi_Xhci_ConfigureHidInterrupts(
+                                                &g_xhci);
+                                            if (er != CARA_EOK) {
+                                                LOG_WARN("xhci",
+                                                         "ConfigureHidInterrupts failed: %d",
+                                                         er);
+                                            }
                                         }
                                     }
                                 }

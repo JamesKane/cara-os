@@ -42,20 +42,28 @@ distinct states.
 parsed interface into `XhciInterfaceDispatch`
 (NONE/KEYBOARD/MOUSE/HID-other/UNSUPPORTED). HID/Boot/Keyboard and
 HID/Boot/Mouse are tagged as eligible for the (Tier 3) HID Gleas;
-non-HID classes log "unsupported in Phase 1". Under QEMU the
-dispatcher logs "slot=1 dispatch=HID/Boot/Keyboard" and "slot=2
-dispatch=HID/Boot/Mouse" with totals `HID keyboards=1 HID mice=1`.
+non-HID classes log "unsupported in Phase 1".
+
+**UC.5 shipped.** `Croi_Xhci_ConfigureHidInterrupts` walks every
+HID-dispatched interface, allocates a per-endpoint interrupt-IN
+Transfer Ring (with a Link TRB at the tail), builds an Input
+Context (Add Slot + Add EP_DCI; Slot Context with Context Entries
+bumped to the new DCI; EP Context type=INTERRUPT_IN with mps,
+CErr=3, speed-encoded Interval, TR Dequeue Pointer with DCS=1),
+and issues the Configure Endpoint Command via
+`Croi_Xhci_ConfigureEndpoint`. Both QEMU devices transition Slot
+State Addressed (2) → Configured (3). The interrupt-IN rings sit
+ready at known kernel-VA + physical addresses for the eventual HID
+Gleas to enqueue Normal IN TRBs onto.
 
 UB.6/UB.7 substrate (TRB ring helpers, polling event-ring consumer)
 landed alongside UB.5. Interrupt-driven event handling is still
 deferred — Phase 1 polls.
 
 Still to ship before Tier 2 exits:
-- UC.5 — Configure Endpoint Command for each dispatch-eligible
-  HID interrupt-IN endpoint, building the Input Context off the
-  parsed endpoint descriptor and feeding it to
-  `Croi_Xhci_ConfigureEndpoint`.
 - UC.6 — `usb_enum_smoke` extension covering the configuration tree.
+  (`xhci_smoke` already asserts most of the same invariants; UC.6
+  formalises a separate Tier 2 test or folds into the existing one.)
 
 Still deferred from Tier 1:
 - UB.7 done-for-real: interrupter wired up so we don't busy-poll.

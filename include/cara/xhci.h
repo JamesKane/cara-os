@@ -245,10 +245,12 @@ struct PciInventory;
 //   ep[3]  TR Dequeue Pointer Hi
 //   ep[4]  Average TRB Length[15:0] | Max ESIT Payload Lo[31:16]
 
+#define XHCI_EP_CTX_DW0_INTERVAL_SHIFT      16
 #define XHCI_EP_CTX_DW1_CERR_SHIFT          1
 #define XHCI_EP_CTX_DW1_EPTYPE_SHIFT        3
 #define XHCI_EP_CTX_DW1_MAXPKT_SHIFT        16
 #define XHCI_EP_CTX_DW2_DCS                 (1u << 0)
+#define XHCI_EP_CTX_DW4_AVGTRB_LEN_SHIFT    0
 
 // EP Type values (xHCI 1.2 §6.2.3, Table 6-9). Phase 1 uses CONTROL
 // (bidirectional) for EP0 and INTERRUPT_IN for HID interrupt-IN.
@@ -443,6 +445,16 @@ struct XhciController {
             u8   ep_interval;
             // UC.4 dispatch decision — set by Croi_Xhci_DispatchInterfaces.
             XhciInterfaceDispatch dispatch;
+            // UC.5: xHCI Endpoint Context state. Populated by
+            // Croi_Xhci_ConfigureHidInterrupts when the interface is
+            // dispatch-eligible (HID/Boot keyboard or mouse).
+            bool          ep_xhci_configured;
+            u8            int_ep_dci;        // DCI = 2*ep_num + (in?1:0)
+            u64           int_ring_phys;
+            volatile u32 *int_ring;
+            u32           int_ring_size_trbs;
+            u32           int_ring_enqueue_idx;
+            bool          int_ring_cycle;
         } interfaces[CARA_XHCI_MAX_INTERFACES_PER_SLOT];
         u8 n_interfaces;
         // True after a successful USB SET_CONFIGURATION over EP0 (UC.3).
@@ -458,6 +470,10 @@ struct XhciController {
     // UC.4 totals across all slots' interfaces.
     u32 n_hid_keyboards;                // boot keyboards eligible for HID Gleas
     u32 n_hid_mice;                     // boot mice eligible for HID Gleas
+    // UC.5: count of HID interrupt-IN endpoints that successfully
+    // completed the Configure Endpoint Command and have a transfer
+    // ring ready for interrupt-IN reads.
+    u32 n_xhci_configured_interfaces;
 };
 
 // Discover and reset the xHCI controller behind `func_index` in
@@ -576,5 +592,14 @@ struct UsbDeviceDescriptor;
 // flags non-HID classes as "unsupported in Phase 1". Returns
 // CARA_EOK; non-HID interfaces are ignored, not an error condition.
 [[nodiscard]] int Croi_Xhci_DispatchInterfaces(struct XhciController *c);
+
+// UC.5: for each HID-dispatched interface that hasn't yet been
+// xHCI-configured, allocate an interrupt-IN transfer ring, build an
+// Input Context (Add Slot + Add EP_DCI) describing the new endpoint,
+// and issue a Configure Endpoint Command via Croi_Xhci_ConfigureEndpoint.
+// On success the slot's xHCI Slot State transitions Addressed →
+// Configured and the interface's int_ring_* fields point at a TRB ring
+// the (eventual) HID Gleas will enqueue Normal IN TRBs onto.
+[[nodiscard]] int Croi_Xhci_ConfigureHidInterrupts(struct XhciController *c);
 
 #endif
