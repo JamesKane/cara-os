@@ -21,26 +21,31 @@ runs Enable Slot + Address Device for each. Both `usb-kbd` and
 `Croi_Xhci_ControlTransfer` builds Setup / Data / Status TRBs on the
 per-slot EP0 transfer ring, rings the slot doorbell at DCI=1, and
 polls the event ring for the matching Transfer Event. Wrapped as
-`Croi_Xhci_GetDeviceDescriptor` for the canonical 18-byte
-GET_DESCRIPTOR(DEVICE) read. After AddressConnectedDevices, every
-addressed slot has its standard Device Descriptor cached in
-`c->slots[].device_descriptor`; under QEMU both attached devices
-identify as VID 0x0627 PID 0x0001 (interface-defined class), matching
-QEMU's defaults for usb-kbd/usb-mouse.
+`Croi_Xhci_GetDeviceDescriptor` for the 18-byte GET_DESCRIPTOR(DEVICE)
+read.
+
+**UC.2 shipped.** `Croi_Xhci_GetConfigurationDescriptor` does the
+canonical short-then-full read pair: 9 bytes for `wTotalLength`,
+then a full read of the contiguous configuration tree. The walker
+records every Interface descriptor and the first interrupt-IN
+Endpoint under each into `c->slots[].interfaces[]`. Under QEMU we
+correctly identify slot 1 as HID/Boot/Keyboard (interface class
+3/1/1, EP 0x81 mps=8) and slot 2 as HID/Boot/Mouse (3/1/2, EP 0x81
+mps=4). The cached configuration blob is preserved for the eventual
+Tier 3 HID Gleas to re-walk if it needs the HID Report descriptor.
 
 UB.6/UB.7 substrate (TRB ring helpers, polling event-ring consumer)
-landed as internal substrate alongside UB.5. Interrupt-driven event
-handling is still deferred — Phase 1 polls.
+landed alongside UB.5. Interrupt-driven event handling is still
+deferred — Phase 1 polls.
 
 Still to ship before Tier 2 exits:
-- UC.2 — GET_DESCRIPTOR(Configuration): short-read for total length,
-  then full read pulling the configuration + interfaces + endpoints
-  + HID descriptor tree in one buffer.
-- UC.3 — SET_CONFIGURATION (always selects index 0 for Phase 1).
-- UC.4 — Interface dispatch by class code.
+- UC.3 — SET_CONFIGURATION (always selects bConfigurationValue from
+  the parsed cache; usually 1).
+- UC.4 — Interface dispatch by class code (HID → HID class driver;
+  mass-storage / audio / etc. logged as unsupported in Phase 1).
 - UC.5 — Configure Endpoint Command for the HID interrupt-IN
-  endpoint, riding on the existing `Croi_Xhci_ConfigureEndpoint`
-  primitive.
+  endpoint, building the Input Context off the parsed endpoint
+  descriptor and feeding it to `Croi_Xhci_ConfigureEndpoint`.
 - UC.6 — `usb_enum_smoke` extension covering the configuration tree.
 
 Still deferred from Tier 1:

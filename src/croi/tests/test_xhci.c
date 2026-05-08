@@ -107,8 +107,53 @@ KERNEL_TEST(xhci_smoke)
                     "device EP0 bMaxPacketSize0 not in {8,16,32,64}");
     }
 
+    // UC.2 assertions: every described slot has a parsed configuration
+    // with at least one HID interface; collectively across the two
+    // attached devices we should see both keyboard (protocol=1) and
+    // mouse (protocol=2) HID/Boot interfaces, each carrying an
+    // interrupt-IN endpoint.
+    TEST_ASSERT(ctx, g_xhci.n_configured_slots >= 2,
+                "expected >= 2 slots with configurations parsed");
+    bool seen_kbd = false, seen_mouse = false;
+    for (u32 sid = 1; sid <= CARA_XHCI_MAX_SLOTS; sid++) {
+        if (!g_xhci.slots[sid].in_use) {
+            continue;
+        }
+        TEST_ASSERT(ctx, g_xhci.slots[sid].configuration_descriptor.valid,
+                    "in-use slot missing configuration descriptor");
+        TEST_ASSERT(ctx,
+                    g_xhci.slots[sid].configuration_descriptor.bConfigurationValue
+                        != 0,
+                    "configuration value not parsed");
+        TEST_ASSERT(ctx, g_xhci.slots[sid].n_interfaces >= 1,
+                    "no interfaces parsed for in-use slot");
+        for (u32 j = 0; j < g_xhci.slots[sid].n_interfaces; j++) {
+            const auto iface = &g_xhci.slots[sid].interfaces[j];
+            if (iface->bInterfaceClass != USB_CLASS_HID) {
+                continue;
+            }
+            if (iface->bInterfaceSubClass != USB_HID_SUBCLASS_BOOT) {
+                continue;
+            }
+            TEST_ASSERT(ctx, iface->ep_present,
+                        "HID interface has no interrupt-IN endpoint");
+            TEST_ASSERT(ctx,
+                        (iface->ep_address & USB_EP_DIR_IN) != 0,
+                        "HID interrupt endpoint not IN-direction");
+            if (iface->bInterfaceProtocol == USB_HID_PROTOCOL_KEYBOARD) {
+                seen_kbd = true;
+            } else if (iface->bInterfaceProtocol == USB_HID_PROTOCOL_MOUSE) {
+                seen_mouse = true;
+            }
+        }
+    }
+    TEST_ASSERT(ctx, seen_kbd,
+                "no HID/Boot/Keyboard interface found across all slots");
+    TEST_ASSERT(ctx, seen_mouse,
+                "no HID/Boot/Mouse interface found across all slots");
+
     LOG_INFO("xhcsm",
-             "qemu-xhci at %x: v0x%x slots=%u ports=%u connected=%u addressed=%u described=%u",
+             "qemu-xhci at %x: v0x%x slots=%u ports=%u connected=%u addressed=%u described=%u configured=%u",
              ((u32)g_xhci.pci_bus << 16) | ((u32)g_xhci.pci_device << 8)
                  | g_xhci.pci_function,
              (unsigned)g_xhci.hci_version,
@@ -116,5 +161,6 @@ KERNEL_TEST(xhci_smoke)
              (unsigned)g_xhci.max_ports,
              (unsigned)g_xhci.n_connected_ports,
              (unsigned)g_xhci.n_addressed_slots,
-             (unsigned)g_xhci.n_described_slots);
+             (unsigned)g_xhci.n_described_slots,
+             (unsigned)g_xhci.n_configured_slots);
 }

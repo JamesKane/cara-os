@@ -296,6 +296,16 @@ struct PciInventory;
 
 #define CARA_XHCI_MAX_SLOTS                 32
 
+// Phase 1 cap: tracked interfaces per device. usb-kbd / usb-mouse
+// each have exactly 1; allowing 4 covers composite devices like
+// keyboard-with-trackpad without burning storage.
+#define CARA_XHCI_MAX_INTERFACES_PER_SLOT   4
+
+// Phase 1 cap: bytes of configuration tree we keep cached per slot.
+// usb-kbd is 34 bytes, usb-mouse 34 bytes; 256 covers a rich
+// composite HID device or a small UVC class descriptor.
+#define CARA_XHCI_MAX_CONFIG_BYTES          256
+
 
 struct XhciController {
     // PCI identity.
@@ -393,9 +403,39 @@ struct XhciController {
             bool valid;
             u8   raw[18];               // exact 18-byte device descriptor
         } device_descriptor;
+        // Cached configuration tree — populated by Croi_Xhci_GetConfigurationDescriptor
+        // (UC.2). `raw` holds the contiguous (config + interfaces + endpoints + HID)
+        // descriptor blob exactly as the device returned it; `length` is the
+        // controller-reported transfer length (≤ wTotalLength).
+        struct {
+            bool valid;
+            u8   bConfigurationValue;   // for SET_CONFIGURATION (UC.3)
+            u16  length;                // bytes used in raw[]
+            u8   raw[CARA_XHCI_MAX_CONFIG_BYTES];
+        } configuration_descriptor;
+        // Parsed per-interface metadata. Populated alongside the
+        // configuration descriptor above. For each interface we record
+        // the class triple plus the *first* interrupt-IN endpoint we
+        // saw under it — that's all UC.5 / Tier 3 HID needs.
+        struct {
+            bool valid;
+            u8   bInterfaceNumber;
+            u8   bAlternateSetting;
+            u8   bInterfaceClass;
+            u8   bInterfaceSubClass;
+            u8   bInterfaceProtocol;
+            // Interrupt-IN endpoint discovered under this interface.
+            // ep_present = false if none was found.
+            bool ep_present;
+            u8   ep_address;            // raw bEndpointAddress (incl. dir bit)
+            u16  ep_max_packet;
+            u8   ep_interval;
+        } interfaces[CARA_XHCI_MAX_INTERFACES_PER_SLOT];
+        u8 n_interfaces;
     } slots[CARA_XHCI_MAX_SLOTS + 1];   // index 0 unused (slot IDs are 1-based)
     u32 n_addressed_slots;
     u32 n_described_slots;              // count of slots whose dev desc was read
+    u32 n_configured_slots;             // count of slots whose config was read+parsed
 };
 
 // Discover and reset the xHCI controller behind `func_index` in
@@ -481,5 +521,18 @@ struct UsbDeviceDescriptor;
 // For each in_use slot that hasn't yet had its device descriptor read,
 // run Croi_Xhci_GetDeviceDescriptor. Updates c->n_described_slots.
 [[nodiscard]] int Croi_Xhci_ReadDescriptors(struct XhciController *c);
+
+// UC.2: read configuration descriptor index 0 for slot `slot_id`,
+// short-read first to capture wTotalLength, then full read into the
+// per-slot dma_buf. Caches the contiguous descriptor blob in
+// c->slots[slot_id].configuration_descriptor and parses interfaces +
+// their first interrupt-IN endpoint into c->slots[slot_id].interfaces[].
+// Returns CARA_EOK if both reads complete with CC=SUCCESS.
+[[nodiscard]] int Croi_Xhci_GetConfigurationDescriptor(
+    struct XhciController *c, u8 slot_id);
+
+// For each described slot that hasn't yet had its configuration read,
+// run Croi_Xhci_GetConfigurationDescriptor. Updates n_configured_slots.
+[[nodiscard]] int Croi_Xhci_ReadConfigurations(struct XhciController *c);
 
 #endif

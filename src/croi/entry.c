@@ -317,6 +317,13 @@ static void console_putc(char c)
                             if (drc != CARA_EOK) {
                                 LOG_WARN("xhci",
                                          "ReadDescriptors failed: %d", drc);
+                            } else {
+                                int crc = Croi_Xhci_ReadConfigurations(&g_xhci);
+                                if (crc != CARA_EOK) {
+                                    LOG_WARN("xhci",
+                                             "ReadConfigurations failed: %d",
+                                             crc);
+                                }
                             }
                         }
                     }
