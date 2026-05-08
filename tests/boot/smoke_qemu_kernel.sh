@@ -26,9 +26,17 @@ trap 'rm -f "${LOG}"' EXIT
 
 # 8s ought to be plenty for a single-hart hello-world; the kernel WFIs
 # after printing so qemu won't exit on its own — we kill it via timeout.
-timeout --foreground -s TERM 8 "${QEMU}" \
+# -device qemu-xhci attaches a real xHCI 1.0 controller via PCIe so
+# the kernel's PCIe enumeration (Croi_Pci_Init) discovers it; usb-kbd
+# and usb-mouse plug into that controller and produce HID events
+# once the xHCI driver path lands. Boot timeout bumped to give the
+# scheduler / test runner room when more devices show up.
+timeout --foreground -s TERM 10 "${QEMU}" \
     -M virt -m 256 -nographic -bios default \
     -kernel "${KERNEL}" \
+    -device qemu-xhci \
+    -device usb-kbd \
+    -device usb-mouse \
     > "${LOG}" 2>&1 || true
 
 # Required magic strings, in order.

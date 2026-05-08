@@ -37,6 +37,10 @@ add_subdirectory(croi/mm)
 # FDT parser; the kernel uses the full module).
 add_subdirectory(croi/dath)
 
+# Always-on: PCIe enumeration. Host build is FDT parser only;
+# kernel build adds the ECAM accessors + bus walk.
+add_subdirectory(croi/pci)
+
 if(CARA_TARGET STREQUAL "riscv64")
     add_subdirectory(croi/log)
     add_subdirectory(croi/util)
