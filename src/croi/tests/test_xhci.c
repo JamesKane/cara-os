@@ -224,6 +224,24 @@ KERNEL_TEST(xhci_smoke)
         }
     }
 
+    // HA.1 assertions: every HID-dispatched interface accepted
+    // SET_PROTOCOL(Boot) and is now pinned to the canonical 8-byte
+    // report layout.
+    for (u32 sid = 1; sid <= CARA_XHCI_MAX_SLOTS; sid++) {
+        if (!g_xhci.slots[sid].in_use) {
+            continue;
+        }
+        for (u32 j = 0; j < g_xhci.slots[sid].n_interfaces; j++) {
+            const auto iface = &g_xhci.slots[sid].interfaces[j];
+            if (iface->dispatch != XHCI_HID_KEYBOARD
+                && iface->dispatch != XHCI_HID_MOUSE) {
+                continue;
+            }
+            TEST_ASSERT(ctx, iface->boot_protocol_set,
+                        "HID interface SET_PROTOCOL(Boot) did not succeed");
+        }
+    }
+
     LOG_INFO("xhcsm",
              "qemu-xhci at %x: v0x%x slots=%u ports=%u connected=%u addressed=%u described=%u configured=%u usbcfg=%u",
              ((u32)g_xhci.pci_bus << 16) | ((u32)g_xhci.pci_device << 8)

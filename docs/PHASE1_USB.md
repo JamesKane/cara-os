@@ -47,14 +47,27 @@ non-HID classes log "unsupported in Phase 1".
 **UC.5 shipped.** `Croi_Xhci_ConfigureHidInterrupts` walks every
 HID-dispatched interface, allocates a per-endpoint interrupt-IN
 Transfer Ring (with a Link TRB at the tail), builds an Input
-Context (Add Slot + Add EP_DCI; Slot Context with Context Entries
-bumped to the new DCI; EP Context type=INTERRUPT_IN with mps,
-CErr=3, speed-encoded Interval, TR Dequeue Pointer with DCS=1),
-and issues the Configure Endpoint Command via
-`Croi_Xhci_ConfigureEndpoint`. Both QEMU devices transition Slot
-State Addressed (2) → Configured (3). The interrupt-IN rings sit
-ready at known kernel-VA + physical addresses for the eventual HID
-Gleas to enqueue Normal IN TRBs onto.
+Context, and issues the Configure Endpoint Command. Both QEMU
+devices transition Slot State Addressed (2) → Configured (3).
+
+**HA.1 shipped (kernel-side).** `Croi_Xhci_HidSetProtocol` issues
+the USB HID 1.11 §7.2.6 SET_PROTOCOL class request (bmRequestType=
+0x21, bRequest=0x0B, wValue=0=Boot, wIndex=interface number,
+wLength=0). `Croi_Xhci_HidSetBootProtocols` runs it across every
+HID/Boot dispatched interface. Both `usb-kbd` and `usb-mouse`
+report `boot-protocol selected` post-boot. The devices are now
+pinned to the canonical 8-byte boot-protocol report layout —
+keyboards emit 8-bit modifiers + reserved + 6-key rollover, mice
+emit 8-bit buttons + 8-bit X delta + 8-bit Y delta + 8-bit wheel.
+No HID Report Descriptor parser needed for Phase 1.
+
+Note on layering: the doc places HA.1 inside Tier 3 (HID Gleas
+territory), but the SET_PROTOCOL call is just a control transfer
+on EP0 and lands cleanly in the kernel-side substrate. When the
+HID Gleas eventually moves to U-mode (post HB.1 / Phase 3 V36+
+device subset), it can re-issue SET_PROTOCOL via the `usb.device`
+LVO surface — but the device staying in Boot mode is idempotent,
+so the kernel-side bring-up costs nothing.
 
 UB.6/UB.7 substrate (TRB ring helpers, polling event-ring consumer)
 landed alongside UB.5. Interrupt-driven event handling is still
@@ -62,11 +75,21 @@ deferred — Phase 1 polls.
 
 Still to ship before Tier 2 exits:
 - UC.6 — `usb_enum_smoke` extension covering the configuration tree.
-  (`xhci_smoke` already asserts most of the same invariants; UC.6
-  formalises a separate Tier 2 test or folds into the existing one.)
+  `xhci_smoke` already asserts the descriptor tree, dispatch,
+  Configure Endpoint, and SET_PROTOCOL invariants for QEMU
+  usb-kbd / usb-mouse; UC.6 is mostly test-organisation.
 
 Still deferred from Tier 1:
 - UB.7 done-for-real: interrupter wired up so we don't busy-poll.
+
+Tier 3 still owed (mostly waits on Phase 3 / Subgoal 6):
+- HA.2 — Mouse boot-protocol decoder (8-bit buttons / X / Y / wheel)
+- HA.3 — Keyboard boot-protocol decoder (modifiers + 6-key rollover)
+- HA.4 — USB usage-code → V36+ rawkey table
+- HB.1 — `usb.device` LVO surface (Phase 3 V36+ device subset)
+- HB.2 — `hid` Gleas as a U-mode program
+- HB.3 — Croi spawns the `hid` Gleas at boot
+- HB.4 — End-to-end QEMU `sendkey` smoke test
 
 ---
 

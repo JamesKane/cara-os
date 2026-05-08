@@ -343,6 +343,14 @@ static void console_putc(char c)
                                                 LOG_WARN("xhci",
                                                          "ConfigureHidInterrupts failed: %d",
                                                          er);
+                                            } else {
+                                                int hp = Croi_Xhci_HidSetBootProtocols(
+                                                    &g_xhci);
+                                                if (hp != CARA_EOK) {
+                                                    LOG_WARN("xhci",
+                                                             "HidSetBootProtocols failed: %d",
+                                                             hp);
+                                                }
                                             }
                                         }
                                     }

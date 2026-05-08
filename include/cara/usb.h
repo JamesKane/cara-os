@@ -111,6 +111,20 @@ struct UsbInterfaceDescriptor {
 #define USB_HID_PROTOCOL_KEYBOARD  0x01
 #define USB_HID_PROTOCOL_MOUSE     0x02
 
+// USB HID 1.11 §7.2 class-specific requests. Boot subclass devices
+// also accept SET_PROTOCOL to switch between the canonical 8-byte
+// boot-protocol report layout (value=0) and a HID Report Descriptor
+// driven layout (value=1). Phase 1 forces Boot so we don't need a
+// Report Descriptor parser yet.
+#define USB_HID_REQ_GET_REPORT     0x01
+#define USB_HID_REQ_GET_IDLE       0x02
+#define USB_HID_REQ_GET_PROTOCOL   0x03
+#define USB_HID_REQ_SET_REPORT     0x09
+#define USB_HID_REQ_SET_IDLE       0x0A
+#define USB_HID_REQ_SET_PROTOCOL   0x0B
+#define USB_HID_PROTOCOL_BOOT      0x00
+#define USB_HID_PROTOCOL_REPORT    0x01
+
 struct UsbEndpointDescriptor {
     u8  bLength;            // = 7 (or 9 with audio extensions)
     u8  bDescriptorType;    // = USB_DT_ENDPOINT (5)

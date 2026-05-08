@@ -455,6 +455,10 @@ struct XhciController {
             u32           int_ring_size_trbs;
             u32           int_ring_enqueue_idx;
             bool          int_ring_cycle;
+            // HA.1: post-SET_PROTOCOL(Boot) success. The device is
+            // now guaranteed to emit the canonical 8-byte
+            // boot-protocol report on the interrupt-IN endpoint.
+            bool          boot_protocol_set;
         } interfaces[CARA_XHCI_MAX_INTERFACES_PER_SLOT];
         u8 n_interfaces;
         // True after a successful USB SET_CONFIGURATION over EP0 (UC.3).
@@ -601,5 +605,19 @@ struct UsbDeviceDescriptor;
 // Configured and the interface's int_ring_* fields point at a TRB ring
 // the (eventual) HID Gleas will enqueue Normal IN TRBs onto.
 [[nodiscard]] int Croi_Xhci_ConfigureHidInterrupts(struct XhciController *c);
+
+// HA.1: USB HID class request SET_PROTOCOL over EP0. `protocol` =
+// USB_HID_PROTOCOL_BOOT (0) selects the canonical 8-byte
+// boot-protocol report layout; `protocol` = USB_HID_PROTOCOL_REPORT
+// (1) returns the device to its full HID Report Descriptor layout.
+// Phase 1 always picks Boot.
+[[nodiscard]] int Croi_Xhci_HidSetProtocol(struct XhciController *c,
+                                           u8 slot_id,
+                                           u8 interface_number,
+                                           u8 protocol);
+
+// For each HID/Boot-dispatched interface (KEYBOARD or MOUSE), issue
+// SET_PROTOCOL(Boot). Sets iface->boot_protocol_set on success.
+[[nodiscard]] int Croi_Xhci_HidSetBootProtocols(struct XhciController *c);
 
 #endif

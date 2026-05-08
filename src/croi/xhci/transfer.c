@@ -596,6 +596,81 @@ static void parse_config_tree(struct XhciController *c, u8 slot_id)
     return CARA_EOK;
 }
 
+// ---- HA.1: SET_PROTOCOL(Boot) (USB HID 1.11 §7.2.6) -----------------------
+//
+// Class-specific, host-to-device, recipient=interface. wValue carries
+// the protocol selector (0=Boot, 1=Report); wIndex carries the
+// interface number. No data stage. After completion, a HID Boot
+// subclass device produces the canonical 8-byte report on its
+// interrupt-IN endpoint regardless of what its HID Report Descriptor
+// says, so Phase 1 doesn't need a Report Descriptor parser.
+
+[[nodiscard]] int Croi_Xhci_HidSetProtocol(struct XhciController *c,
+                                           u8 slot_id,
+                                           u8 interface_number,
+                                           u8 protocol)
+{
+    if (!c || !c->running
+        || slot_id == 0 || slot_id > CARA_XHCI_MAX_SLOTS) {
+        return CARA_EINVAL;
+    }
+    if (!c->slots[slot_id].in_use) {
+        return CARA_EINVAL;
+    }
+
+    struct UsbSetupPacket setup = {
+        .bmRequestType = USB_DIR_HOST_TO_DEVICE | USB_TYPE_CLASS
+                       | USB_RECIP_INTERFACE,
+        .bRequest      = USB_HID_REQ_SET_PROTOCOL,
+        .wValue        = (u16)protocol,
+        .wIndex        = (u16)interface_number,
+        .wLength       = 0,
+    };
+    return Croi_Xhci_ControlTransfer(c, slot_id, &setup,
+                                     nullptr, 0, nullptr);
+}
+
+[[nodiscard]] int Croi_Xhci_HidSetBootProtocols(struct XhciController *c)
+{
+    if (!c || !c->running) {
+        return CARA_EINVAL;
+    }
+
+    for (u8 sid = 1; sid <= CARA_XHCI_MAX_SLOTS; sid++) {
+        if (!c->slots[sid].in_use) {
+            continue;
+        }
+        for (u32 j = 0; j < c->slots[sid].n_interfaces; j++) {
+            auto iface = &c->slots[sid].interfaces[j];
+            if (!iface->valid) {
+                continue;
+            }
+            if (iface->dispatch != XHCI_HID_KEYBOARD
+                && iface->dispatch != XHCI_HID_MOUSE) {
+                continue;
+            }
+            if (iface->boot_protocol_set) {
+                continue;
+            }
+            int rc = Croi_Xhci_HidSetProtocol(c, sid,
+                                              iface->bInterfaceNumber,
+                                              USB_HID_PROTOCOL_BOOT);
+            if (rc != CARA_EOK) {
+                LOG_WARN("xhci",
+                         "slot=%u iface[%u] SET_PROTOCOL(Boot) failed: %d",
+                         (unsigned)sid, (unsigned)j, rc);
+                continue;
+            }
+            iface->boot_protocol_set = true;
+            LOG_INFO("xhci",
+                     "slot=%u iface[%u] %s boot-protocol selected",
+                     (unsigned)sid, (unsigned)j,
+                     (iface->dispatch == XHCI_HID_KEYBOARD) ? "kbd" : "mouse");
+        }
+    }
+    return CARA_EOK;
+}
+
 [[nodiscard]] int Croi_Xhci_ReadDescriptors(struct XhciController *c)
 {
     if (!c || !c->running) {
