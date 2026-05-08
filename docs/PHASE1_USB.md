@@ -32,24 +32,29 @@ Endpoint under each into `c->slots[].interfaces[]`.
 
 **UC.3 shipped.** `Croi_Xhci_SetConfiguration` issues a no-data
 control transfer (bmRequestType=0x00, bRequest=9) to drive the
-device into the Configured state. `Croi_Xhci_ConfigureSlots`
-runs it across every parsed slot using the cached
-`bConfigurationValue`. Both `usb-kbd` and `usb-mouse` report
-`usb_configured = true` post-boot. Note: the xHCI Slot State stays
-at Addressed (2) until UC.5's Configure Endpoint Command runs;
-USB-configured and xHCI-configured are intentionally tracked as
+device into the Configured state. Both `usb-kbd` and `usb-mouse`
+report `usb_configured = true` post-boot. Note: the xHCI Slot
+State stays at Addressed (2) until UC.5's Configure Endpoint
+Command runs; USB-configured and xHCI-configured are tracked as
 distinct states.
+
+**UC.4 shipped.** `Croi_Xhci_DispatchInterfaces` classifies every
+parsed interface into `XhciInterfaceDispatch`
+(NONE/KEYBOARD/MOUSE/HID-other/UNSUPPORTED). HID/Boot/Keyboard and
+HID/Boot/Mouse are tagged as eligible for the (Tier 3) HID Gleas;
+non-HID classes log "unsupported in Phase 1". Under QEMU the
+dispatcher logs "slot=1 dispatch=HID/Boot/Keyboard" and "slot=2
+dispatch=HID/Boot/Mouse" with totals `HID keyboards=1 HID mice=1`.
 
 UB.6/UB.7 substrate (TRB ring helpers, polling event-ring consumer)
 landed alongside UB.5. Interrupt-driven event handling is still
 deferred — Phase 1 polls.
 
 Still to ship before Tier 2 exits:
-- UC.4 — Interface dispatch by class code (HID → HID class driver;
-  mass-storage / audio / etc. logged as unsupported in Phase 1).
-- UC.5 — Configure Endpoint Command for the HID interrupt-IN
-  endpoint, building the Input Context off the parsed endpoint
-  descriptor and feeding it to `Croi_Xhci_ConfigureEndpoint`.
+- UC.5 — Configure Endpoint Command for each dispatch-eligible
+  HID interrupt-IN endpoint, building the Input Context off the
+  parsed endpoint descriptor and feeding it to
+  `Croi_Xhci_ConfigureEndpoint`.
 - UC.6 — `usb_enum_smoke` extension covering the configuration tree.
 
 Still deferred from Tier 1:

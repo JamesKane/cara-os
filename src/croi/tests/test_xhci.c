@@ -167,6 +167,29 @@ KERNEL_TEST(xhci_smoke)
                     "in-use slot did not receive SET_CONFIGURATION");
     }
 
+    // UC.4 assertions: classification populated dispatch on every
+    // parsed interface; collectively across slots we see exactly one
+    // boot keyboard and one boot mouse (matching the QEMU usb-kbd /
+    // usb-mouse pair). Every interface should have its dispatch field
+    // resolved away from XHCI_HID_NONE.
+    TEST_ASSERT(ctx, g_xhci.n_hid_keyboards >= 1,
+                "expected >= 1 dispatched HID/Boot/Keyboard");
+    TEST_ASSERT(ctx, g_xhci.n_hid_mice >= 1,
+                "expected >= 1 dispatched HID/Boot/Mouse");
+    for (u32 sid = 1; sid <= CARA_XHCI_MAX_SLOTS; sid++) {
+        if (!g_xhci.slots[sid].in_use) {
+            continue;
+        }
+        for (u32 j = 0; j < g_xhci.slots[sid].n_interfaces; j++) {
+            const auto iface = &g_xhci.slots[sid].interfaces[j];
+            if (!iface->valid) {
+                continue;
+            }
+            TEST_ASSERT(ctx, iface->dispatch != XHCI_HID_NONE,
+                        "valid interface left at XHCI_HID_NONE dispatch");
+        }
+    }
+
     LOG_INFO("xhcsm",
              "qemu-xhci at %x: v0x%x slots=%u ports=%u connected=%u addressed=%u described=%u configured=%u usbcfg=%u",
              ((u32)g_xhci.pci_bus << 16) | ((u32)g_xhci.pci_device << 8)

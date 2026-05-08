@@ -329,6 +329,14 @@ static void console_putc(char c)
                                         LOG_WARN("xhci",
                                                  "ConfigureSlots failed: %d",
                                                  sc);
+                                    } else {
+                                        int dr = Croi_Xhci_DispatchInterfaces(
+                                            &g_xhci);
+                                        if (dr != CARA_EOK) {
+                                            LOG_WARN("xhci",
+                                                     "DispatchInterfaces failed: %d",
+                                                     dr);
+                                        }
                                     }
                                 }
                             }

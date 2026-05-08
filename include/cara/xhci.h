@@ -301,6 +301,17 @@ struct PciInventory;
 // keyboard-with-trackpad without burning storage.
 #define CARA_XHCI_MAX_INTERFACES_PER_SLOT   4
 
+// Interface dispatch decision (UC.4). Phase 1 cares about HID/Boot
+// keyboard and HID/Boot mouse — those route to the (yet-to-exist)
+// Tier 3 HID Gleas. Anything else logs "unsupported in Phase 1".
+typedef enum : u8 {
+    XHCI_HID_NONE        = 0,    // not a HID interface
+    XHCI_HID_KEYBOARD    = 1,    // class 3 / subclass 1 / protocol 1
+    XHCI_HID_MOUSE       = 2,    // class 3 / subclass 1 / protocol 2
+    XHCI_HID_OTHER       = 3,    // HID class but not Boot keyboard / mouse
+    XHCI_DISP_UNSUPPORTED = 4,   // non-HID class — Phase 5 territory
+} XhciInterfaceDispatch;
+
 // Phase 1 cap: bytes of configuration tree we keep cached per slot.
 // usb-kbd is 34 bytes, usb-mouse 34 bytes; 256 covers a rich
 // composite HID device or a small UVC class descriptor.
@@ -430,6 +441,8 @@ struct XhciController {
             u8   ep_address;            // raw bEndpointAddress (incl. dir bit)
             u16  ep_max_packet;
             u8   ep_interval;
+            // UC.4 dispatch decision — set by Croi_Xhci_DispatchInterfaces.
+            XhciInterfaceDispatch dispatch;
         } interfaces[CARA_XHCI_MAX_INTERFACES_PER_SLOT];
         u8 n_interfaces;
         // True after a successful USB SET_CONFIGURATION over EP0 (UC.3).
@@ -442,6 +455,9 @@ struct XhciController {
     u32 n_described_slots;              // count of slots whose dev desc was read
     u32 n_configured_slots;             // count of slots whose config was read+parsed
     u32 n_usb_configured_slots;         // count of slots that received SET_CONFIGURATION
+    // UC.4 totals across all slots' interfaces.
+    u32 n_hid_keyboards;                // boot keyboards eligible for HID Gleas
+    u32 n_hid_mice;                     // boot mice eligible for HID Gleas
 };
 
 // Discover and reset the xHCI controller behind `func_index` in
@@ -553,5 +569,12 @@ struct UsbDeviceDescriptor;
 // SET_CONFIGURATION'd, run Croi_Xhci_SetConfiguration with the slot's
 // cached bConfigurationValue. Updates n_usb_configured_slots.
 [[nodiscard]] int Croi_Xhci_ConfigureSlots(struct XhciController *c);
+
+// UC.4: classify every parsed interface by class code, populating
+// .dispatch on each slot's interfaces[]. Updates c->n_hid_keyboards
+// and c->n_hid_mice. Logs each interface's classification and
+// flags non-HID classes as "unsupported in Phase 1". Returns
+// CARA_EOK; non-HID interfaces are ignored, not an error condition.
+[[nodiscard]] int Croi_Xhci_DispatchInterfaces(struct XhciController *c);
 
 #endif
