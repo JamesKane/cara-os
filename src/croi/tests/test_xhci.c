@@ -39,8 +39,18 @@ KERNEL_TEST(xhci_smoke)
     TEST_ASSERT(ctx, g_xhci.op_regs > g_xhci.cap_regs,
                 "op_regs offset (CAPLENGTH) zero");
 
+    // Setup-stage assertions: Croi_Xhci_Setup ran in entry.c after
+    // Probe, allocated DCBAA / Command Ring / Event Ring / ERST,
+    // programmed the controller, and transitioned Run/Stop = 1.
+    TEST_ASSERT(ctx, g_xhci.running,
+                "controller did not transition to running (USBSTS.HCH still set)");
+    TEST_ASSERT(ctx, g_xhci.dcbaa_phys != 0, "DCBAA not allocated");
+    TEST_ASSERT(ctx, g_xhci.cmd_ring_phys != 0, "Command Ring not allocated");
+    TEST_ASSERT(ctx, g_xhci.event_ring_phys != 0, "Event Ring not allocated");
+    TEST_ASSERT(ctx, g_xhci.erst_phys != 0, "ERST not allocated");
+
     LOG_INFO("xhcsm",
-             "qemu-xhci OK at %x: v0x%x slots=%u ports=%u",
+             "qemu-xhci running at %x: v0x%x slots=%u ports=%u",
              ((u32)g_xhci.pci_bus << 16) | ((u32)g_xhci.pci_device << 8)
                  | g_xhci.pci_function,
              (unsigned)g_xhci.hci_version,

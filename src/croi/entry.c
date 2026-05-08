@@ -300,6 +300,10 @@ static void console_putc(char c)
             int xrc = Croi_Xhci_Probe(&g_xhci, &g_pci_inv, fidx);
             if (xrc == CARA_EOK) {
                 g_xhci_probed = true;
+                int src = Croi_Xhci_Setup(&g_xhci);
+                if (src != CARA_EOK) {
+                    LOG_WARN("xhci", "setup failed: %d", src);
+                }
             } else {
                 LOG_WARN("xhci", "probe failed: %d", xrc);
             }

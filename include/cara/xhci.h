@@ -88,6 +88,24 @@ struct PciInventory;
 // CONFIG.MaxSlotsEn occupies the low 8 bits.
 #define XHCI_CONFIG_MAXSLOTSEN_MASK 0xFFu
 
+// Runtime register offsets (at RTSOFF, masked low 5 bits).
+#define XHCI_RT_MFINDEX        0x0000
+#define XHCI_RT_INTR0_BASE     0x0020   // Interrupter 0 register set
+#define XHCI_RT_INTR_STRIDE    0x0020   // 32 bytes per interrupter
+#define XHCI_RT_INTR_IMAN      0x00
+#define XHCI_RT_INTR_IMOD      0x04
+#define XHCI_RT_INTR_ERSTSZ    0x08
+#define XHCI_RT_INTR_ERSTBA_LO 0x10
+#define XHCI_RT_INTR_ERSTBA_HI 0x14
+#define XHCI_RT_INTR_ERDP_LO   0x18
+#define XHCI_RT_INTR_ERDP_HI   0x1C
+
+// CRCR control bits (xHCI 1.2 §5.4.5).
+#define XHCI_CRCR_RCS          (1u << 0)   // Ring Cycle State (initial)
+#define XHCI_CRCR_CS           (1u << 1)   // Command Stop
+#define XHCI_CRCR_CA           (1u << 2)   // Command Abort
+#define XHCI_CRCR_CRR          (1u << 3)   // Command Ring Running (RO)
+
 // ---- Driver state -----------------------------------------------------------
 
 struct XhciController {
@@ -115,6 +133,38 @@ struct XhciController {
     u32 max_scratchpad_buffers;
     bool ac64;
     bool csz_64;                   // 64-byte device contexts (vs 32-byte)
+
+    // ---- Setup state (allocated by Croi_Xhci_Setup) -----------------------
+    //
+    // All buffers are allocated via Page_Alloc, naturally page-aligned
+    // (which satisfies xHCI's 64-byte alignment requirement). The
+    // controller DMAs to/from these regions, so the kernel-VA pointers
+    // and the CPU-physical addresses are both kept on hand: Mm_PhysToVirt
+    // gives the *_kva from *_phys for cleanup.
+
+    u64           dcbaa_phys;          // Device Context Base Address Array
+    volatile u64 *dcbaa;               // (max_slots + 1) entries
+
+    u64           scratchpad_array_phys;
+    volatile u64 *scratchpad_array;
+    u64           scratchpad_buf_phys[64]; // up to 64 scratchpad buffers
+    u32           n_scratchpad_bufs;
+
+    u64           cmd_ring_phys;
+    volatile u32 *cmd_ring;
+    u32           cmd_ring_size_trbs;
+    u32           cmd_ring_enqueue_idx;
+    bool          cmd_ring_cycle;
+
+    u64           erst_phys;           // Event Ring Segment Table (Interrupter 0)
+    volatile u64 *erst;
+    u64           event_ring_phys;     // Event Ring Segment 0
+    volatile u32 *event_ring;
+    u32           event_ring_size_trbs;
+    u32           event_ring_dequeue_idx;
+    bool          event_ring_cycle;
+
+    bool running;                       // USBSTS.HCH cleared after Setup
 };
 
 // Discover and reset the xHCI controller behind `func_index` in
@@ -130,5 +180,17 @@ struct XhciController {
 [[nodiscard]] int Croi_Xhci_Probe(struct XhciController *out,
                                   struct PciInventory   *inv,
                                   u32                    func_index);
+
+// Bring the (already-Probe'd) controller to "running" state per
+// xHCI 1.2 §4.2:
+//   1. CONFIG.MaxSlotsEn = max_slots
+//   2. Allocate DCBAA + scratchpad bufs; program DCBAAP
+//   3. Allocate Command Ring; program CRCR
+//   4. Allocate Event Ring Segment + ERST for Interrupter 0;
+//      program ERSTSZ, ERDP, ERSTBA
+//   5. Set USBCMD.RUN = 1
+//   6. Wait USBSTS.HCH = 0
+// Returns CARA_EOK on success (c->running = true).
+[[nodiscard]] int Croi_Xhci_Setup(struct XhciController *c);
 
 #endif

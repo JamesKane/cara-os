@@ -20,65 +20,16 @@
 #include <cara/types.h>
 #include <cara/xhci.h>
 
-// ---- MMIO helpers ----------------------------------------------------------
-//
-// xHCI register access is 32-bit only on most controllers (QEMU's
-// qemu-xhci returns zero for narrow reads). The u8/u16 helpers
-// below do an aligned u32 load and shift the requested lane out;
-// callers don't have to know.
+#include "internal.h"
 
-static u32 cap_read32_aligned(const struct XhciController *c, u32 off)
-{
-    return *(volatile u32 *)(c->cap_regs + (off & ~3u));
-}
-
-static u8 cap_read8(const struct XhciController *c, u32 off)
-{
-    u32 word = cap_read32_aligned(c, off);
-    return (u8)(word >> ((off & 3u) * 8u));
-}
-
-static u16 cap_read16(const struct XhciController *c, u32 off)
-{
-    // Off must be 2-byte aligned. xHCI lays its 16-bit fields out
-    // that way (HCIVERSION at 0x02, port speed major/minor at
-    // capability blocks, etc.).
-    u32 word = cap_read32_aligned(c, off);
-    return (u16)(word >> ((off & 2u) * 8u));
-}
-
-static u32 cap_read32(const struct XhciController *c, u32 off)
-{
-    return *(volatile u32 *)(c->cap_regs + off);
-}
-
-static u32 op_read32(const struct XhciController *c, u32 off)
-{
-    return *(volatile u32 *)(c->op_regs + off);
-}
-
-static void op_write32(const struct XhciController *c, u32 off, u32 v)
-{
-    *(volatile u32 *)(c->op_regs + off) = v;
-}
-
-// Spin up to ~1M iterations waiting for `(*reg & mask) == expect`.
-// Returns false on timeout. Each iteration reads MMIO, so this
-// equates to milliseconds of real time on the daily-driver targets.
-[[nodiscard]] static bool
-spin_for_mask(volatile u32 *reg, u32 mask, u32 expect)
-{
-    for (u32 i = 0; i < 1000000u; i++) {
-        if ((*reg & mask) == expect) {
-            return true;
-        }
-        // Friendly to the hardware: a small hint to back off a bit.
-        for (u32 j = 0; j < 100u; j++) {
-            __asm__ volatile("nop");
-        }
-    }
-    return false;
-}
+// Re-export inlines as local short names so the existing code below
+// keeps reading the way it did pre-refactor.
+#define cap_read8(c, off)   xhci_cap_read8((c), (off))
+#define cap_read16(c, off)  xhci_cap_read16((c), (off))
+#define cap_read32(c, off)  xhci_cap_read32((c), (off))
+#define op_read32(c, off)   xhci_op_read32((c), (off))
+#define op_write32(c, o, v) xhci_op_write32((c), (o), (v))
+#define spin_for_mask(r, m, e) xhci_spin_for_mask((r), (m), (e))
 
 // ---- Probe -----------------------------------------------------------------
 
