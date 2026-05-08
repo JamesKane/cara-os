@@ -11,16 +11,15 @@
 
 Tier 1 (console-output-complete): **shipped**.
 Tier 2 (general runtime): E, F, G, I, J **shipped**; H deferred.
-Tier 3 (userspace prep): K **shipped** (first cut — embedded ASM
-program instead of a parsed ELF; full ELF loader is the natural
-follow-up).
+Tier 3 (userspace prep): K **shipped** (full — embedded asm-section
+spawn AND parsed-ELF spawn from a separately-compiled cross binary).
 
-Nine in-kernel tests run on every boot; the QEMU smoke ctest asserts
+Ten in-kernel tests run on every boot; the QEMU smoke ctest asserts
 `kernel tests: N passed, 0 failed`:
 
   pagealloc_smoke, heap_smoke, time_smoke, sched_smoke,
   signal_smoke, handle_smoke, ipc_smoke, paging_smoke,
-  usermode_smoke
+  usermode_smoke, userelf_smoke
 
 What landed under each Epic:
 
@@ -40,11 +39,15 @@ What landed under each Epic:
   - **I** MsgPort wrapping Ring + Signal — full producer/consumer IPC
   - **J** Sv39 page-table walker + Page_Map (first cut: kernel-only PTs,
     no per-task satp save)
-  - **K** U-mode tasks + ecall syscall dispatch — sscratch swap convention
-    in trap entry, user_task_trampoline switches satp + sret's into
-    U-mode at CARA_USER_TEXT_BASE = 0x10000, SYS_LOG_WRITE / SYS_EXIT
-    handlers read user pointers via SUM=1, the embedded ASM hello
-    program reaches SYS_EXIT(42) and the smoke test asserts the status
+  - **K** U-mode tasks + ecall syscall dispatch — sscratch swap
+    convention in trap entry, user_task_trampoline switches satp +
+    sret's into U-mode at CARA_USER_TEXT_BASE = 0x10000, SYS_LOG_WRITE
+    / SYS_EXIT handlers read user pointers via SUM=1, two spawn paths:
+      * Croi_SpawnUserTask — maps an embedded .user_text section
+        (asm program reaches SYS_EXIT 42)
+      * Croi_SpawnUserTaskFromElf — parses static ELF64 PT_LOAD
+        entries from src/userland/userhello.elf cross-compiled by
+        clang and embedded via .incbin (C program reaches SYS_EXIT 1234)
 
 Deferred until they're actually needed:
 
@@ -57,11 +60,6 @@ Deferred until they're actually needed:
     first cut works because the user task only context-switches via
     SYS_EXIT (which doesn't return to the user PT). When Phase 3
     introduces yield-from-syscall, ctx_switch needs to track satp too.
-  - **K full ELF loader** — Epic K ships with a tiny ASM program
-    embedded in croi.elf's .user_text section. A parser that takes a
-    separately-compiled static ELF and walks PT_LOAD into a fresh
-    user PT is the obvious next slice once we want more than one
-    user program.
   - **Timer-driven preemption** — the cooperative path is good enough
     while we're still S-mode-only; preempt handling needs the trap
     frame to be the canonical "saved context" format which is a small
