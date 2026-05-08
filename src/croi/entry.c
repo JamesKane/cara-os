@@ -38,6 +38,13 @@ struct Ns16550 g_console_uart;
 struct PageAllocator g_page_alloc;
 struct Heap g_heap;
 
+// Framebuffer + framebuffer-console state. Populated only when the FDT
+// exposes a simple-framebuffer node; otherwise left zeroed and the FB
+// LogSink is never registered.
+static struct DathFramebuffer g_fb;
+static struct DathConsole     g_fb_console;
+static bool                   g_fb_present = false;
+
 // Croi runs in the upper-half kernel VA. The boot Sv39 PT mirrors the
 // lower 4 GiB into the upper half at L2[256..259], so any physical
 // address P is reachable as P + KERNEL_VA_OFFSET. Anything we read from
@@ -175,14 +182,25 @@ static void console_putc(char c)
             LOG_INFO("dath", "simple-framebuffer %ux%u stride=%u fmt=%u base=0x%llx",
                      fbdesc.width, fbdesc.height, fbdesc.stride,
                      (u32)fbdesc.format, fbdesc.phys_base);
-            struct DathFramebuffer fb;
-            if (Dath_Framebuffer_Init(&fb, Mm_PhysToVirt(fbdesc.phys_base),
+            if (Dath_Framebuffer_Init(&g_fb, Mm_PhysToVirt(fbdesc.phys_base),
                                       fbdesc.width, fbdesc.height,
                                       fbdesc.stride, fbdesc.format)
                 == CARA_EOK) {
-                Dath_Clear(&fb, Dath_RGB(0x10, 0x20, 0x40));
-                Dath_FillRect(&fb, 16, 16, 96, 96, Dath_RGB(0x40, 0x80, 0xFF));
-                LOG_INFO("dath", "drew boot pattern");
+                Dath_Clear(&g_fb, Dath_RGB(0x10, 0x20, 0x40));
+                Dath_FillRect(&g_fb, 16, 16, 96, 96, Dath_RGB(0x40, 0x80, 0xFF));
+                Dath_Console_Init(&g_fb_console, &g_fb, &dath_font_8x8,
+                                  Dath_RGB(0xFF, 0xFF, 0xFF),
+                                  Dath_RGB(0x10, 0x20, 0x40));
+                struct LogSink fb_sink = {
+                    .emit = Log_Sink_DathConsole_Emit,
+                    .ctx = &g_fb_console,
+                    .ansi_capable = false,
+                    .min_level = (u8)LOG_LV_INFO,
+                };
+                if (Log_RegisterSink(&fb_sink) == CARA_EOK) {
+                    g_fb_present = true;
+                    LOG_INFO("dath", "framebuffer console registered");
+                }
             }
         } else if (frc == CARA_ENOTFOUND) {
             LOG_INFO("dath", "no simple-framebuffer in FDT; headless boot");
