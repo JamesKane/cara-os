@@ -34,6 +34,7 @@ add_subdirectory(croi/fdt)
 add_subdirectory(croi/mm)
 
 if(CARA_TARGET STREQUAL "riscv64")
+    add_subdirectory(croi/log)
     add_subdirectory(croi)
-    # add_subdirectory(splanc)   # arrives in task #11
+    # add_subdirectory(splanc)   # arrives in real-hardware slice
 endif()

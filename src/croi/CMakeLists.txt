@@ -23,6 +23,7 @@ target_link_libraries(croi PRIVATE
     cara_headers
     cara_fdt
     cara_mm
+    cara_log
 )
 target_link_options(croi PRIVATE
     -nostdlib

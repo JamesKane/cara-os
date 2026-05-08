@@ -15,6 +15,7 @@
 
 #include <cara/alloc.h>
 #include <cara/fdt.h>
+#include <cara/log.h>
 #include <cara/mm.h>
 #include <cara/platform.h>
 #include <cara/time.h>
@@ -86,6 +87,11 @@ static void console_putc(char c)
     Croi_PrintInstallBackend(console_putc);
     Croi_Print("Hello from Croi (NS16550), hart=%llu\n", hartid);
 
+    // ---- Time first, so subsequent log records have meaningful timestamps.
+    if (plat.sstc_present && plat.timebase_hz != 0) {
+        Croi_Time_Init(plat.timebase_hz);
+    }
+
     // ---- Physical memory map ----
     u64 kphys_start = _kernel_image_phys_start;
     u64 kphys_end = _kernel_image_phys_end;
@@ -99,25 +105,6 @@ static void console_putc(char c)
         Croi_Halt();
     }
 
-    Croi_Print("kernel image: 0x%llx..0x%llx (%llu KiB)\n", kphys_start, kphys_end,
-               (kphys_end - kphys_start) / 1024);
-    Croi_Print("dtb:          0x%llx..0x%llx (%llu bytes)\n", dtb_start, dtb_end,
-               dtb_end - dtb_start);
-    Croi_Print("phys banks:   %u, total %llu MiB\n", pm.n_banks,
-               pm.total_bytes / (1024 * 1024));
-    for (u32 i = 0; i < pm.n_banks; i++) {
-        Croi_Print("  bank[%u]: 0x%llx..0x%llx (%llu MiB)\n", i, pm.bank[i].base,
-                   pm.bank[i].base + pm.bank[i].size,
-                   pm.bank[i].size / (1024 * 1024));
-    }
-    Croi_Print("usable runs:  %u, total %llu MiB\n", pm.n_usable,
-               pm.usable_bytes / (1024 * 1024));
-    for (u32 i = 0; i < pm.n_usable; i++) {
-        Croi_Print("  run[%u]:  0x%llx..0x%llx (%llu KiB)\n", i, pm.usable[i].base,
-                   pm.usable[i].base + pm.usable[i].size,
-                   pm.usable[i].size / 1024);
-    }
-
     // ---- Page allocator ----
     static struct PageAllocator g_page_alloc;
     rc = Page_Init(&g_page_alloc, &pm);
@@ -125,8 +112,6 @@ static void console_putc(char c)
         Croi_Print("Page_Init failed: %d\n", rc);
         Croi_Halt();
     }
-    Croi_Print("page alloc:   %llu pages free across %u runs\n",
-               g_page_alloc.free_pages, g_page_alloc.n_runs);
 
     // Smoke: alloc 16 single pages, ensure they're distinct, free all,
     // verify counter restore.
@@ -181,6 +166,50 @@ static void console_putc(char c)
         Croi_Halt();
     }
     Heap_SetActive(&g_heap);
+
+    // ---- Structured logging on top of the heap ----
+    if (Log_Init() != CARA_EOK) {
+        Croi_Print("Log_Init failed\n");
+        Croi_Halt();
+    }
+    struct LogSink uart_sink = {
+        .emit = Log_Sink_NS16550_Emit,
+        .ctx = &g_console_uart,
+        .ansi_capable = true,
+        .min_level = (u8)LOG_LV_TRACE,
+    };
+    if (Log_RegisterSink(&uart_sink) != CARA_EOK) {
+        Croi_Print("Log_RegisterSink failed\n");
+        Croi_Halt();
+    }
+
+    // From here forward, prefer LOG_* over Croi_Print so output is
+    // captured in the ring and routed through every active sink.
+    LOG_INFO("boot", "CaraOS Croi up at upper-half VAs (hart=%llu)", hartid);
+    LOG_INFO("mem ", "kernel image: 0x%llx..0x%llx (%llu KiB)", kphys_start,
+             kphys_end, (kphys_end - kphys_start) / 1024);
+    LOG_INFO("mem ", "dtb:          0x%llx..0x%llx (%llu bytes)", dtb_start,
+             dtb_end, dtb_end - dtb_start);
+    LOG_INFO("mem ", "phys: %llu MiB across %u banks; usable %llu MiB across %u runs",
+             pm.total_bytes / (1024 * 1024), pm.n_banks,
+             pm.usable_bytes / (1024 * 1024), pm.n_usable);
+    LOG_INFO("mem ", "page allocator: %llu pages free", g_page_alloc.free_pages);
+    LOG_INFO("mem ", "heap: %u classes, ready", CARA_HEAP_NUM_CLASSES);
+    LOG_INFO("uart", "NS16550 base=0x%llx irq=%u shift=%u width=%u",
+             plat.console.base, plat.console.irq, plat.console.reg_shift,
+             plat.console.reg_io_width);
+    LOG_INFO("time", "timebase=%llu Hz, sstc=%s", plat.timebase_hz,
+             plat.sstc_present ? "present" : "absent");
+
+    for (u32 i = 0; i < pm.n_usable; i++) {
+        LOG_DEBUG("mem ", "usable[%u]: 0x%llx..0x%llx (%llu KiB)", i,
+                  pm.usable[i].base, pm.usable[i].base + pm.usable[i].size,
+                  pm.usable[i].size / 1024);
+    }
+    LOG_INFO("test", "page-alloc smoke: peak %llu pages",
+             g_page_alloc.peak_in_flight_pages);
+    LOG_INFO("test", "heap smoke:       peak %llu bytes (large_peak=%u)",
+             g_heap.peak_bytes_in_flight, g_heap.large_peak);
 
     // Smoke: alloc/free across every size class plus a large alloc.
     {
