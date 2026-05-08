@@ -10,108 +10,133 @@
 
 ## Status — 2026-05-08
 
-**Tier 1 shipped; Tier 2 begun (UC.1).** Epic UA + UB shipped: the
-boot path discovers the xHCI controller via PCIe, brings it through
-HCRST, programs DCBAA + Command Ring + Event Ring + the Run/Stop
-transition, walks PORTSC, port-resets each connected USB2 port, and
-runs Enable Slot + Address Device for each. Both `usb-kbd` and
-`usb-mouse` reach the Addressed state under QEMU.
+**Phase 1 Subgoal 5 kernel-side substrate is end-to-end shipped.**
+Every layer from PCIe enumeration to a decoded boot-protocol HID
+report runs to completion under QEMU's `qemu-xhci` against
+`-device usb-kbd -device usb-mouse`. What's left for the subgoal
+is gated on Phase 3 (the V36+ `usb.device` LVO surface) which the
+HID Gleas (HB.*) will sit on top of.
 
-**UC.1 shipped.** First USB control transfer over EP0:
-`Croi_Xhci_ControlTransfer` builds Setup / Data / Status TRBs on the
-per-slot EP0 transfer ring, rings the slot doorbell at DCI=1, and
-polls the event ring for the matching Transfer Event. Wrapped as
-`Croi_Xhci_GetDeviceDescriptor` for the 18-byte GET_DESCRIPTOR(DEVICE)
-read.
+### Pipeline at HEAD (`9f25d6f`)
 
-**UC.2 shipped.** `Croi_Xhci_GetConfigurationDescriptor` does the
-canonical short-then-full read pair: 9 bytes for `wTotalLength`,
-then a full read of the contiguous configuration tree. The walker
-records every Interface descriptor and the first interrupt-IN
-Endpoint under each into `c->slots[].interfaces[]`.
+```
+PCIe enum → xHCI HCRST → DCBAA + Cmd/Event rings → Run/Stop
+  → PORTSC walk → Port Reset → Enable Slot → Address Device
+  → GET_DESCRIPTOR(Device) → GET_DESCRIPTOR(Configuration)
+  → SET_CONFIGURATION → DispatchInterfaces (HID/Boot tagged)
+  → Configure Endpoint Command → SET_PROTOCOL(Boot)
+  → HidIntReadOnce → CaraHidReport (decoded)
+```
 
-**UC.3 shipped.** `Croi_Xhci_SetConfiguration` issues a no-data
-control transfer (bmRequestType=0x00, bRequest=9) to drive the
-device into the Configured state. Both `usb-kbd` and `usb-mouse`
-report `usb_configured = true` post-boot. Note: the xHCI Slot
-State stays at Addressed (2) until UC.5's Configure Endpoint
-Command runs; USB-configured and xHCI-configured are tracked as
-distinct states.
+Each step is its own commit (`phase-1/UB.4` → `phase-1: int-IN
+read`); see `git log --oneline` for the exact chain.
 
-**UC.4 shipped.** `Croi_Xhci_DispatchInterfaces` classifies every
-parsed interface into `XhciInterfaceDispatch`
-(NONE/KEYBOARD/MOUSE/HID-other/UNSUPPORTED). HID/Boot/Keyboard and
-HID/Boot/Mouse are tagged as eligible for the (Tier 3) HID Gleas;
-non-HID classes log "unsupported in Phase 1".
+### How to verify on resume
 
-**UC.5 shipped.** `Croi_Xhci_ConfigureHidInterrupts` walks every
-HID-dispatched interface, allocates a per-endpoint interrupt-IN
-Transfer Ring (with a Link TRB at the tail), builds an Input
-Context, and issues the Configure Endpoint Command. Both QEMU
-devices transition Slot State Addressed (2) → Configured (3).
+```bash
+# rv64 build
+cd build-rv64 && make -j
 
-**HA.1 shipped (kernel-side).** `Croi_Xhci_HidSetProtocol` issues
-the USB HID 1.11 §7.2.6 SET_PROTOCOL class request. Both `usb-kbd`
-and `usb-mouse` are pinned to the canonical 8-byte boot-protocol
-report layout. No HID Report Descriptor parser needed for Phase 1.
+# host unit tests + smoke (12/12 passing as of HEAD)
+cd ../build-host && make -j && ctest
 
-**HA.2 / HA.3 / HA.4 shipped.** `Croi_Hid_DecodeMouseBoot`,
-`Croi_Hid_DecodeKeyboardBoot`, and `Croi_Hid_UsageToRawKey` live in
-the always-on `cara_hid` static lib (host + rv64). The decoders
-translate raw boot-protocol bytes into populated
-`CaraHidMouseReport` / `CaraHidKeyboardReport` structs with
-pre-computed `ie_qualifier` bitmaps matching V36+
-`<devices/inputevent.h>` semantics: mouse reports always carry
-`IEQUALIFIER_RELATIVEMOUSE` plus button bits; keyboard reports
-collapse `LCTRL|RCTRL` into a single `IEQUALIFIER_CONTROL`. The
-USB Usage → Amiga rawkey table covers every key QEMU's `sendkey`
-driver emits — letters, digits, F1–F10, arrows, modifiers, plus
-the punctuation/whitespace cluster. F11/F12 and other keys with
-no Amiga equivalent return `CARA_RAWKEY_NONE`. The host unit test
-`test_hid` exercises 13 invariants across the decoders + table.
+# manual end-to-end with key injection
+QEMU=$(command -v qemu-system-riscv64)
+MONSOCK=/tmp/cara-mon.sock; rm -f $MONSOCK
+${QEMU} -M virt -m 256 -nographic -bios default \
+    -kernel build-rv64/src/croi/croi.elf \
+    -device qemu-xhci -device usb-kbd -device usb-mouse \
+    -monitor unix:$MONSOCK,server=on,nowait > /tmp/cara.log 2>&1 &
+sleep 0.04 && echo 'sendkey a' | nc -U $MONSOCK -w 1 > /dev/null
+sleep 0.5 && kill %1 2>/dev/null
+grep -E 'int-IN|kbd:|mouse:' /tmp/cara.log
+```
 
-UB.6/UB.7 substrate (TRB ring helpers, polling event-ring consumer)
-landed alongside UB.5. Interrupt-driven event handling is still
-deferred — Phase 1 polls.
+Expected: `slot=1 iface[0] kbd int-IN report (8 bytes)` followed
+by a decoded record. Mouse will say `idle (no input)`.
 
-Still to ship before Tier 2 exits:
-- UC.6 — `usb_enum_smoke` extension covering the configuration tree.
-  `xhci_smoke` already asserts the descriptor tree, dispatch,
-  Configure Endpoint, and SET_PROTOCOL invariants for QEMU
-  usb-kbd / usb-mouse; UC.6 is mostly test-organisation.
+### Resume here — pick one
 
-Still deferred from Tier 1:
-- UB.7 done-for-real: interrupter wired up so we don't busy-poll.
+The substrate is solid; the next moves are independent. Pick by
+strategic preference:
 
-**Interrupt-IN read primitive shipped.**
-`Croi_Xhci_HidIntReadOnce(c, slot_id, iface_idx, timeout_iters,
-*bytes_received)` enqueues a Normal IN TRB on the interface's
-already-configured int-IN ring (with the correct cycle bit and
-Link TRB wrap), rings DB[slot]/EP_DCI, and polls the event ring
-for the matching Transfer Event. SUCCESS and SHORT_PACKET
-completion codes are both treated as success; the residue field
-yields the actual byte count. Bytes are cached in
-`c->slots[].interfaces[].last_report` so the boot decoders
-(HA.2/3) can read without DMA-buffer races.
+1. **Phase 1 Subgoal 6 — Leargas (input ring + window-event
+   router).** `docs/PHASE1_LEARGAS.md` plans it. Doesn't need the
+   HID Gleas in place because Leargas owns the event-ring
+   contract; the Gleas wires to it later. This unblocks Subgoal 7
+   (Clar) and lets Subgoal 5 fully complete via HB.* on top.
 
-Verified end-to-end against `qemu-system-riscv64` driven via
-`-monitor unix:…`: with `sendkey a` injected ~10ms before the
-boot-time poll, the kernel logs
-`slot=1 iface[0] kbd int-IN report (8 bytes)` followed by the
-decoded record. (QEMU's usb-kbd coalesces press+release into a
-single device-side queue slot, so without `-hold-time` the
-captured report is "all keys released" — the substrate is correct,
-the press/release event split is the eventual HID Gleas's job.)
+2. **Tighten the smoke harness.** Extend
+   `tests/boot/smoke_qemu_kernel.sh` to drive QEMU's `-monitor`
+   socket and assert the int-IN substrate captures an injected
+   keystroke. Right now end-to-end verification is manual. Small
+   commit (~30 lines of shell), high CI value.
 
-Tier 3 still owed (mostly waits on Phase 3 / Subgoal 6):
-- HB.1 — `usb.device` LVO surface (Phase 3 V36+ device subset)
-- HB.2 — `hid` Gleas as a U-mode program; runs an interrupt-IN
-  read loop (replacing Croi_Xhci_HidIntReadOnce's single-shot
-  kernel call) that sees every press/release transition.
-- HB.3 — Croi spawns the `hid` Gleas at boot.
-- HB.4 — End-to-end smoke test extension that drives QEMU's
-  `-monitor` socket from `tests/boot/smoke_qemu_kernel.sh` and
-  asserts the Gleas-produced events.
+3. **UB.7 done-for-real.** Wire the xHCI interrupter (real MSI/X
+   or platform IRQ) so events post via interrupts instead of
+   polling. Polling works fine for Phase 1 but real silicon
+   wants this. Bigger lift; needs IRQ-controller glue from
+   `croi/sched`.
+
+4. **HB.* — wait for Phase 3.** The `usb.device` LVO surface
+   (HB.1) is part of the V36+ device subset that lands in
+   Phase 3. Until that exists, the HID Gleas can't ride on it
+   and the substrate stays at the kernel-side primitives we have.
+
+### Tier-by-tier status
+
+| Tier | Epic                                              | Status |
+|------|---------------------------------------------------|--------|
+| 1    | UA — PCIe enumeration                             | ✅     |
+| 1    | UB.1–5 — xHCI controller, DCBAA, rings, Address Device | ✅ |
+| 1    | UB.6/7 substrate (TRB helpers + polling event ring)   | ✅ (interrupts deferred) |
+| 2    | UC.1 — GET_DESCRIPTOR(Device)                     | ✅     |
+| 2    | UC.2 — GET_DESCRIPTOR(Config) + parse             | ✅     |
+| 2    | UC.3 — SET_CONFIGURATION                          | ✅     |
+| 2    | UC.4 — Interface dispatch                         | ✅     |
+| 2    | UC.5 — Configure Endpoint Command                 | ✅     |
+| 2    | UC.6 — formal `usb_enum_smoke`                    | folded into `xhci_smoke` |
+| 3    | HA.1 — SET_PROTOCOL(Boot)                         | ✅ kernel-side |
+| 3    | HA.2 — Mouse boot decoder                         | ✅     |
+| 3    | HA.3 — Keyboard boot decoder                      | ✅     |
+| 3    | HA.4 — USB → V36+ rawkey table                    | ✅     |
+| 3    | Interrupt-IN read primitive (`HidIntReadOnce`)    | ✅     |
+| 3    | HB.* — `usb.device` LVO + `hid` Gleas             | blocked on Phase 3 |
+| —    | UB.7 done-for-real (interrupter)                  | deferred |
+| —    | Smoke harness drives `-monitor` socket            | deferred |
+
+### Gotchas this session paid for — leave them documented
+
+1. **QEMU's `qemu-xhci` latches `CRCR_LO` on the `CRCR_HI` write.**
+   The canonical xHCI bring-up order is HI-then-LO; QEMU's xHC runs
+   `xhci_ring_init()` on the HI write using the *currently-latched*
+   LO value. HI-then-LO points the controller's command-ring
+   dequeue at zero and *every* doorbell ring silently no-ops. Fix
+   is permanent in `src/croi/xhci/setup.c:130-140` (LO first, with
+   RCS, then HI). Real silicon also accepts LO-first, so this is
+   the universal-correct order. ~2 hours debugging cost.
+
+2. **QEMU's `usb-kbd` coalesces press+release reports.** A bare
+   `sendkey a` issues both press and release through the HID
+   device queue inside ~10ms; QEMU's device-side queue overwrites
+   pending reports with "latest state", so when the kernel int-IN
+   poll consumes the next report, it sees "all keys up". To
+   capture the press, either drive `sendkey` with `-hold-time` or
+   move to a continuous-poll loop (which is what the eventual HID
+   Gleas does anyway). Not a substrate bug; expected behaviour.
+
+3. **Kernel logger only supports `%x`, no width specifiers.**
+   `%04x` parses as default → emits `?4x` literal AND skips a
+   va_arg, shifting all subsequent format args. `src/croi/log/log.c`
+   has the canonical formatter; if you need width-padding, extend
+   the formatter rather than expecting `%04x` to work.
+
+4. **`/Makefile`, `/gen/`, `/src/**/Makefile` are now in
+   `.gitignore`.** A prior in-source CMake configure left
+   generated Makefiles in the working tree; one `git add -A` in
+   this session swept them up and required a `reset --soft` to
+   undo. Use explicit file lists with `git add` until you're sure
+   no other in-source build artifacts are lurking.
 
 ---
 
