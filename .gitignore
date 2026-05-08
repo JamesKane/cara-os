@@ -12,6 +12,15 @@ cmake_install.cmake
 CTestTestfile.cmake
 Testing/
 compile_commands.json
+# In-source CMake-generated Makefiles (when something configures the
+# source tree itself as a build dir, sweeping these into `git add -A`).
+/Makefile
+/src/**/Makefile
+/tests/**/Makefile
+/tools/**/Makefile
+
+# In-source generated headers / aggregates (lvo-gen, aistreoir).
+/gen/
 
 # Compiler / linker outputs
 *.o

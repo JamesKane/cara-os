@@ -41,6 +41,11 @@ add_subdirectory(croi/dath)
 # kernel build adds the ECAM accessors + bus walk.
 add_subdirectory(croi/pci)
 
+# Always-on: HID boot-protocol decoders (HA.2/3) + USB Usage → V36+
+# rawkey table (HA.4). Pure logic, no I/O — host unit tests cover
+# the decode invariants; the kernel substrate links the same .o.
+add_subdirectory(croi/hid)
+
 if(CARA_TARGET STREQUAL "riscv64")
     add_subdirectory(croi/log)
     add_subdirectory(croi/util)

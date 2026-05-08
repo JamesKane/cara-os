@@ -51,23 +51,24 @@ Context, and issues the Configure Endpoint Command. Both QEMU
 devices transition Slot State Addressed (2) → Configured (3).
 
 **HA.1 shipped (kernel-side).** `Croi_Xhci_HidSetProtocol` issues
-the USB HID 1.11 §7.2.6 SET_PROTOCOL class request (bmRequestType=
-0x21, bRequest=0x0B, wValue=0=Boot, wIndex=interface number,
-wLength=0). `Croi_Xhci_HidSetBootProtocols` runs it across every
-HID/Boot dispatched interface. Both `usb-kbd` and `usb-mouse`
-report `boot-protocol selected` post-boot. The devices are now
-pinned to the canonical 8-byte boot-protocol report layout —
-keyboards emit 8-bit modifiers + reserved + 6-key rollover, mice
-emit 8-bit buttons + 8-bit X delta + 8-bit Y delta + 8-bit wheel.
-No HID Report Descriptor parser needed for Phase 1.
+the USB HID 1.11 §7.2.6 SET_PROTOCOL class request. Both `usb-kbd`
+and `usb-mouse` are pinned to the canonical 8-byte boot-protocol
+report layout. No HID Report Descriptor parser needed for Phase 1.
 
-Note on layering: the doc places HA.1 inside Tier 3 (HID Gleas
-territory), but the SET_PROTOCOL call is just a control transfer
-on EP0 and lands cleanly in the kernel-side substrate. When the
-HID Gleas eventually moves to U-mode (post HB.1 / Phase 3 V36+
-device subset), it can re-issue SET_PROTOCOL via the `usb.device`
-LVO surface — but the device staying in Boot mode is idempotent,
-so the kernel-side bring-up costs nothing.
+**HA.2 / HA.3 / HA.4 shipped.** `Croi_Hid_DecodeMouseBoot`,
+`Croi_Hid_DecodeKeyboardBoot`, and `Croi_Hid_UsageToRawKey` live in
+the always-on `cara_hid` static lib (host + rv64). The decoders
+translate raw boot-protocol bytes into populated
+`CaraHidMouseReport` / `CaraHidKeyboardReport` structs with
+pre-computed `ie_qualifier` bitmaps matching V36+
+`<devices/inputevent.h>` semantics: mouse reports always carry
+`IEQUALIFIER_RELATIVEMOUSE` plus button bits; keyboard reports
+collapse `LCTRL|RCTRL` into a single `IEQUALIFIER_CONTROL`. The
+USB Usage → Amiga rawkey table covers every key QEMU's `sendkey`
+driver emits — letters, digits, F1–F10, arrows, modifiers, plus
+the punctuation/whitespace cluster. F11/F12 and other keys with
+no Amiga equivalent return `CARA_RAWKEY_NONE`. The host unit test
+`test_hid` exercises 13 invariants across the decoders + table.
 
 UB.6/UB.7 substrate (TRB ring helpers, polling event-ring consumer)
 landed alongside UB.5. Interrupt-driven event handling is still
@@ -83,13 +84,14 @@ Still deferred from Tier 1:
 - UB.7 done-for-real: interrupter wired up so we don't busy-poll.
 
 Tier 3 still owed (mostly waits on Phase 3 / Subgoal 6):
-- HA.2 — Mouse boot-protocol decoder (8-bit buttons / X / Y / wheel)
-- HA.3 — Keyboard boot-protocol decoder (modifiers + 6-key rollover)
-- HA.4 — USB usage-code → V36+ rawkey table
+- Interrupt-IN read primitive — enqueue Normal IN TRBs onto each
+  HID interface's int-IN ring, ring DB[slot]/EP_DCI, await the
+  resulting Transfer Event, hand the bytes to the boot decoders.
 - HB.1 — `usb.device` LVO surface (Phase 3 V36+ device subset)
 - HB.2 — `hid` Gleas as a U-mode program
 - HB.3 — Croi spawns the `hid` Gleas at boot
-- HB.4 — End-to-end QEMU `sendkey` smoke test
+- HB.4 — End-to-end QEMU `sendkey` smoke test (requires harness
+  extension to drive QEMU's `-monitor` socket)
 
 ---
 
