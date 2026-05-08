@@ -23,10 +23,12 @@ typedef enum : u32 {
 } TaskState;
 
 // 16 callee-saved registers we round-trip across a voluntary yield:
-//   [0]=ra, [1]=sp, [2]=gp, [3]=tp, [4..15]=s0..s11.
+//   [0]=ra, [1]=sp, [2]=gp, [3]=tp, [4..15]=s0..s11
+//   [16]=sscratch (kernel-mode invariant 0 for S-mode tasks; user-task
+//        kstack_top for U-mode tasks)
 // Caller-saved registers are clobbered by the call to croi_ctx_switch
 // itself, so the compiler already saves them as needed.
-#define TASK_NSAVED 16
+#define TASK_NSAVED 17
 
 #define CARA_TASK_HANDLE_TABLE_CAP 32
 

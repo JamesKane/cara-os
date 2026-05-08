@@ -2,37 +2,53 @@
 //
 // croi_trap_entry — S-mode trap save/restore.
 //
-// Layout matches struct TrapFrame in include/cara/trap.h exactly:
+// The sscratch register doubles as an origin marker:
+//   In S-mode (kernel running)  : sscratch == 0
+//   In U-mode (user running)    : sscratch == kstack_top of the running task
 //
-//     0      x[0]    (reserved, kept zero)
-//     8      x[1]    (ra)
-//    16      x[2]    (sp at trap entry, fixed up after the bulk save)
-//    24      x[3]    (gp)
-//    ...
-//   248      x[31]
-//   256      sepc
-//   264      scause
-//   272      stval
-//   280      sstatus
+// On trap, `csrrw sp, sscratch, sp` swaps the two. After the swap:
+//   * If we came from S-mode: sp now reads 0 (the kernel-mode invariant
+//     that lived in sscratch); the original kernel sp is now in sscratch.
+//     We swap back to recover, then proceed.
+//   * If we came from U-mode: sp now points at kstack_top; the original
+//     user sp is in sscratch. We restore sscratch to kstack_top so the
+//     next trap from the same user task swaps correctly.
 //
-// Total 288 bytes. Tier 1 does not swap sp via sscratch — every trap
-// here comes from S-mode and we already hold a kernel stack. When U-mode
-// arrives (Epic K) this entry will check sscratch and conditionally
-// swap. Until then, sscratch is left at 0 as a kernel-mode invariant
-// marker, in line with VectraOS's pattern.
+// On exit, we just restore everything in reverse and let `sret` return
+// to whichever mode sstatus.SPP names. sscratch already holds the right
+// value for that mode (0 if returning to S, kstack_top if returning to
+// U), because we maintained it on entry — neither path needs a final
+// fix-up.
 
 .equ FRAME_SIZE, 288
 
 .section .text, "ax"
-.balign 4                       // stvec mode 0 (direct) requires 4-byte align
+.balign 4
 .globl croi_trap_entry
 .type  croi_trap_entry, @function
 croi_trap_entry:
-    addi    sp, sp, -FRAME_SIZE
+    csrrw   sp, sscratch, sp        // atomic swap: detect origin
+    bnez    sp, .Lfrom_user
 
-    // Save GPRs. x0 always reads 0; we leave its slot at zero.
+    // ---- From S-mode --------------------------------------------------
+    csrrw   sp, sscratch, sp        // restore: sp = original kernel sp;
+                                    //          sscratch = 0 (invariant)
+    addi    sp, sp, -FRAME_SIZE
+    addi    t0, sp, FRAME_SIZE      // x[2] = original kernel sp
+    sd      t0, 16(sp)
+    j       .Lcommon_save
+
+.Lfrom_user:
+    // ---- From U-mode --------------------------------------------------
+    // sp is now kstack_top (came from sscratch); user sp is in sscratch.
+    addi    sp, sp, -FRAME_SIZE
+    csrr    t0, sscratch            // t0 = user sp
+    sd      t0, 16(sp)              // x[2] = user sp
+    addi    t0, sp, FRAME_SIZE      // restore sscratch to kstack_top
+    csrw    sscratch, t0
+
+.Lcommon_save:
     sd      x1,    8(sp)
-    sd      x2,   16(sp)        // patched below to original sp
     sd      x3,   24(sp)
     sd      x4,   32(sp)
     sd      x5,   40(sp)
@@ -63,11 +79,6 @@ croi_trap_entry:
     sd      x30, 240(sp)
     sd      x31, 248(sp)
 
-    // Patch x[2] slot with original sp.
-    addi    t0, sp, FRAME_SIZE
-    sd      t0, 16(sp)
-
-    // Save trap CSRs.
     csrr    t0, sepc
     sd      t0, 256(sp)
     csrr    t0, scause
@@ -77,17 +88,16 @@ croi_trap_entry:
     csrr    t0, sstatus
     sd      t0, 280(sp)
 
-    // Dispatch.
     mv      a0, sp
     call    Croi_TrapDispatch
 
-    // Restore CSRs (sscratch left as-is).
+    // ---- Restore CSRs (sstatus first, since SPP must be set before sret) -
     ld      t0, 256(sp)
     csrw    sepc, t0
     ld      t0, 280(sp)
     csrw    sstatus, t0
 
-    // Restore GPRs (skip x0; skip x2 — sp restored by addi at the end).
+    // ---- Restore GPRs (skip x0; sp restored last via frame[2]) ----------
     ld      x1,    8(sp)
     ld      x3,   24(sp)
     ld      x4,   32(sp)
@@ -119,6 +129,9 @@ croi_trap_entry:
     ld      x30, 240(sp)
     ld      x31, 248(sp)
 
-    addi    sp, sp, FRAME_SIZE
+    // sp = frame[2]: the saved sp from entry. For S-mode origin that's
+    // the original kernel sp; for U-mode origin that's the user sp.
+    // Either way, sret returns to the right stack.
+    ld      sp, 16(sp)
     sret
 .size   croi_trap_entry, . - croi_trap_entry

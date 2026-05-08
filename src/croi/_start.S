@@ -52,8 +52,15 @@ _start:
     // Stash hartid in tp; preserve a0/a1 for the C entry.
     mv      tp, a0
 
-    // Clear sstatus.SIE.
+    // Clear sstatus.SIE; set SUM (bit 18) so S-mode can read U-mode
+    // pages — needed for syscall buffers without per-byte get_user().
     csrci   sstatus, 0x2
+    li      t0, (1 << 18)
+    csrs    sstatus, t0
+
+    // sscratch convention: 0 in kernel-mode, kstack_top in user-mode.
+    // trap_entry.S relies on this for origin detection via csrrw swap.
+    csrw    sscratch, zero
 
     // ---- Build boot Sv39 root PT at _boot_root_pt ----
     la      t0, _boot_root_pt

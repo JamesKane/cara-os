@@ -41,6 +41,9 @@ croi_ctx_switch:
     sd      s10, 112(a0)
     sd      s11, 120(a0)
 
+    csrr    t0, sscratch                    // saved_regs[16] = sscratch
+    sd      t0, 128(a0)
+
 .Lload:
     ld      ra,    0(a1)
     ld      sp,    8(a1)
@@ -58,6 +61,9 @@ croi_ctx_switch:
     ld      s9,  104(a1)
     ld      s10, 112(a1)
     ld      s11, 120(a1)
+
+    ld      t0, 128(a1)
+    csrw    sscratch, t0
 
     ret
 .size   croi_ctx_switch, . - croi_ctx_switch
