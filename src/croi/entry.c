@@ -186,11 +186,42 @@ static void console_putc(char c)
                                       fbdesc.width, fbdesc.height,
                                       fbdesc.stride, fbdesc.format)
                 == CARA_EOK) {
-                Dath_Clear(&g_fb, Dath_RGB(0x10, 0x20, 0x40));
-                Dath_FillRect(&g_fb, 16, 16, 96, 96, Dath_RGB(0x40, 0x80, 0xFF));
+                // Boot banner: dark-blue background, light-blue 1-pixel
+                // border, white "CaraOS" wordmark + subtitle, then a
+                // red/green/blue swatch row below so the format encoding
+                // is visible at a glance.
+                DathColor bg     = Dath_RGB(0x10, 0x20, 0x40);
+                DathColor accent = Dath_RGB(0x40, 0x80, 0xFF);
+                DathColor white  = Dath_RGB(0xFF, 0xFF, 0xFF);
+                DathColor red    = Dath_RGB(0xFF, 0x40, 0x40);
+                DathColor green  = Dath_RGB(0x40, 0xFF, 0x40);
+                DathColor blue   = Dath_RGB(0x40, 0x80, 0xFF);
+                if (g_fb.format == DATH_FMT_RGB565) {
+                    bg     = Dath_RGB565(0x10, 0x20, 0x40);
+                    accent = Dath_RGB565(0x40, 0x80, 0xFF);
+                    white  = Dath_RGB565(0xFF, 0xFF, 0xFF);
+                    red    = Dath_RGB565(0xFF, 0x40, 0x40);
+                    green  = Dath_RGB565(0x40, 0xFF, 0x40);
+                    blue   = Dath_RGB565(0x40, 0x80, 0xFF);
+                }
+
+                Dath_Clear(&g_fb, bg);
+                Dath_DrawRect(&g_fb, 0, 0, (i32)g_fb.width, (i32)g_fb.height,
+                              accent);
+                Dath_DrawString(&g_fb, &dath_font_8x8, 16, 16,
+                                "CaraOS", white, bg);
+                Dath_DrawString(&g_fb, &dath_font_8x8, 16, 28,
+                                "RISC-V kernel boot", accent, bg);
+                Dath_FillRect(&g_fb, 16,  48, 32, 12, red);
+                Dath_FillRect(&g_fb, 56,  48, 32, 12, green);
+                Dath_FillRect(&g_fb, 96,  48, 32, 12, blue);
+
                 Dath_Console_Init(&g_fb_console, &g_fb, &dath_font_8x8,
-                                  Dath_RGB(0xFF, 0xFF, 0xFF),
-                                  Dath_RGB(0x10, 0x20, 0x40));
+                                  white, bg);
+                // Reserve the top of the screen for the banner — start
+                // the log sink at row 9 (px 72 with the 8x8 font).
+                g_fb_console.cur_row = 9;
+                g_fb_console.cur_col = 0;
                 struct LogSink fb_sink = {
                     .emit = Log_Sink_DathConsole_Emit,
                     .ctx = &g_fb_console,
