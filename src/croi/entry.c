@@ -19,6 +19,7 @@
 #include <cara/log.h>
 #include <cara/mm.h>
 #include <cara/platform.h>
+#include <cara/sched.h>
 #include <cara/test.h>
 #include <cara/time.h>
 #include <cara/trap.h>
@@ -163,6 +164,10 @@ static void console_putc(char c)
                   pm.usable[i].base, pm.usable[i].base + pm.usable[i].size,
                   pm.usable[i].size / 1024);
     }
+    // ---- Bring up the cooperative scheduler before running tests so
+    //      the sched_smoke test can spawn workers and yield.
+    Sched_Init();
+
     // ---- Run the in-kernel test suite. ----
     Test_RunAll();
 
