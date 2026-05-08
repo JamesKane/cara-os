@@ -215,6 +215,10 @@ KERNEL_TEST(xhci_smoke)
                         "HID interface int-IN ring not allocated");
             TEST_ASSERT(ctx, iface->int_ring != nullptr,
                         "HID interface int-IN ring kva null");
+            TEST_ASSERT(ctx, iface->int_buf_phys != 0,
+                        "HID interface int-IN scratch buffer not allocated");
+            TEST_ASSERT(ctx, iface->int_buf != nullptr,
+                        "HID interface int-IN scratch buffer kva null");
         }
         if (any_hid) {
             TEST_ASSERT(ctx,

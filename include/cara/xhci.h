@@ -17,6 +17,7 @@
 #ifndef CARA_XHCI_H
 #define CARA_XHCI_H
 
+#include <cara/hid.h>
 #include <cara/types.h>
 
 struct PciFunction;
@@ -203,6 +204,7 @@ struct PciInventory;
 #define XHCI_CC_MASK                   0xFFu
 #define XHCI_CC_SUCCESS                1
 #define XHCI_CC_TRB_ERROR              5
+#define XHCI_CC_SHORT_PACKET           13
 #define XHCI_CC_CONTEXT_STATE_ERROR    19
 
 // ---- Slot Context (xHCI 1.2 §6.2.2) ---------------------------------------
@@ -459,6 +461,19 @@ struct XhciController {
             // now guaranteed to emit the canonical 8-byte
             // boot-protocol report on the interrupt-IN endpoint.
             bool          boot_protocol_set;
+            // Interrupt-IN scratch buffer the controller DMAs reports
+            // into when an enqueued Normal TRB completes. One page is
+            // wasteful for an 8-byte boot report but keeps allocation
+            // / alignment uniform with the rest of the per-slot DMA
+            // surface.
+            u64           int_buf_phys;
+            volatile u8  *int_buf;
+            // Cached most-recent boot-protocol report bytes (copied
+            // out of int_buf on a successful Croi_Xhci_HidIntReadOnce).
+            // last_report_bytes == 0 means the field has never been
+            // populated.
+            u8            last_report[HID_BOOT_REPORT_BYTES];
+            u32           last_report_bytes;
         } interfaces[CARA_XHCI_MAX_INTERFACES_PER_SLOT];
         u8 n_interfaces;
         // True after a successful USB SET_CONFIGURATION over EP0 (UC.3).
@@ -619,5 +634,26 @@ struct UsbDeviceDescriptor;
 // For each HID/Boot-dispatched interface (KEYBOARD or MOUSE), issue
 // SET_PROTOCOL(Boot). Sets iface->boot_protocol_set on success.
 [[nodiscard]] int Croi_Xhci_HidSetBootProtocols(struct XhciController *c);
+
+// Single-shot interrupt-IN read on a HID interface's already-configured
+// transfer ring. Enqueues a Normal IN TRB pointing at the interface's
+// `int_buf` (length = endpoint MaxPacketSize, IOC=1), rings DB[slot] /
+// EP_DCI, then polls the event ring up to `timeout_iters` × ~100ns
+// for the matching Transfer Event.
+//
+//   CARA_EOK    — a report arrived; `*bytes_received_out` (if non-NULL)
+//                 receives the payload length, and the bytes are also
+//                 cached in c->slots[slot_id].interfaces[iface].last_report.
+//   CARA_EAGAIN — timed out (no input from the device yet) or the
+//                 controller posted a non-success completion code.
+//   CARA_EINVAL — slot/interface aren't in the configured + ep_present state.
+//
+// Phase 1: synchronous polling. UB.7-done-for-real and the eventual
+// Tier 3 HID Gleas will replace this with an interrupt-driven read
+// loop that runs on the interrupter handler.
+[[nodiscard]] int Croi_Xhci_HidIntReadOnce(struct XhciController *c,
+                                           u8 slot_id, u32 iface_idx,
+                                           u32 timeout_iters,
+                                           u32 *bytes_received_out);
 
 #endif

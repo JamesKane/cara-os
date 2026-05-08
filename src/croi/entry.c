@@ -24,6 +24,7 @@
 #include <cara/mm.h>
 #include <cara/pci.h>
 #include <cara/platform.h>
+#include <cara/hid.h>
 #include <cara/xhci.h>
 #include <cara/sched.h>
 #include <cara/test.h>
@@ -350,6 +351,74 @@ static void console_putc(char c)
                                                     LOG_WARN("xhci",
                                                              "HidSetBootProtocols failed: %d",
                                                              hp);
+                                                } else {
+                                                    // Boot-time bring-up poll of each
+                                                    // HID interrupt-IN endpoint. With no
+                                                    // input injection in the smoke harness
+                                                    // these all timeout (EAGAIN) — we
+                                                    // just log that the substrate works.
+                                                    for (u32 sid = 1; sid <= CARA_XHCI_MAX_SLOTS; sid++) {
+                                                        if (!g_xhci.slots[sid].in_use) continue;
+                                                        for (u32 j = 0;
+                                                             j < g_xhci.slots[sid].n_interfaces;
+                                                             j++) {
+                                                            const auto iface =
+                                                                &g_xhci.slots[sid].interfaces[j];
+                                                            if (iface->dispatch != XHCI_HID_KEYBOARD
+                                                                && iface->dispatch != XHCI_HID_MOUSE) {
+                                                                continue;
+                                                            }
+                                                            u32 got = 0;
+                                                            int rr = Croi_Xhci_HidIntReadOnce(
+                                                                &g_xhci, (u8)sid, j,
+                                                                300000u, &got);
+                                                            if (rr == CARA_EOK) {
+                                                                LOG_INFO("xhci",
+                                                                         "slot=%u iface[%u] %s int-IN report (%u bytes)",
+                                                                         (unsigned)sid, (unsigned)j,
+                                                                         iface->dispatch == XHCI_HID_KEYBOARD
+                                                                             ? "kbd" : "mouse",
+                                                                         (unsigned)got);
+                                                                // Decode it through the cara_hid boot
+                                                                // decoders so we exercise HA.2/HA.3
+                                                                // end-to-end against real bytes.
+                                                                if (iface->dispatch == XHCI_HID_KEYBOARD) {
+                                                                    struct CaraHidKeyboardReport kr;
+                                                                    if (Croi_Hid_DecodeKeyboardBoot(
+                                                                            (const u8 *)iface->last_report,
+                                                                            iface->last_report_bytes,
+                                                                            &kr) == CARA_EOK) {
+                                                                        u8 raw0 = Croi_Hid_UsageToRawKey(kr.keys[0]);
+                                                                        LOG_INFO("xhci",
+                                                                                 "  kbd: mods=0x%x ie_qual=0x%x usage[0]=0x%x rawkey=0x%x",
+                                                                                 (unsigned)kr.modifiers,
+                                                                                 (unsigned)kr.ie_qualifier,
+                                                                                 (unsigned)kr.keys[0],
+                                                                                 (unsigned)raw0);
+                                                                    }
+                                                                } else {
+                                                                    struct CaraHidMouseReport mr;
+                                                                    if (Croi_Hid_DecodeMouseBoot(
+                                                                            (const u8 *)iface->last_report,
+                                                                            iface->last_report_bytes,
+                                                                            &mr) == CARA_EOK) {
+                                                                        LOG_INFO("xhci",
+                                                                                 "  mouse: btns=0x%x dx=%d dy=%d wheel=%d ie_qual=0x%x",
+                                                                                 (unsigned)mr.buttons,
+                                                                                 (int)mr.dx, (int)mr.dy,
+                                                                                 (int)mr.wheel,
+                                                                                 (unsigned)mr.ie_qualifier);
+                                                                    }
+                                                                }
+                                                            } else {
+                                                                LOG_INFO("xhci",
+                                                                         "slot=%u iface[%u] %s int-IN idle (no input)",
+                                                                         (unsigned)sid, (unsigned)j,
+                                                                         iface->dispatch == XHCI_HID_KEYBOARD
+                                                                             ? "kbd" : "mouse");
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }

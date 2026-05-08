@@ -83,15 +83,35 @@ Still to ship before Tier 2 exits:
 Still deferred from Tier 1:
 - UB.7 done-for-real: interrupter wired up so we don't busy-poll.
 
+**Interrupt-IN read primitive shipped.**
+`Croi_Xhci_HidIntReadOnce(c, slot_id, iface_idx, timeout_iters,
+*bytes_received)` enqueues a Normal IN TRB on the interface's
+already-configured int-IN ring (with the correct cycle bit and
+Link TRB wrap), rings DB[slot]/EP_DCI, and polls the event ring
+for the matching Transfer Event. SUCCESS and SHORT_PACKET
+completion codes are both treated as success; the residue field
+yields the actual byte count. Bytes are cached in
+`c->slots[].interfaces[].last_report` so the boot decoders
+(HA.2/3) can read without DMA-buffer races.
+
+Verified end-to-end against `qemu-system-riscv64` driven via
+`-monitor unix:…`: with `sendkey a` injected ~10ms before the
+boot-time poll, the kernel logs
+`slot=1 iface[0] kbd int-IN report (8 bytes)` followed by the
+decoded record. (QEMU's usb-kbd coalesces press+release into a
+single device-side queue slot, so without `-hold-time` the
+captured report is "all keys released" — the substrate is correct,
+the press/release event split is the eventual HID Gleas's job.)
+
 Tier 3 still owed (mostly waits on Phase 3 / Subgoal 6):
-- Interrupt-IN read primitive — enqueue Normal IN TRBs onto each
-  HID interface's int-IN ring, ring DB[slot]/EP_DCI, await the
-  resulting Transfer Event, hand the bytes to the boot decoders.
 - HB.1 — `usb.device` LVO surface (Phase 3 V36+ device subset)
-- HB.2 — `hid` Gleas as a U-mode program
-- HB.3 — Croi spawns the `hid` Gleas at boot
-- HB.4 — End-to-end QEMU `sendkey` smoke test (requires harness
-  extension to drive QEMU's `-monitor` socket)
+- HB.2 — `hid` Gleas as a U-mode program; runs an interrupt-IN
+  read loop (replacing Croi_Xhci_HidIntReadOnce's single-shot
+  kernel call) that sees every press/release transition.
+- HB.3 — Croi spawns the `hid` Gleas at boot.
+- HB.4 — End-to-end smoke test extension that drives QEMU's
+  `-monitor` socket from `tests/boot/smoke_qemu_kernel.sh` and
+  asserts the Gleas-produced events.
 
 ---
 
