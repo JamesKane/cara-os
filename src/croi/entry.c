@@ -307,6 +307,12 @@ static void console_putc(char c)
                     int prc = Croi_Xhci_PortsWalk(&g_xhci);
                     if (prc != CARA_EOK) {
                         LOG_WARN("xhci", "PortsWalk failed: %d", prc);
+                    } else {
+                        int arc = Croi_Xhci_AddressConnectedDevices(&g_xhci);
+                        if (arc != CARA_EOK) {
+                            LOG_WARN("xhci",
+                                     "AddressConnectedDevices failed: %d", arc);
+                        }
                     }
                 }
             } else {

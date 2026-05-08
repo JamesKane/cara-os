@@ -55,12 +55,36 @@ KERNEL_TEST(xhci_smoke)
     TEST_ASSERT(ctx, g_xhci.n_connected_ports >= 2,
                 "expected >= 2 connected ports (usb-kbd + usb-mouse)");
 
+    // UB.5 assertion: each connected device went through Port Reset →
+    // Enable Slot → Address Device. The Output Slot Context's Slot
+    // State should now read Addressed (or higher) for every used slot,
+    // and the assigned USB Device Address must be non-zero.
+    TEST_ASSERT(ctx, g_xhci.n_addressed_slots >= 2,
+                "expected >= 2 addressed slots (usb-kbd + usb-mouse)");
+    bool found_addressed = false;
+    for (u32 sid = 1; sid <= CARA_XHCI_MAX_SLOTS; sid++) {
+        if (!g_xhci.slots[sid].in_use) {
+            continue;
+        }
+        TEST_ASSERT(ctx,
+                    g_xhci.slots[sid].slot_state >= XHCI_SLOT_STATE_ADDRESSED,
+                    "slot did not transition to Addressed");
+        TEST_ASSERT(ctx, g_xhci.slots[sid].usb_address != 0,
+                    "Slot Context USB Device Address still zero");
+        TEST_ASSERT(ctx, g_xhci.dcbaa[sid] != 0,
+                    "DCBAA entry not installed for in-use slot");
+        found_addressed = true;
+    }
+    TEST_ASSERT(ctx, found_addressed,
+                "no slot reached Addressed state");
+
     LOG_INFO("xhcsm",
-             "qemu-xhci running at %x: v0x%x slots=%u ports=%u connected=%u",
+             "qemu-xhci running at %x: v0x%x slots=%u ports=%u connected=%u addressed=%u",
              ((u32)g_xhci.pci_bus << 16) | ((u32)g_xhci.pci_device << 8)
                  | g_xhci.pci_function,
              (unsigned)g_xhci.hci_version,
              (unsigned)g_xhci.max_slots,
              (unsigned)g_xhci.max_ports,
-             (unsigned)g_xhci.n_connected_ports);
+             (unsigned)g_xhci.n_connected_ports,
+             (unsigned)g_xhci.n_addressed_slots);
 }

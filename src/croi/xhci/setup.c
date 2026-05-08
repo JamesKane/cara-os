@@ -124,13 +124,31 @@ static u64 alloc_pages(u32 n_pages, void **kva_out)
     c->cmd_ring_enqueue_idx = 0;
     c->cmd_ring_cycle = true;       // initial RCS = 1
 
+    // Install a Link TRB at the last slot pointing back to index 0,
+    // with TC = 1 so the consumer toggles cycle on wrap. Cycle bit on
+    // the Link TRB starts at 0 (the producer's "stale" cycle); the
+    // first wrap will flip it to 1 and toggle PCS to 0. xHCI 1.2 §4.9.2.
+    {
+        u32 last = c->cmd_ring_size_trbs - 1;
+        xhci_trb_write(c->cmd_ring, last,
+                       (u32)(c->cmd_ring_phys & 0xFFFFFFFFu),
+                       (u32)(c->cmd_ring_phys >> 32),
+                       0,
+                       XHCI_TRB_TYPE(XHCI_TRB_LINK) | XHCI_TRB_LINK_TC);
+    }
+
     __atomic_thread_fence(__ATOMIC_SEQ_CST);
 
     // 6. CRCR. xHCI 1.2 §5.4.5: bit 0 = RCS, bits 1-5 = control,
-    //    bits 6-63 = Command Ring Pointer.
-    xhci_op_write32(c, XHCI_OP_CRCR_HI, (u32)(c->cmd_ring_phys >> 32));
+    //    bits 6-63 = Command Ring Pointer. Order matters: write LO first
+    //    (carrying the page-aligned address low bits + RCS), then HI.
+    //    QEMU's qemu-xhci latches LO on its way through and runs the
+    //    ring-init logic on the HI write using the latched LO; reversing
+    //    the order points the controller's command-ring dequeue at zero
+    //    and the doorbell silently no-ops.
     xhci_op_write32(c, XHCI_OP_CRCR_LO,
                     (u32)(c->cmd_ring_phys & 0xFFFFFFC0u) | XHCI_CRCR_RCS);
+    xhci_op_write32(c, XHCI_OP_CRCR_HI, (u32)(c->cmd_ring_phys >> 32));
 
     // 7. ERST + Event Ring Segment 0. ERST is one page; ERST entry
     //    is 16 bytes (low u64 = ring seg address, high u64 = size in

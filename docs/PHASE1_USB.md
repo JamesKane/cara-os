@@ -10,9 +10,27 @@
 
 ## Status — 2026-05-08
 
-**Not started.** The Phase 1 substrate (Tier 1+2+3 of
-PHASE1_RUNTIME) is in place; the framebuffer (Subgoal 4) is
-shipped; nothing actually delivers pointer or keyboard events yet.
+**Tier 1 underway.** Epic UA shipped; Epic UB through UB.5 shipped:
+the boot path now discovers the xHCI controller via PCIe, brings it
+through HCRST, programs DCBAA + Command Ring + Event Ring + the
+Run/Stop transition, walks PORTSC, port-resets each connected USB2
+port, and runs Enable Slot + Address Device for each — both `usb-kbd`
+and `usb-mouse` reach the Addressed state under QEMU
+(`addressed slot=1 port=5 …`, `addressed slot=2 port=6 …`). The
+`xhci_smoke` kernel test asserts ≥2 slots reach Addressed with
+non-zero USB device addresses and DCBAA entries installed.
+
+UB.6 (TRB ring helpers) and UB.7 (event ring servicing) landed as
+internal substrate while shipping UB.5: synchronous command issue
+with cycle-bit handling, ring wrap via Link TRB, ERDP advancement
+on each consumed event. Interrupt-driven event handling is still
+deferred — Phase 1 polls.
+
+Still to ship before Tier 1 exits:
+- UB.5 follow-on: a `Croi_Xhci_ConfigureEndpoint` invocation against
+  a real interrupt-IN endpoint (driven by Tier 2/UC.5 once descriptors
+  have been read).
+- UB.7 done-for-real: interrupter wired up so we don't busy-poll.
 
 ---
 

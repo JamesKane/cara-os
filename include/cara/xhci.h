@@ -138,7 +138,145 @@ struct PciInventory;
 #define XHCI_SPEED_SUPER       4   // USB 3.0 SuperSpeed (5 Gbps)
 #define XHCI_SPEED_SUPER_PLUS  5   // USB 3.1 SuperSpeedPlus (10 Gbps)
 
+// ---- TRB layout (xHCI 1.2 §4.11 / §6.4) -----------------------------------
+//
+// Every TRB is 16 bytes = 4 × u32: parameter_lo, parameter_hi, status, control.
+// The Cycle bit is control[0]; the TRB Type field is control[15:10].
+// Software fills a TRB then advances the enqueue pointer; the controller
+// reads them in order, advancing dequeue. Cycle bit toggles on wrap.
+
+#define XHCI_TRB_BYTES                 16
+#define XHCI_TRB_CYCLE                 (1u << 0)
+#define XHCI_TRB_TYPE_SHIFT            10
+#define XHCI_TRB_TYPE_MASK             0x3Fu
+#define XHCI_TRB_TYPE(t)               (((u32)(t) & XHCI_TRB_TYPE_MASK) \
+                                        << XHCI_TRB_TYPE_SHIFT)
+
+// Transfer / command TRB types (xHCI 1.2 §6.4.6, Table 6-91).
+#define XHCI_TRB_LINK                  6
+#define XHCI_TRB_ENABLE_SLOT           9
+#define XHCI_TRB_DISABLE_SLOT          10
+#define XHCI_TRB_ADDRESS_DEVICE        11
+#define XHCI_TRB_CONFIGURE_ENDPOINT    12
+#define XHCI_TRB_NOOP_COMMAND          23
+
+// Event TRB types (xHCI 1.2 §6.4.6).
+#define XHCI_TRB_TRANSFER_EVENT        32
+#define XHCI_TRB_COMMAND_COMPLETION    33
+#define XHCI_TRB_PORT_STATUS_CHANGE    34
+
+// Link TRB control flags (xHCI 1.2 §6.4.4.1).
+#define XHCI_TRB_LINK_TC               (1u << 1)   // Toggle Cycle
+
+// Address Device Command control flags (xHCI 1.2 §6.4.3.4).
+//   BSR = Block Set Address Request: when 1 the controller does the
+//   spec'd "set address only when CCS settles" dance. Phase 1 leaves
+//   it 0 (issue SET_ADDRESS to the device immediately).
+#define XHCI_TRB_ADDRDEV_BSR           (1u << 9)
+
+// Slot ID is encoded in control[31:24] for slot-targeted commands.
+#define XHCI_TRB_SLOT_ID_SHIFT         24
+
+// Command Completion Event status fields (xHCI 1.2 §6.4.2.2).
+//   status[31:24] = Completion Code
+//   control[31:24] = Slot ID
+#define XHCI_CC_SHIFT                  24
+#define XHCI_CC_MASK                   0xFFu
+#define XHCI_CC_SUCCESS                1
+#define XHCI_CC_TRB_ERROR              5
+#define XHCI_CC_CONTEXT_STATE_ERROR    19
+
+// ---- Slot Context (xHCI 1.2 §6.2.2) ---------------------------------------
+//
+// 32 bytes when CSZ = 0, 64 bytes when CSZ = 1 (HCCPARAMS1.CSZ). Field
+// offsets are the same; the upper half is reserved padding when CSZ = 1.
+//
+//   slot[0]  Route String[19:0] | Speed[23:20] | rsvd | MTT[25] | Hub[26]
+//                                              | Context Entries[31:27]
+//   slot[1]  Max Exit Latency[15:0] | Root Hub Port Number[23:16]
+//                                                | Number of Ports[31:24]
+//   slot[2]  Parent Hub Slot ID[7:0] | Parent Port Number[15:8]
+//                                                | TTT[17:16] | rsvd
+//                                                | Interrupter Target[31:22]
+//   slot[3]  USB Device Address[7:0] | rsvd[26:8] | Slot State[31:27]
+
+#define XHCI_SLOT_CTX_DW0_SPEED_SHIFT       20
+#define XHCI_SLOT_CTX_DW0_CTXENTRIES_SHIFT  27
+#define XHCI_SLOT_CTX_DW1_RHPORT_SHIFT      16
+#define XHCI_SLOT_CTX_DW3_ADDRESS_MASK      0xFFu
+#define XHCI_SLOT_CTX_DW3_STATE_SHIFT       27
+#define XHCI_SLOT_CTX_DW3_STATE_MASK        0x1Fu
+
+// Slot State values (xHCI 1.2 §4.5.3 / Table 4-15).
+#define XHCI_SLOT_STATE_DISABLED            0
+#define XHCI_SLOT_STATE_DEFAULT             1
+#define XHCI_SLOT_STATE_ADDRESSED           2
+#define XHCI_SLOT_STATE_CONFIGURED          3
+
+// ---- Endpoint Context (xHCI 1.2 §6.2.3) -----------------------------------
+//
+// 32 bytes when CSZ = 0, 64 when CSZ = 1.
+//
+//   ep[0]  EP State[2:0] | rsvd | Mult[9:8] | MaxPStreams[14:10] | LSA[15]
+//                                                  | Interval[23:16]
+//                                                  | Max ESIT High[31:24]
+//   ep[1]  rsvd[0] | CErr[2:1] | EP Type[5:3] | rsvd | HID[7] | Max Burst[15:8]
+//                                                  | Max Packet Size[31:16]
+//   ep[2]  TR Dequeue Pointer Lo (low bit = DCS, low 4 bits cleared)
+//   ep[3]  TR Dequeue Pointer Hi
+//   ep[4]  Average TRB Length[15:0] | Max ESIT Payload Lo[31:16]
+
+#define XHCI_EP_CTX_DW1_CERR_SHIFT          1
+#define XHCI_EP_CTX_DW1_EPTYPE_SHIFT        3
+#define XHCI_EP_CTX_DW1_MAXPKT_SHIFT        16
+#define XHCI_EP_CTX_DW2_DCS                 (1u << 0)
+
+// EP Type values (xHCI 1.2 §6.2.3, Table 6-9). Phase 1 uses CONTROL
+// (bidirectional) for EP0 and INTERRUPT_IN for HID interrupt-IN.
+#define XHCI_EP_TYPE_ISOCH_OUT              1
+#define XHCI_EP_TYPE_BULK_OUT               2
+#define XHCI_EP_TYPE_INTERRUPT_OUT          3
+#define XHCI_EP_TYPE_CONTROL                4
+#define XHCI_EP_TYPE_ISOCH_IN               5
+#define XHCI_EP_TYPE_BULK_IN                6
+#define XHCI_EP_TYPE_INTERRUPT_IN           7
+
+// Default EP0 Max Packet Size by speed (xHCI 1.2 §4.3.4 / §6.2.3.1).
+// The controller will be told this value before the first GET_DESCRIPTOR;
+// the descriptor's bMaxPacketSize0 may force a re-evaluate-context on
+// FS devices, but Phase 1 picks the conservative correct value upfront.
+#define XHCI_EP0_MAXPKT_LOW                 8     // LS: always 8
+#define XHCI_EP0_MAXPKT_FULL                8     // FS: 8/16/32/64; 8 is safe
+#define XHCI_EP0_MAXPKT_HIGH                64    // HS: always 64
+#define XHCI_EP0_MAXPKT_SUPER               512   // SS+: always 512
+
+// ---- Input Context (xHCI 1.2 §6.2.5) --------------------------------------
+//
+// Layout (CSZ = 0):
+//   0x00..0x1F  Input Control Context (32 bytes)
+//   0x20..0x3F  Slot Context           (= Device Slot Context offset)
+//   0x40..0x5F  EP0 Context            (Default Control Pipe)
+//   0x60..      EP1-OUT, EP1-IN, ... (DCI 2..31)
+//
+// Layout (CSZ = 1):
+//   0x00..0x3F  Input Control Context (still 32 bytes; upper 32 padded)
+//   0x40..0x7F  Slot Context
+//   0x80..0xBF  EP0 Context
+//   ...
+//
+// Input Control Context:
+//   icc[0]  Drop Context Flags  (D0 reserved, D1 reserved, D2..D31 = endpoints)
+//   icc[1]  Add  Context Flags  (A0 = Slot, A1 = EP0, A2..A31 = endpoints)
+//   icc[2..6] reserved
+//   icc[7]  Configuration Value | Interface Number | Alternate Setting
+
+#define XHCI_INPUT_CTX_ADD_SLOT             (1u << 0)
+#define XHCI_INPUT_CTX_ADD_EP0              (1u << 1)
+
 // ---- Driver state -----------------------------------------------------------
+
+#define CARA_XHCI_MAX_SLOTS                 32
+
 
 struct XhciController {
     // PCI identity.
@@ -208,6 +346,28 @@ struct XhciController {
         u8   link_state;     // raw PLS field
     } port[256];
     u32 n_connected_ports;
+
+    // Per-slot device state populated by Croi_Xhci_AddressConnectedDevices.
+    // Slot IDs are 1-based; slot[0] is unused. Output Device Context is
+    // installed in dcbaa[slot_id] so the controller writes Slot State /
+    // assigned Address back as it processes commands.
+    struct {
+        bool          in_use;
+        u8            root_port;       // 1-based xHCI port number
+        u8            speed;            // XHCI_SPEED_*
+        u8            usb_address;      // post-Address Device, from Slot Ctx
+        u8            slot_state;       // XHCI_SLOT_STATE_*
+        u64           output_ctx_phys;  // Output Device Context (DCBAA[slot])
+        volatile u8  *output_ctx;
+        u64           input_ctx_phys;   // Input Context (transient per command)
+        volatile u8  *input_ctx;
+        u64           ep0_ring_phys;    // EP0 (Default Control Pipe) Transfer Ring
+        volatile u32 *ep0_ring;
+        u32           ep0_ring_size_trbs;
+        u32           ep0_ring_enqueue_idx;
+        bool          ep0_ring_cycle;
+    } slots[CARA_XHCI_MAX_SLOTS + 1];   // index 0 unused (slot IDs are 1-based)
+    u32 n_addressed_slots;
 };
 
 // Discover and reset the xHCI controller behind `func_index` in
@@ -241,5 +401,28 @@ struct XhciController {
 // c->n_connected_ports. Must be called after Croi_Xhci_Setup so
 // the controller is running and CCS reflects the live link state.
 [[nodiscard]] int Croi_Xhci_PortsWalk(struct XhciController *c);
+
+// For each port that c->port[i].connected says is live, run the
+// USB enumeration prologue defined by xHCI 1.2 §4.3:
+//   1. Port Reset (PORTSC.PR), wait PRC, clear change bits.
+//   2. Enable Slot command → slot ID.
+//   3. Allocate Output Device Context, Input Context, EP0 Transfer Ring.
+//   4. Address Device command (BSR=0): controller issues USB SET_ADDRESS
+//      and writes the assigned address into the Output Slot Context.
+//   5. Read back Slot State / USB Address into c->slots[slot_id].
+// Populates c->n_addressed_slots. Idempotent — already-addressed slots
+// are skipped on re-entry. Returns CARA_EOK if at least one device was
+// successfully addressed (zero connected ports also returns EOK).
+[[nodiscard]] int Croi_Xhci_AddressConnectedDevices(struct XhciController *c);
+
+// Issue a Configure Endpoint command for slot `slot_id` using the
+// Input Context whose physical address is `input_ctx_phys`. The
+// caller is responsible for filling the Input Control Context (Add /
+// Drop flags), the Slot Context copy, and the per-endpoint contexts
+// before calling. Used in UC.5 once the HID interrupt-IN endpoint
+// descriptor has been read.
+[[nodiscard]] int Croi_Xhci_ConfigureEndpoint(struct XhciController *c,
+                                              u8 slot_id,
+                                              u64 input_ctx_phys);
 
 #endif
