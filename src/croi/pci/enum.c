@@ -16,6 +16,7 @@
 
 #include <cara/fdt.h>
 #include <cara/log.h>
+#include <cara/mm.h>
 #include <cara/pci.h>
 #include <cara/types.h>
 
@@ -62,6 +63,42 @@ static bool function_present(const struct PciHostBridge *b, u8 bus, u8 dev, u8 f
              (unsigned)out->bridge.bus_first,
              (unsigned)out->bridge.bus_last,
              (unsigned)out->bridge.n_ranges);
+
+    // Initialise BAR-allocation cursors from the host bridge's MEM32
+    // and MEM64 ranges. Phase 1 only allocates from MEM32 (see
+    // src/croi/pci/bar.c for rationale); MEM64 cursors are tracked
+    // for completeness so future drivers needing >4 GiB BAR space
+    // can adopt them without reshape. Also install the MEM32 range
+    // into the boot PT as a 1 GiB device leaf so subsequent register
+    // accesses on allocated BARs reach a mapped kernel-VA.
+    for (u32 i = 0; i < out->bridge.n_ranges; i++) {
+        const struct PciRange *r = &out->bridge.range[i];
+        if (r->kind == PCI_RANGE_MEM32 && out->mem32_cursor == 0) {
+            out->mem32_cursor = r->cpu_addr;
+            out->mem32_end    = r->cpu_addr + r->size;
+            // QEMU virt and the X1 both expose a 1 GiB MEM32 window
+            // aligned on a 1 GiB boundary; the install here is a
+            // cheap one-leaf op. If a future platform shows up with
+            // a smaller / unaligned window the call returns
+            // CARA_EINVAL and we'll need a finer-grain install path.
+            u64 va = (u64)Mm_PhysToVirt(r->cpu_addr);
+            int mrc = Croi_Mm_InstallBootPT_1GiBLeaf(va, r->cpu_addr,
+                                                     PTE_KERNEL_RW);
+            if (mrc == CARA_EOK) {
+                LOG_INFO("pci ",
+                         "MEM32 mapped: PA 0x%llx -> VA 0x%llx (1 GiB)",
+                         (u64)r->cpu_addr, (u64)va);
+            } else {
+                LOG_WARN("pci ",
+                         "MEM32 1 GiB leaf install failed: %d "
+                         "(PA 0x%llx size 0x%llx) — BAR access will trap",
+                         mrc, (u64)r->cpu_addr, (u64)r->size);
+            }
+        } else if (r->kind == PCI_RANGE_MEM64 && out->mem64_cursor == 0) {
+            out->mem64_cursor = r->cpu_addr;
+            out->mem64_end    = r->cpu_addr + r->size;
+        }
+    }
 
     for (u32 bus = out->bridge.bus_first;
          bus <= out->bridge.bus_last && out->n_funcs < CARA_MAX_PCI_FUNCTIONS;

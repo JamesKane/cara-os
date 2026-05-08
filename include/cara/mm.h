@@ -128,6 +128,14 @@ void Croi_DestroyPT(struct PageTable *pt);
 // allocates intermediate L1/L0 tables as needed.
 [[nodiscard]] int Page_Map(struct PageTable *pt, u64 va, u64 pa, u64 prot);
 
+// Install a 1 GiB leaf in the *boot* page table (the one currently
+// in SATP). va and phys must each be 1 GiB aligned. Used at boot to
+// bring a wide MMIO range — e.g. the PCIe host bridge's MEM32
+// window — into the kernel's upper-half direct map in a single L2
+// entry rather than 262 144 per-page mappings. Returns CARA_EINVAL
+// if the L2 slot is already populated.
+[[nodiscard]] int Croi_Mm_InstallBootPT_1GiBLeaf(u64 va, u64 phys, u64 prot);
+
 // Compose an Sv39 satp value: (mode=8 << 60) | (asid << 44) | ppn.
 static inline u64 Sv39_Satp(const struct PageTable *pt)
 {

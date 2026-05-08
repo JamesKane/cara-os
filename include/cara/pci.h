@@ -148,6 +148,16 @@ struct PciFunction {
 
 struct PciInventory {
     struct PciHostBridge bridge;
+
+    // Bump cursors for BAR allocation from the bridge's ranges. The
+    // *_end values are the inclusive-exclusive limits derived from
+    // the bridge's MEM32/MEM64 PciRange entries; an allocation that
+    // would push past the end fails with CARA_ENOMEM.
+    u64 mem32_cursor;
+    u64 mem32_end;
+    u64 mem64_cursor;
+    u64 mem64_end;
+
     struct PciFunction   func[CARA_MAX_PCI_FUNCTIONS];
     u32                  n_funcs;
 };
@@ -164,5 +174,26 @@ struct PciInventory {
 const struct PciFunction *
 Croi_Pci_FindByClass(const struct PciInventory *inv, u8 base_class,
                      u8 subclass, u8 prog_if, u32 *cursor_inout);
+
+// ---- BAR sizing + allocation ------------------------------------------------
+//
+// Given an in-inventory function pointer, size its BAR via the
+// canonical write-1s-read-back sequence (PCI 3.0 §6.2.5.1) and
+// allocate a region from the host bridge's MEM32 range, programming
+// the BAR back with the chosen base. Updates fn->bar[bar_index] with
+// the result and toggles PCI_CMD_MEM_SPACE | PCI_CMD_BUS_MASTER on the
+// command register.
+//
+// Phase 1 v0 only allocates from MEM32; 64-bit BARs that fit inside
+// the 4 GiB MEM32 range are handled by zeroing the upper 32 bits of
+// the BAR. I/O BARs are rejected — no driver in Phase 1 needs them.
+//
+// Returns:
+//   CARA_EOK     — BAR sized, allocated, and programmed
+//   CARA_ENOENT  — BAR is not implemented (size reads 0)
+//   CARA_ENOMEM  — MEM32 range exhausted
+//   CARA_EINVAL  — invalid bar_index, I/O BAR, or weird BAR header
+[[nodiscard]] int Croi_Pci_AllocateBar(struct PciInventory *inv,
+                                       u32 func_index, u32 bar_index);
 
 #endif

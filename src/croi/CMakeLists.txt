@@ -67,6 +67,7 @@ target_link_libraries(croi PRIVATE
     cara_loader
     cara_dath
     cara_pci
+    cara_xhci
     # cara_exec_lib is whole-archived so trampolines.S.obj isn't
     # dropped — kernel-mode code never references the trampolines
     # directly (only the user-mode vec table at 0x4000_0000+ does),

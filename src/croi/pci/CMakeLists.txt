@@ -10,7 +10,7 @@
 if(CARA_TARGET STREQUAL "host")
     add_library(cara_pci STATIC fdt.c)
 else()
-    add_library(cara_pci STATIC fdt.c config.c enum.c)
+    add_library(cara_pci STATIC fdt.c config.c enum.c bar.c)
 endif()
 target_link_libraries(cara_pci
     PUBLIC cara_headers cara_fdt

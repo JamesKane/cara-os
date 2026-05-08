@@ -181,3 +181,32 @@ void Croi_DestroyPT(struct PageTable *pt)
     l0[i0] = make_leaf(pa, prot);
     return CARA_EOK;
 }
+
+[[nodiscard]] int Croi_Mm_InstallBootPT_1GiBLeaf(u64 va, u64 phys, u64 prot)
+{
+    // 1 GiB alignment required for both VA and PA per Sv39 leaf rules.
+    if ((va & ((1ull << 30) - 1)) != 0 || (phys & ((1ull << 30) - 1)) != 0) {
+        return CARA_EINVAL;
+    }
+    if ((prot & PTE_V) == 0) {
+        return CARA_EINVAL;
+    }
+
+    // Find the boot PT root via SATP (matches the pattern in
+    // src/croi/exec_lib/image.c::Croi_ExecLib_InstallInBootPT).
+    u64 satp;
+    __asm__ volatile("csrr %0, satp" : "=r"(satp));
+    u64 ppn = satp & ((1ull << 44) - 1);
+    u64 *root = (u64 *)Mm_PhysToVirt(ppn << 12);
+
+    u32 i2 = (u32)((va >> 30) & 0x1FFu);
+    if (pte_present(root[i2])) {
+        return CARA_EINVAL;     // L2 slot already populated
+    }
+    root[i2] = make_leaf(phys, prot);
+
+    // Sv39 sfence to publish the new leaf to the MMU. va alone is fine
+    // — the new mapping covers exactly that 1 GiB and no more.
+    __asm__ volatile("sfence.vma %0, zero" : : "r"(va) : "memory");
+    return CARA_EOK;
+}
