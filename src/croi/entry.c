@@ -117,6 +117,61 @@ static void console_putc(char c)
                    pm.usable[i].size / 1024);
     }
 
+    // ---- Page allocator ----
+    static struct PageAllocator g_page_alloc;
+    rc = Page_Init(&g_page_alloc, &pm);
+    if (rc != CARA_EOK) {
+        Croi_Print("Page_Init failed: %d\n", rc);
+        Croi_Halt();
+    }
+    Croi_Print("page alloc:   %llu pages free across %u runs\n",
+               g_page_alloc.free_pages, g_page_alloc.n_runs);
+
+    // Smoke: alloc 16 single pages, ensure they're distinct, free all,
+    // verify counter restore.
+    {
+        u64 saved_free = g_page_alloc.free_pages;
+        u64 pages[16];
+        for (u32 i = 0; i < 16; i++) {
+            pages[i] = Page_Alloc(&g_page_alloc, 1);
+            if (pages[i] == 0) {
+                Croi_Print("Page_Alloc smoke: alloc %u failed\n", i);
+                Croi_Halt();
+            }
+            for (u32 j = 0; j < i; j++) {
+                if (pages[j] == pages[i]) {
+                    Croi_Print("Page_Alloc smoke: duplicate at %u/%u (0x%llx)\n",
+                               j, i, pages[i]);
+                    Croi_Halt();
+                }
+            }
+        }
+        if (g_page_alloc.free_pages != saved_free - 16) {
+            Croi_Print("Page_Alloc smoke: counter wrong after 16 allocs\n");
+            Croi_Halt();
+        }
+        for (u32 i = 0; i < 16; i++) {
+            Page_Free(&g_page_alloc, pages[i], 1);
+        }
+        if (g_page_alloc.free_pages != saved_free) {
+            Croi_Print("Page_Alloc smoke: counter not restored after free\n");
+            Croi_Halt();
+        }
+        // 4-page contiguous alloc.
+        u64 multi = Page_Alloc(&g_page_alloc, 4);
+        if (multi == 0 || (multi & 0xFFF) != 0) {
+            Croi_Print("Page_Alloc smoke: 4-page alloc failed (0x%llx)\n", multi);
+            Croi_Halt();
+        }
+        Page_Free(&g_page_alloc, multi, 4);
+        if (g_page_alloc.free_pages != saved_free) {
+            Croi_Print("Page_Alloc smoke: counter wrong after multi-free\n");
+            Croi_Halt();
+        }
+        Croi_Print("page alloc smoke: PASS (peak in-flight = %llu pages)\n",
+                   g_page_alloc.peak_in_flight_pages);
+    }
+
     if (!plat.sstc_present || plat.timebase_hz == 0) {
         Croi_Print("Sstc not present (timebase=%llu); skipping timer demo\n",
                    plat.timebase_hz);

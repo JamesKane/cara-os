@@ -6,6 +6,7 @@
 
 add_library(cara_mm STATIC
     physmap.c
+    page_alloc.c
 )
 target_include_directories(cara_mm PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 
