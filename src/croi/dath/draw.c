@@ -142,3 +142,56 @@ void Dath_BlitRect(const struct DathFramebuffer *dst, i32 dx, i32 dy,
         }
     }
 }
+
+// Bresenham line. Tracks absolute deltas, signs both axes, accumulates
+// a 2*err threshold to decide when to step the minor axis. Off-screen
+// pixels are silently dropped by Dath_Pixel's bounds check.
+void Dath_DrawLine(const struct DathFramebuffer *fb, i32 x0, i32 y0,
+                   i32 x1, i32 y1, DathColor c)
+{
+    if (!fb || !fb->base) {
+        return;
+    }
+    i32 dx = x1 - x0;
+    if (dx < 0) {
+        dx = -dx;
+    }
+    i32 dy = y1 - y0;
+    if (dy < 0) {
+        dy = -dy;
+    }
+    i32 sx = (x0 < x1) ? 1 : -1;
+    i32 sy = (y0 < y1) ? 1 : -1;
+    i32 err = (dx > dy ? dx : -dy) / 2;
+    for (;;) {
+        Dath_Pixel(fb, x0, y0, c);
+        if (x0 == x1 && y0 == y1) {
+            break;
+        }
+        i32 e2 = err;
+        if (e2 > -dx) {
+            err -= dy;
+            x0 += sx;
+        }
+        if (e2 < dy) {
+            err += dx;
+            y0 += sy;
+        }
+    }
+}
+
+// Outlined rectangle: four edges via DrawLine. Endpoints are inclusive
+// so each corner pixel is written exactly once.
+void Dath_DrawRect(const struct DathFramebuffer *fb, i32 x, i32 y,
+                   i32 w, i32 h, DathColor c)
+{
+    if (!fb || w <= 0 || h <= 0) {
+        return;
+    }
+    i32 x1 = x + w - 1;
+    i32 y1 = y + h - 1;
+    Dath_DrawLine(fb, x,  y,  x1, y,  c);     // top
+    Dath_DrawLine(fb, x,  y1, x1, y1, c);     // bottom
+    Dath_DrawLine(fb, x,  y,  x,  y1, c);     // left
+    Dath_DrawLine(fb, x1, y,  x1, y1, c);     // right
+}

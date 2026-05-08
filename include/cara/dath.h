@@ -66,6 +66,18 @@ void Dath_BlitRect(const struct DathFramebuffer *dst, i32 dx, i32 dy,
                    const struct DathFramebuffer *src, i32 sx, i32 sy,
                    i32 w, i32 h);
 
+// Bresenham line from (x0, y0) to (x1, y1) inclusive of both endpoints.
+// Per-pixel writes go through Dath_Pixel so off-screen segments are
+// transparently clipped.
+void Dath_DrawLine(const struct DathFramebuffer *fb, i32 x0, i32 y0,
+                   i32 x1, i32 y1, DathColor c);
+
+// Outlined rectangle — the four edges of the rect at (x, y) with size
+// (w, h). Width 1 only; thicker borders compose multiple DrawRect
+// calls. Edges are clipped to the framebuffer.
+void Dath_DrawRect(const struct DathFramebuffer *fb, i32 x, i32 y,
+                   i32 w, i32 h, DathColor c);
+
 // ---- FDT discovery ---------------------------------------------------------
 //
 // The pure parsed shape of a `simple-framebuffer` node — phys base

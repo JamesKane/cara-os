@@ -177,4 +177,56 @@ KERNEL_TEST(dath_smoke)
             TEST_FAIL(ctx, "DrawString first 'C' wrong");
         }
     }
+
+    // 12. DrawLine — a 45-degree diagonal from (0,0) to (15,15) on a
+    //     fresh framebuffer should set exactly the (k, k) pixels for
+    //     k in [0, 15] and leave everything else clear.
+    Dath_Clear(&fb, Dath_RGB(0, 0, 0));
+    DathColor cyan = Dath_RGB(0, 0xFF, 0xFF);
+    Dath_DrawLine(&fb, 0, 0, 15, 15, cyan);
+    for (u32 i = 0; i < 16; i++) {
+        if (g_buf[i * W + i] != 0xFF00FFFFu) {
+            TEST_FAIL(ctx, "DrawLine: diagonal pixel not set");
+        }
+    }
+    // Off-diagonal pixel should be clear.
+    if (g_buf[3 * W + 7] != 0xFF000000u) {
+        TEST_FAIL(ctx, "DrawLine: off-diagonal pixel got set");
+    }
+
+    // 13. DrawLine clipping — a line that runs off-screen should not
+    //     fault and should still mark every on-screen pixel of the line.
+    Dath_DrawLine(&fb, -10, -10, (i32)W + 10, (i32)H + 10, cyan);
+    // The line (-10,-10) -> (74,42) crosses the framebuffer; verify
+    // (5,5) is on the line and got set.
+    if (g_buf[5 * W + 5] == 0xFF000000u) {
+        TEST_FAIL(ctx, "DrawLine: clipped diagonal failed to mark on-screen pixels");
+    }
+
+    // 14. DrawRect — outline at (4, 4) size 8x6. Corners and edges set,
+    //     interior cleared to background.
+    Dath_Clear(&fb, Dath_RGB(0, 0, 0));
+    DathColor magenta = Dath_RGB(0xFF, 0, 0xFF);
+    Dath_DrawRect(&fb, 4, 4, 8, 6, magenta);
+    // Each corner pixel:
+    static const struct { u32 x, y; } corners[4] = {
+        { 4, 4 }, { 11, 4 }, { 4, 9 }, { 11, 9 },
+    };
+    for (u32 i = 0; i < 4; i++) {
+        if (g_buf[corners[i].y * W + corners[i].x] != 0xFFFF00FFu) {
+            TEST_FAIL(ctx, "DrawRect: corner not set");
+        }
+    }
+    // Top edge mid-point.
+    if (g_buf[4 * W + 7] != 0xFFFF00FFu) {
+        TEST_FAIL(ctx, "DrawRect: top edge not set");
+    }
+    // Left edge mid-point.
+    if (g_buf[6 * W + 4] != 0xFFFF00FFu) {
+        TEST_FAIL(ctx, "DrawRect: left edge not set");
+    }
+    // Interior pixel — should still be black.
+    if (g_buf[6 * W + 7] != 0xFF000000u) {
+        TEST_FAIL(ctx, "DrawRect: interior leaked");
+    }
 }
