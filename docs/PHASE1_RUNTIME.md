@@ -7,18 +7,20 @@
 >
 > **Naming note.** Every `Croi_*`, `Dath_*`, `Page_*`, `Ring_*` symbol
 > in this document is **kernel-internal**, in the brand namespace
-> defined by `docs/PRINCIPLES.md` §3.1. Phase 1 has no userspace
-> AmigaOS trampolines yet — that work belongs to Phase 3, where these
-> internals are exposed to user programs through `exec.library` LVOs
-> (`AllocMem`, `Wait`, `Signal`, `PutMsg`, `GetMsg`, `WaitPort`,
-> `AllocSignal`, `FreeSignal`, …) at their canonical V36+ offsets.
-> The Phase 1 contracts here are the *implementations* those LVOs
-> trampoline into; they are not themselves an API user programs see,
-> and they are free to use the brand namespace.
+> defined by `docs/PRINCIPLES.md` §3.1. The Phase 1 contracts here
+> are the *implementations* the V36+ exec.library LVOs trampoline
+> into — `AllocMem`, `Wait`, `Signal`, `PutMsg`, `GetMsg`,
+> `WaitPort`, `AllocSignal`, `FreeSignal`, … — and they are free to
+> use the brand namespace because they're not themselves the API
+> user programs see. The exec.library trampolines, the generated
+> `<proto/exec.h>` inline stubs, and the user-VA library mapping at
+> `0x4000_0000` shipped as Phase A–E (see `docs/LVO.md` and below);
+> Phase 3 proper continues with `dos.library`, `intuition.library`,
+> and the rest of the V36+ surface.
 
 ---
 
-## Status — 2026-05-07
+## Status — 2026-05-08
 
 Tier 1 (console-output-complete): **shipped**.
 Tier 2 (general runtime): E, F, G, I, J **shipped**; H deferred.
@@ -32,12 +34,42 @@ FDT discovery + 8x8 bitmap font + DrawChar/DrawString. QEMU virt has
 no framebuffer node by default so the boot logs "headless boot"; the
 synthetic in-heap framebuffer tests verify all primitives end-to-end.
 
-Eleven in-kernel tests run on every boot; the QEMU smoke ctest asserts
-`kernel tests: N passed, 0 failed`:
+**Phase 3 foundation (exec.library) shipped** — out of Phase 1's
+scope strictly, but landed on top of the Phase 1 substrate:
+
+  - `tools/lvo-gen` host tool (parser + validator + four emitters
+    + Phase 9 aggregator), CMake helper, hosted golden-file tests.
+  - V36+ namespace clearance: `<exec/{types,nodes,lists,ports,
+    libraries,memory,tasks,execbase}.h>`, `<utility/tagitem.h>`,
+    brand squatters renamed (CroiMsgPort, evolved struct Task with
+    tc_* fields, MinList_* helpers).
+  - exec.library substrate: 13 syscalls (OpenLibrary / CloseLibrary
+    / AllocMem / FreeMem / Wait / Signal / AllocSignal / FreeSignal
+    / SetSignal / PutMsg / GetMsg / WaitPort / OldOpenLibrary),
+    Croi_MakeLibrary + library registry, per-LVO syscall trampolines,
+    linker-placed library image at user-VA 0x4000_0000 (R+W+X+U,
+    installed in every PT including the boot PT), boot-time
+    construction.
+  - libcara C runtime: bootstrap-opens exec.library via inline
+    ecall, sets the SysBase global, runs main, calls SYS_EXIT.
+  - LVO.md §9 worked example: `userexec.elf` reads
+    `SysBase->LibNode.lib_Version` (a plain memory load — proof
+    the SASOS user-VA mapping is live), then exercises OpenLibrary
+    / AllocMem / FreeMem / CloseLibrary through the generated
+    `<proto/exec.h>` inline stubs.
+
+See `docs/LVO.md` for the design and the Phase A–E commits
+(`efefe4c phase-A+B`, `3078c5e phase-C kernel`, `b67fefd phase-C
+end-to-end`, `6ab4a1c phase-D`, `0ec0b61 phase-E`) for the
+implementation.
+
+Thirteen in-kernel tests run on every boot; the QEMU smoke ctest
+asserts `kernel tests: N passed, 0 failed`:
 
   pagealloc_smoke, heap_smoke, time_smoke, sched_smoke,
   signal_smoke, handle_smoke, ipc_smoke, paging_smoke,
-  usermode_smoke, userelf_smoke, dath_smoke
+  usermode_smoke, userelf_smoke, dath_smoke,
+  exec_lib_smoke, userexec_smoke
 
 What landed under each Epic:
 
@@ -559,11 +591,14 @@ the line appears in the kernel log ring.
 
 # What follows
 
-After Tier 3 lands, Phase 1 Subgoals 4–7 begin and each gets its own
-plan document. The likely shape:
+After Tier 3 landed, two strands run in parallel:
+
+**Phase 1 Subgoals 4–7** — kept in this doc family because they
+extend Phase 1's runtime substrate:
 
 - **`docs/PHASE1_FRAMEBUFFER.md`** — `simple-framebuffer` discovery
-  from FDT, CPU blitter, the `graphics.library` (Dath) minimum needed by Clar.
+  from FDT, CPU blitter, the `graphics.library` (Dath) minimum needed
+  by Clar. *First cut already shipped per the Status section above.*
 - **`docs/PHASE1_USB.md`** — xHCI host driver, USB enumeration, HID
   class. Input arrives here. Many of the runtime contracts get
   exercised for the first time end-to-end (DMA, IRQs, IPC).
@@ -572,5 +607,13 @@ plan document. The likely shape:
 - **`docs/PHASE1_CLAR.md`** — Workbench-equivalent: screens, drawer,
   one Inntin (gadget) text input.
 
-Each will be written when the previous Tier ships, so the requirements
-are grounded in the actual runtime rather than guessed up front.
+**Phase 3 (V36+ AmigaOS API parity)** — kicked off with exec.library
+per the Status section above. Subsequent libraries each land via the
+same lvo-gen pipeline and don't need a per-library plan document; the
+shared design is `docs/LVO.md`. Roadmap order is roughly utility →
+intuition → graphics → dos → gadtools → asl → iffparse → the rest of
+ROADMAP.md §Phase 3.
+
+Each PHASE1_* doc will be written when the previous Tier ships, so
+the requirements are grounded in the actual runtime rather than
+guessed up front.
