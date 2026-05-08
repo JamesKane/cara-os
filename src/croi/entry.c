@@ -13,6 +13,7 @@
 #include "ns16550.h"
 #include "print.h"
 
+#include <cara/alloc.h>
 #include <cara/fdt.h>
 #include <cara/mm.h>
 #include <cara/platform.h>
@@ -170,6 +171,61 @@ static void console_putc(char c)
         }
         Croi_Print("page alloc smoke: PASS (peak in-flight = %llu pages)\n",
                    g_page_alloc.peak_in_flight_pages);
+    }
+
+    // ---- Kernel heap ----
+    static struct Heap g_heap;
+    rc = Heap_Init(&g_heap, &g_page_alloc);
+    if (rc != CARA_EOK) {
+        Croi_Print("Heap_Init failed: %d\n", rc);
+        Croi_Halt();
+    }
+    Heap_SetActive(&g_heap);
+
+    // Smoke: alloc/free across every size class plus a large alloc.
+    {
+        const usize sizes[] = { 8, 16, 17, 32, 100, 256, 1000, 2048, 4096, 16384 };
+        const u32 n = sizeof(sizes) / sizeof(sizes[0]);
+        void *ptrs[16];
+        u64 bytes_before = g_heap.bytes_in_flight;
+        for (u32 i = 0; i < n; i++) {
+            ptrs[i] = Croi_Alloc(sizes[i]);
+            if (!ptrs[i]) {
+                Croi_Print("Heap smoke: Croi_Alloc(%llu) failed\n",
+                           (u64)sizes[i]);
+                Croi_Halt();
+            }
+            // Touch the memory to confirm we got a usable pointer.
+            for (u32 k = 0; k < (u32)sizes[i]; k++) {
+                ((u8 *)ptrs[i])[k] = (u8)(k & 0xFF);
+            }
+        }
+        for (u32 i = 0; i < n; i++) {
+            Croi_Free(ptrs[i]);
+        }
+        if (g_heap.bytes_in_flight != bytes_before) {
+            Croi_Print("Heap smoke: bytes_in_flight not restored (%llu vs %llu)\n",
+                       g_heap.bytes_in_flight, bytes_before);
+            Croi_Halt();
+        }
+        // Also stress one slab class to force a slab-page grow.
+        void *many[200];
+        for (u32 i = 0; i < 200; i++) {
+            many[i] = Croi_Alloc(64);
+            if (!many[i]) {
+                Croi_Print("Heap smoke: 64-byte alloc %u failed\n", i);
+                Croi_Halt();
+            }
+        }
+        for (u32 i = 0; i < 200; i++) {
+            Croi_Free(many[i]);
+        }
+        if (g_heap.bytes_in_flight != bytes_before) {
+            Croi_Print("Heap smoke: bytes_in_flight wrong after stress\n");
+            Croi_Halt();
+        }
+        Croi_Print("heap smoke: PASS (peak %llu bytes in-flight, large_peak=%u)\n",
+                   g_heap.peak_bytes_in_flight, g_heap.large_peak);
     }
 
     if (!plat.sstc_present || plat.timebase_hz == 0) {
