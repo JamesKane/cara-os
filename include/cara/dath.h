@@ -45,9 +45,12 @@ typedef u32 DathColor;
                                         DathFormat format);
 
 // Compose colors. RGBA8888 / BGRA8888 framebuffers store the alpha in
-// the high byte; RGB565 ignores alpha. Dath_RGB defaults alpha to 0xFF.
+// the high byte; RGB565 packs into the low 16 bits and the high half
+// is unused. Use Dath_RGB565 explicitly when the target framebuffer is
+// DATH_FMT_RGB565 — the 32-bit composers do not auto-convert.
 DathColor Dath_RGB(u8 r, u8 g, u8 b);
 DathColor Dath_RGBA(u8 r, u8 g, u8 b, u8 a);
+DathColor Dath_RGB565(u8 r, u8 g, u8 b);
 
 void Dath_Pixel(const struct DathFramebuffer *fb, i32 x, i32 y, DathColor c);
 

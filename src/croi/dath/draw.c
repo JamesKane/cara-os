@@ -3,8 +3,8 @@
 // dath drawing primitives — pixel set, filled rect, clear, and rect
 // blit. RGBA8888 and BGRA8888 are handled identically (caller is
 // responsible for handing in a DathColor that matches the format).
-// RGB565 is included in the API surface but its encoding helper is
-// stubbed until a 16-bit framebuffer actually appears.
+// RGB565 packs the colour into the low 16 bits of the DathColor and
+// the writes go through 16-bit stores; the high half is ignored.
 //
 // Negative origins and oversize spans are tolerated: clipping is
 // done up-front so callers don't have to worry about partial visibility.
@@ -22,10 +22,22 @@ DathColor Dath_RGBA(u8 r, u8 g, u8 b, u8 a)
     return ((u32)a << 24) | ((u32)r << 16) | ((u32)g << 8) | (u32)b;
 }
 
+DathColor Dath_RGB565(u8 r, u8 g, u8 b)
+{
+    // 5+6+5 packed into a u16; takes the high bits of each channel.
+    return (((u32)r & 0xF8) << 8) | (((u32)g & 0xFC) << 3) | ((u32)b >> 3);
+}
+
 static inline u32 *pixel_addr_32(const struct DathFramebuffer *fb, i32 x, i32 y)
 {
     u8 *row = (u8 *)fb->base + (usize)(u32)y * fb->stride;
     return (u32 *)(row + (usize)(u32)x * 4);
+}
+
+static inline u16 *pixel_addr_16(const struct DathFramebuffer *fb, i32 x, i32 y)
+{
+    u8 *row = (u8 *)fb->base + (usize)(u32)y * fb->stride;
+    return (u16 *)(row + (usize)(u32)x * 2);
 }
 
 static i32 imin_i32(i32 a, i32 b)
@@ -48,8 +60,9 @@ void Dath_Pixel(const struct DathFramebuffer *fb, i32 x, i32 y, DathColor c)
     }
     if (fb->bpp == 4) {
         *pixel_addr_32(fb, x, y) = c;
+    } else if (fb->bpp == 2) {
+        *pixel_addr_16(fb, x, y) = (u16)c;
     }
-    // 16-bit path lands when an RGB565 framebuffer actually appears.
 }
 
 void Dath_FillRect(const struct DathFramebuffer *fb, i32 x, i32 y,
@@ -66,12 +79,20 @@ void Dath_FillRect(const struct DathFramebuffer *fb, i32 x, i32 y,
         return;
     }
 
+    i32 row_w = x1 - x0;
     if (fb->bpp == 4) {
         for (i32 yy = y0; yy < y1; yy++) {
             u32 *p = pixel_addr_32(fb, x0, yy);
-            i32 row_w = x1 - x0;
             for (i32 i = 0; i < row_w; i++) {
                 p[i] = c;
+            }
+        }
+    } else if (fb->bpp == 2) {
+        u16 v = (u16)c;
+        for (i32 yy = y0; yy < y1; yy++) {
+            u16 *p = pixel_addr_16(fb, x0, yy);
+            for (i32 i = 0; i < row_w; i++) {
+                p[i] = v;
             }
         }
     }
@@ -136,6 +157,18 @@ void Dath_BlitRect(const struct DathFramebuffer *dst, i32 dx, i32 dy,
             u32       *dp = (u32 *)((u8 *)dst->base
                                     + (usize)(u32)(dy0 + r) * dst->stride
                                     + (usize)(u32)dx0 * 4);
+            for (i32 i = 0; i < cw; i++) {
+                dp[i] = sp[i];
+            }
+        }
+    } else if (dst->bpp == 2) {
+        for (i32 r = 0; r < ch; r++) {
+            const u16 *sp = (const u16 *)((const u8 *)src->base
+                                          + (usize)(u32)(sy0 + r) * src->stride
+                                          + (usize)(u32)sx0 * 2);
+            u16       *dp = (u16 *)((u8 *)dst->base
+                                    + (usize)(u32)(dy0 + r) * dst->stride
+                                    + (usize)(u32)dx0 * 2);
             for (i32 i = 0; i < cw; i++) {
                 dp[i] = sp[i];
             }

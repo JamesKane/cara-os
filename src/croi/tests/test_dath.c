@@ -304,4 +304,56 @@ KERNEL_TEST(dath_smoke)
     Dath_Console_PutString(&con, "12345678");
     TEST_ASSERT(ctx, con.cur_col == 0, "row-fill did not wrap col to 0");
     TEST_ASSERT(ctx, con.cur_row == 1, "row-fill did not advance row");
+
+    // 17. RGB565 path. Pure red (0xFF, 0, 0) packs to 0xF800; pure green
+    //     (0, 0xFF, 0) packs to 0x07E0; pure blue (0, 0, 0xFF) packs to
+    //     0x001F. White (0xFF, 0xFF, 0xFF) packs to 0xFFFF.
+    TEST_ASSERT(ctx, Dath_RGB565(0xFF, 0, 0) == 0xF800u, "RGB565 red wrong");
+    TEST_ASSERT(ctx, Dath_RGB565(0, 0xFF, 0) == 0x07E0u, "RGB565 green wrong");
+    TEST_ASSERT(ctx, Dath_RGB565(0, 0, 0xFF) == 0x001Fu, "RGB565 blue wrong");
+    TEST_ASSERT(ctx, Dath_RGB565(0xFF, 0xFF, 0xFF) == 0xFFFFu,
+                "RGB565 white wrong");
+
+    static u16 g_buf16[16 * 8];
+    struct DathFramebuffer fb16;
+    TEST_ASSERT(ctx,
+                Dath_Framebuffer_Init(&fb16, g_buf16, 16, 8, 16 * 2,
+                                      DATH_FMT_RGB565) == CARA_EOK,
+                "RGB565 fb init failed");
+    TEST_ASSERT(ctx, fb16.bpp == 2, "RGB565 bpp not 2");
+
+    Dath_Clear(&fb16, Dath_RGB565(0, 0, 0));
+    for (u32 i = 0; i < 16 * 8; i++) {
+        if (g_buf16[i] != 0u) {
+            TEST_FAIL(ctx, "RGB565 clear: pixel not black");
+        }
+    }
+    Dath_Pixel(&fb16, 3, 2, Dath_RGB565(0xFF, 0, 0));
+    TEST_ASSERT(ctx, g_buf16[2 * 16 + 3] == 0xF800u, "RGB565 pixel red wrong");
+    TEST_ASSERT(ctx, g_buf16[2 * 16 + 4] == 0x0000u, "RGB565 pixel leaked");
+
+    Dath_FillRect(&fb16, 4, 1, 4, 3, Dath_RGB565(0, 0xFF, 0));
+    for (u32 y = 1; y < 4; y++) {
+        for (u32 x = 4; x < 8; x++) {
+            if (g_buf16[y * 16 + x] != 0x07E0u) {
+                TEST_FAIL(ctx, "RGB565 fill rect mismatch");
+            }
+        }
+    }
+
+    static u16 g_src16[4 * 4];
+    struct DathFramebuffer src16;
+    TEST_ASSERT(ctx,
+                Dath_Framebuffer_Init(&src16, g_src16, 4, 4, 4 * 2,
+                                      DATH_FMT_RGB565) == CARA_EOK,
+                "src16 init failed");
+    Dath_Clear(&src16, Dath_RGB565(0, 0, 0xFF));
+    Dath_BlitRect(&fb16, 10, 4, &src16, 0, 0, 4, 4);
+    for (u32 y = 4; y < 8; y++) {
+        for (u32 x = 10; x < 14; x++) {
+            if (g_buf16[y * 16 + x] != 0x001Fu) {
+                TEST_FAIL(ctx, "RGB565 blit mismatch");
+            }
+        }
+    }
 }
