@@ -5,6 +5,7 @@
 // switch trigger. Single hart for now (SMP arrives in Epic H).
 
 #include <cara/alloc.h>
+#include <cara/kobj.h>
 #include <cara/list.h>
 #include <cara/log.h>
 #include <cara/sched.h>
@@ -76,6 +77,11 @@ void Sched_Init(void)
     name_copy(boot->name, "kmain", sizeof(boot->name));
     boot->pri = 100;
     boot->state = TASK_STATE_RUNNING;
+    if (HandleTable_Init(&boot->handles, CARA_TASK_HANDLE_TABLE_CAP)
+        != CARA_EOK) {
+        LOG_FATAL("schd", "Sched_Init: HandleTable_Init failed");
+        return;
+    }
     g_current = boot;
     g_inited = true;
     LOG_INFO("schd", "scheduler initialised; kmain pri=100");
@@ -109,6 +115,11 @@ struct Task *Sched_Current(void)
         return nullptr;
     }
     t->kstack_size = CARA_TASK_KSTACK_SIZE;
+    if (HandleTable_Init(&t->handles, CARA_TASK_HANDLE_TABLE_CAP) != CARA_EOK) {
+        Croi_Free(t->kstack);
+        Croi_Free(t);
+        return nullptr;
+    }
 
     // saved_regs layout: [0]=ra, [1]=sp, [2]=gp, [3]=tp, [4..15]=s0..s11
     u64 sp_top = (u64)(uptr)t->kstack + CARA_TASK_KSTACK_SIZE;

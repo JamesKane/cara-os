@@ -8,6 +8,7 @@
 #ifndef CARA_SCHED_H
 #define CARA_SCHED_H
 
+#include <cara/kobj.h>
 #include <cara/list.h>
 #include <cara/types.h>
 
@@ -27,19 +28,22 @@ typedef enum : u32 {
 // itself, so the compiler already saves them as needed.
 #define TASK_NSAVED 16
 
+#define CARA_TASK_HANDLE_TABLE_CAP 32
+
 struct Task {
-    char            name[CARA_TASK_NAME_LEN];
-    i32             pri;             // -128..127, larger = higher priority
-    TaskState       state;
-    u64             saved_regs[TASK_NSAVED];
-    void           *kstack;          // base of stack region
-    usize           kstack_size;
-    void          (*entry_fn)(void *);
-    void           *entry_arg;
-    u32             sigrecvd;        // bits set when Signal() targets this task
-    u32             sigwait;         // bits the task is currently Wait()ing on
-    u32             sigalloc;        // bits handed out by AllocSignal()
-    struct ListNode sched_node;
+    char               name[CARA_TASK_NAME_LEN];
+    i32                pri;          // -128..127, larger = higher priority
+    TaskState          state;
+    u64                saved_regs[TASK_NSAVED];
+    void              *kstack;       // base of stack region
+    usize              kstack_size;
+    void             (*entry_fn)(void *);
+    void              *entry_arg;
+    u32                sigrecvd;     // bits set when Signal() targets this
+    u32                sigwait;      // bits the task is currently Wait()ing on
+    u32                sigalloc;     // bits handed out by AllocSignal()
+    struct HandleTable handles;      // per-task handle table
+    struct ListNode    sched_node;
 };
 
 typedef void (*KernelTaskFn)(void *arg);

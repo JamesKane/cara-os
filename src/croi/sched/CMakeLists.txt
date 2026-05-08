@@ -9,6 +9,6 @@ add_library(cara_sched STATIC
     ctx_switch.S
 )
 target_link_libraries(cara_sched
-    PUBLIC cara_headers
+    PUBLIC cara_headers cara_kobj
     PRIVATE cara_kernel_flags
 )
