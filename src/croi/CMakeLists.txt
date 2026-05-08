@@ -26,6 +26,7 @@ target_link_libraries(croi PRIVATE
     cara_log
     cara_kobj
     cara_sched
+    cara_ipc
     -Wl,--whole-archive
     cara_kernel_tests
     -Wl,--no-whole-archive
