@@ -89,4 +89,49 @@ struct PageAllocator {
 // the address Page_Alloc returned and `n_pages` must match.
 void Page_Free(struct PageAllocator *pa, u64 phys, u32 n_pages);
 
+// ---- Sv39 page tables ------------------------------------------------------
+
+#define PTE_V    0x001ull
+#define PTE_R    0x002ull
+#define PTE_W    0x004ull
+#define PTE_X    0x008ull
+#define PTE_U    0x010ull       // user-accessible
+#define PTE_G    0x020ull       // global mapping (kernel half)
+#define PTE_A    0x040ull
+#define PTE_D    0x080ull
+
+#define PTE_KERNEL_RWX (PTE_V | PTE_R | PTE_W | PTE_X | PTE_G | PTE_A | PTE_D)
+#define PTE_KERNEL_RW  (PTE_V | PTE_R | PTE_W |         PTE_G | PTE_A | PTE_D)
+#define PTE_USER_RW    (PTE_V | PTE_R | PTE_W | PTE_U |         PTE_A | PTE_D)
+#define PTE_USER_RX    (PTE_V | PTE_R |         PTE_X | PTE_U |         PTE_A)
+#define PTE_USER_RO    (PTE_V | PTE_R |                 PTE_U |         PTE_A)
+
+struct PageTable {
+    u64 *root;             // upper-half VA pointer to the 4 KiB L2 root
+    u16  asid;
+};
+
+// Allocate a fresh kernel-flavoured page table: zeroed root with the
+// kernel-upper-half entries (L2[256] device + L2[258] RAM RWX) already
+// installed so a satp write to it keeps S-mode code resolvable. Lower
+// half entries are zero — caller maps user regions via Page_Map.
+[[nodiscard]] struct PageTable *Croi_NewKernelPT(void);
+
+// Free a page table's resources (intermediate L1/L0 pages walked into
+// during Page_Map calls, plus the root). Does not unmap the kernel
+// upper half — those leaves are shared globally.
+void Croi_DestroyPT(struct PageTable *pt);
+
+// Map a single 4 KiB page. va and pa must be page-aligned. prot is a
+// PTE flag mask (typically PTE_USER_RW or PTE_KERNEL_RW). Walks and
+// allocates intermediate L1/L0 tables as needed.
+[[nodiscard]] int Page_Map(struct PageTable *pt, u64 va, u64 pa, u64 prot);
+
+// Compose an Sv39 satp value: (mode=8 << 60) | (asid << 44) | ppn.
+static inline u64 Sv39_Satp(const struct PageTable *pt)
+{
+    u64 ppn = Mm_VirtToPhys(pt->root) >> 12;
+    return (8ull << 60) | ((u64)pt->asid << 44) | ppn;
+}
+
 #endif
