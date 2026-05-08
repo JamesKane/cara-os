@@ -10,26 +10,40 @@
 
 ## Status — 2026-05-08
 
-**Tier 1 underway.** Epic UA shipped; Epic UB through UB.5 shipped:
-the boot path now discovers the xHCI controller via PCIe, brings it
-through HCRST, programs DCBAA + Command Ring + Event Ring + the
-Run/Stop transition, walks PORTSC, port-resets each connected USB2
-port, and runs Enable Slot + Address Device for each — both `usb-kbd`
-and `usb-mouse` reach the Addressed state under QEMU
-(`addressed slot=1 port=5 …`, `addressed slot=2 port=6 …`). The
-`xhci_smoke` kernel test asserts ≥2 slots reach Addressed with
-non-zero USB device addresses and DCBAA entries installed.
+**Tier 1 shipped; Tier 2 begun (UC.1).** Epic UA + UB shipped: the
+boot path discovers the xHCI controller via PCIe, brings it through
+HCRST, programs DCBAA + Command Ring + Event Ring + the Run/Stop
+transition, walks PORTSC, port-resets each connected USB2 port, and
+runs Enable Slot + Address Device for each. Both `usb-kbd` and
+`usb-mouse` reach the Addressed state under QEMU.
 
-UB.6 (TRB ring helpers) and UB.7 (event ring servicing) landed as
-internal substrate while shipping UB.5: synchronous command issue
-with cycle-bit handling, ring wrap via Link TRB, ERDP advancement
-on each consumed event. Interrupt-driven event handling is still
-deferred — Phase 1 polls.
+**UC.1 shipped.** First USB control transfer over EP0:
+`Croi_Xhci_ControlTransfer` builds Setup / Data / Status TRBs on the
+per-slot EP0 transfer ring, rings the slot doorbell at DCI=1, and
+polls the event ring for the matching Transfer Event. Wrapped as
+`Croi_Xhci_GetDeviceDescriptor` for the canonical 18-byte
+GET_DESCRIPTOR(DEVICE) read. After AddressConnectedDevices, every
+addressed slot has its standard Device Descriptor cached in
+`c->slots[].device_descriptor`; under QEMU both attached devices
+identify as VID 0x0627 PID 0x0001 (interface-defined class), matching
+QEMU's defaults for usb-kbd/usb-mouse.
 
-Still to ship before Tier 1 exits:
-- UB.5 follow-on: a `Croi_Xhci_ConfigureEndpoint` invocation against
-  a real interrupt-IN endpoint (driven by Tier 2/UC.5 once descriptors
-  have been read).
+UB.6/UB.7 substrate (TRB ring helpers, polling event-ring consumer)
+landed as internal substrate alongside UB.5. Interrupt-driven event
+handling is still deferred — Phase 1 polls.
+
+Still to ship before Tier 2 exits:
+- UC.2 — GET_DESCRIPTOR(Configuration): short-read for total length,
+  then full read pulling the configuration + interfaces + endpoints
+  + HID descriptor tree in one buffer.
+- UC.3 — SET_CONFIGURATION (always selects index 0 for Phase 1).
+- UC.4 — Interface dispatch by class code.
+- UC.5 — Configure Endpoint Command for the HID interrupt-IN
+  endpoint, riding on the existing `Croi_Xhci_ConfigureEndpoint`
+  primitive.
+- UC.6 — `usb_enum_smoke` extension covering the configuration tree.
+
+Still deferred from Tier 1:
 - UB.7 done-for-real: interrupter wired up so we don't busy-poll.
 
 ---

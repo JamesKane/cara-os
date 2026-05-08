@@ -312,6 +312,12 @@ static void console_putc(char c)
                         if (arc != CARA_EOK) {
                             LOG_WARN("xhci",
                                      "AddressConnectedDevices failed: %d", arc);
+                        } else {
+                            int drc = Croi_Xhci_ReadDescriptors(&g_xhci);
+                            if (drc != CARA_EOK) {
+                                LOG_WARN("xhci",
+                                         "ReadDescriptors failed: %d", drc);
+                            }
                         }
                     }
                 }

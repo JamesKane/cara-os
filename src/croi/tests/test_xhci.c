@@ -13,6 +13,7 @@
 #include <cara/log.h>
 #include <cara/test.h>
 #include <cara/types.h>
+#include <cara/usb.h>
 #include <cara/xhci.h>
 
 extern struct XhciController g_xhci;
@@ -78,13 +79,42 @@ KERNEL_TEST(xhci_smoke)
     TEST_ASSERT(ctx, found_addressed,
                 "no slot reached Addressed state");
 
+    // UC.1 assertions: each in-use slot has a valid 18-byte USB Device
+    // Descriptor read back over EP0. Structural sanity only — VID/PID
+    // values vary across QEMU versions, but the spec-defined fields
+    // (bLength, bDescriptorType, bMaxPacketSize0, bNumConfigurations)
+    // must hold for every conformant device.
+    TEST_ASSERT(ctx, g_xhci.n_described_slots >= 2,
+                "expected >= 2 slots with device descriptors read");
+    for (u32 sid = 1; sid <= CARA_XHCI_MAX_SLOTS; sid++) {
+        if (!g_xhci.slots[sid].in_use) {
+            continue;
+        }
+        TEST_ASSERT(ctx, g_xhci.slots[sid].device_descriptor.valid,
+                    "in-use slot missing device descriptor");
+        const struct UsbDeviceDescriptor *d =
+            (const struct UsbDeviceDescriptor *)
+                g_xhci.slots[sid].device_descriptor.raw;
+        TEST_ASSERT(ctx, d->bLength == USB_DEVICE_DESCRIPTOR_BYTES,
+                    "device descriptor bLength != 18");
+        TEST_ASSERT(ctx, d->bDescriptorType == USB_DT_DEVICE,
+                    "device descriptor bDescriptorType != DEVICE");
+        TEST_ASSERT(ctx, d->bNumConfigurations >= 1,
+                    "device reports zero configurations");
+        TEST_ASSERT(ctx,
+                    d->bMaxPacketSize0 == 8 || d->bMaxPacketSize0 == 16
+                        || d->bMaxPacketSize0 == 32 || d->bMaxPacketSize0 == 64,
+                    "device EP0 bMaxPacketSize0 not in {8,16,32,64}");
+    }
+
     LOG_INFO("xhcsm",
-             "qemu-xhci running at %x: v0x%x slots=%u ports=%u connected=%u addressed=%u",
+             "qemu-xhci at %x: v0x%x slots=%u ports=%u connected=%u addressed=%u described=%u",
              ((u32)g_xhci.pci_bus << 16) | ((u32)g_xhci.pci_device << 8)
                  | g_xhci.pci_function,
              (unsigned)g_xhci.hci_version,
              (unsigned)g_xhci.max_slots,
              (unsigned)g_xhci.max_ports,
              (unsigned)g_xhci.n_connected_ports,
-             (unsigned)g_xhci.n_addressed_slots);
+             (unsigned)g_xhci.n_addressed_slots,
+             (unsigned)g_xhci.n_described_slots);
 }

@@ -153,12 +153,31 @@ struct PciInventory;
                                         << XHCI_TRB_TYPE_SHIFT)
 
 // Transfer / command TRB types (xHCI 1.2 §6.4.6, Table 6-91).
+#define XHCI_TRB_NORMAL                1
+#define XHCI_TRB_SETUP_STAGE           2
+#define XHCI_TRB_DATA_STAGE            3
+#define XHCI_TRB_STATUS_STAGE          4
 #define XHCI_TRB_LINK                  6
+#define XHCI_TRB_NOOP_TRANSFER         8
 #define XHCI_TRB_ENABLE_SLOT           9
 #define XHCI_TRB_DISABLE_SLOT          10
 #define XHCI_TRB_ADDRESS_DEVICE        11
 #define XHCI_TRB_CONFIGURE_ENDPOINT    12
 #define XHCI_TRB_NOOP_COMMAND          23
+
+// Transfer TRB control bits (xHCI 1.2 §6.4.1).
+#define XHCI_TRB_ENT                   (1u << 1)   // Evaluate Next TRB
+#define XHCI_TRB_CHAIN                 (1u << 4)
+#define XHCI_TRB_IOC                   (1u << 5)   // Interrupt On Completion
+#define XHCI_TRB_IDT                   (1u << 6)   // Immediate Data Transfer
+
+// Setup Stage TRB Transfer Type (TRT, control[17:16]).
+#define XHCI_TRB_TRT_NO_DATA           (0u << 16)
+#define XHCI_TRB_TRT_OUT_DATA          (2u << 16)
+#define XHCI_TRB_TRT_IN_DATA           (3u << 16)
+
+// Data / Status Stage Direction bit (control[16]). 1 = IN (device->host).
+#define XHCI_TRB_DIR_IN                (1u << 16)
 
 // Event TRB types (xHCI 1.2 §6.4.6).
 #define XHCI_TRB_TRANSFER_EVENT        32
@@ -366,8 +385,17 @@ struct XhciController {
         u32           ep0_ring_size_trbs;
         u32           ep0_ring_enqueue_idx;
         bool          ep0_ring_cycle;
+        u64           dma_buf_phys;     // 1-page descriptor scratch buffer
+        volatile u8  *dma_buf;
+        // Cached device descriptor — populated by Croi_Xhci_GetDeviceDescriptor
+        // after a successful UC.1 read. Zeroed if the read hasn't run yet.
+        struct {
+            bool valid;
+            u8   raw[18];               // exact 18-byte device descriptor
+        } device_descriptor;
     } slots[CARA_XHCI_MAX_SLOTS + 1];   // index 0 unused (slot IDs are 1-based)
     u32 n_addressed_slots;
+    u32 n_described_slots;              // count of slots whose dev desc was read
 };
 
 // Discover and reset the xHCI controller behind `func_index` in
@@ -424,5 +452,34 @@ struct XhciController {
 [[nodiscard]] int Croi_Xhci_ConfigureEndpoint(struct XhciController *c,
                                               u8 slot_id,
                                               u64 input_ctx_phys);
+
+struct UsbSetupPacket;
+struct UsbDeviceDescriptor;
+
+// Issue a USB control transfer over EP0 (DCI = 1) for slot `slot_id`:
+// Setup Stage (IDT) + optional Data Stage + Status Stage TRBs. The
+// SETUP packet's bmRequestType direction bit determines the data
+// direction; `buf` must be page-aligned (a kernel direct-map pointer
+// — typically the slot's dma_buf). `buf_len` may be 0, in which case
+// the transfer has no Data Stage. Polls the event ring for the
+// matching Transfer Event, returning CARA_EOK iff Completion Code =
+// SUCCESS. `*residue_out` (if non-NULL) receives the controller's
+// reported transfer-length residue (0 = full data moved).
+[[nodiscard]] int Croi_Xhci_ControlTransfer(struct XhciController *c,
+                                            u8 slot_id,
+                                            const struct UsbSetupPacket *setup,
+                                            void *buf, u32 buf_len,
+                                            u32 *residue_out);
+
+// Read the standard 18-byte USB Device Descriptor over EP0 for the
+// already-Addressed slot. On success the descriptor is cached in
+// c->slots[slot_id].device_descriptor and copied to *out (if non-NULL).
+[[nodiscard]] int Croi_Xhci_GetDeviceDescriptor(struct XhciController *c,
+                                                u8 slot_id,
+                                                struct UsbDeviceDescriptor *out);
+
+// For each in_use slot that hasn't yet had its device descriptor read,
+// run Croi_Xhci_GetDeviceDescriptor. Updates c->n_described_slots.
+[[nodiscard]] int Croi_Xhci_ReadDescriptors(struct XhciController *c);
 
 #endif

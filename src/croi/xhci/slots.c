@@ -308,6 +308,17 @@ static int address_device(struct XhciController *c, u8 slot_id,
                        XHCI_TRB_TYPE(XHCI_TRB_LINK) | XHCI_TRB_LINK_TC);
     }
 
+    // 3b. Per-slot DMA scratch buffer for descriptor reads (UC.*). One
+    //     page is wasteful for the 18-byte device descriptor but pays
+    //     off when UC.2 reads the variable-length configuration tree.
+    void *dma_kva = nullptr;
+    u64 dma_phys = alloc_pages(1, &dma_kva);
+    if (!dma_phys) {
+        return CARA_ENOMEM;
+    }
+    slot->dma_buf_phys = dma_phys;
+    slot->dma_buf      = (volatile u8 *)dma_kva;
+
     // 4. + 5. + 6. Build the Input Context. We treat each context block
     //    as a u32[8] array regardless of CSZ; the upper 32 bytes when
     //    CSZ=1 are reserved padding, already zero from Page_Alloc.
