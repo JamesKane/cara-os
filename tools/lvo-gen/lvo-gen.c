@@ -784,6 +784,9 @@ static void emit_vec_c(const Library *lib, FILE *out)
     fprintf(out, "#include <cara/types.h>\n");
     fprintf(out, "#include <exec/libraries.h>\n");
     fprintf(out, "#include <utility/tagitem.h>\n");
+    for (size_t i = 0; i < lib->n_includes; i++) {
+        fprintf(out, "#include %s\n", lib->includes[i]);
+    }
     fprintf(out, "#include <%s/lvo.h>\n\n", shortn);
     fprintf(out, "struct %s;     // forward; full type lives in the\n"
                  "                // library's hand-written init unit.\n\n",
@@ -837,8 +840,11 @@ static void emit_vec_c(const Library *lib, FILE *out)
     }
     fprintf(out, "};\n\n");
 
+    // const (not constexpr) so the symbol has external linkage
+    // and the boot-time MakeLibrary call site in another TU can
+    // `extern const usize <lib>_lib_vec_count;` and read it.
     fprintf(out,
-            "constexpr usize %s_lib_vec_count =\n"
+            "const usize %s_lib_vec_count =\n"
             "    sizeof(%s_lib_vec) / sizeof(%s_lib_vec[0]);\n\n",
             shortn, shortn, shortn);
 

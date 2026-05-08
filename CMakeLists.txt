@@ -118,11 +118,6 @@ else()
         "Install LLVM (e.g. `brew install llvm`) to enable them.")
 endif()
 
-# --- Source tree -------------------------------------------------------------
-# src/ contains both shared modules (built always) and target-specific code
-# (gated inside src/CMakeLists.txt by CARA_TARGET).
-add_subdirectory(src)
-
 # --- Host-side tools ---------------------------------------------------------
 # tools/lvo-gen runs at build time on the host to generate per-library LVO
 # stubs from .conf files (see docs/LVO.md). Built only on host; cross-builds
@@ -134,9 +129,14 @@ endif()
 # CMake helper for invoking lvo-gen against per-library .conf files.
 # Both host and rv64 builds need it — the host build drives the
 # generator directly, the rv64 cross-build invokes a host-built binary
-# located via LVO_GEN_BIN. Helpers no-op gracefully if no .conf is
-# registered yet.
+# located via LVO_GEN_BIN. Must be included BEFORE add_subdirectory(src)
+# so src/croi/exec_lib/CMakeLists.txt can call cara_lvo_gen_library().
 include(CaraLvoGen)
+
+# --- Source tree -------------------------------------------------------------
+# src/ contains both shared modules (built always) and target-specific code
+# (gated inside src/CMakeLists.txt by CARA_TARGET).
+add_subdirectory(src)
 
 # --- Tests -------------------------------------------------------------------
 if(CARA_TARGET STREQUAL "host")

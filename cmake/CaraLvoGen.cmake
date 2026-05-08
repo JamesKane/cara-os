@@ -37,11 +37,19 @@ if(NOT DEFINED CARA_LVO_GEN_INCLUDED)
         # In-configure tool target.
         set(CARA_LVO_GEN_BIN "$<TARGET_FILE:lvo-gen>")
     else()
-        # Cross-build: caller must point at a pre-built host binary.
+        # Cross-build: caller may point at a pre-built host binary via
+        # LVO_GEN_BIN; otherwise we fall back to the conventional
+        # location ${CMAKE_SOURCE_DIR}/build-host/tools/lvo-gen/lvo-gen.
         set(LVO_GEN_BIN "" CACHE FILEPATH
             "Absolute path to a host-built tools/lvo-gen/lvo-gen binary.")
         if(LVO_GEN_BIN AND EXISTS "${LVO_GEN_BIN}")
             set(CARA_LVO_GEN_BIN "${LVO_GEN_BIN}")
+        elseif(EXISTS "${CMAKE_SOURCE_DIR}/build-host/tools/lvo-gen/lvo-gen")
+            set(CARA_LVO_GEN_BIN
+                "${CMAKE_SOURCE_DIR}/build-host/tools/lvo-gen/lvo-gen")
+            message(STATUS
+                "Using lvo-gen from ${CARA_LVO_GEN_BIN} (auto-detected). "
+                "Override with -DLVO_GEN_BIN=<path>.")
         else()
             message(STATUS
                 "LVO_GEN_BIN not set or missing; cara_lvo_gen_library() "
@@ -49,6 +57,14 @@ if(NOT DEFINED CARA_LVO_GEN_INCLUDED)
                 "-DLVO_GEN_BIN=<path-to-host-lvo-gen>.")
             set(CARA_LVO_GEN_BIN "")
         endif()
+    endif()
+
+    # Make the generated proto/<lib>.h and <lib>/lvo.h headers visible
+    # to anyone consuming cara_headers (i.e. the kernel and tests).
+    if(CARA_LVO_GEN_BIN AND TARGET cara_headers)
+        target_include_directories(cara_headers INTERFACE
+            "${CARA_LVO_GEN_OUT_DIR}/include"
+        )
     endif()
 
     # Initialise the list used by cara_lvo_gen_aggregate().

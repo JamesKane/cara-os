@@ -5,6 +5,7 @@
 // switch trigger. Single hart for now (SMP arrives in Epic H).
 
 #include <cara/alloc.h>
+#include <cara/exec_lib_image.h>
 #include <cara/kobj.h>
 #include <cara/list.h>
 #include <cara/loader.h>
@@ -260,6 +261,17 @@ void Croi_TaskSetSelfPriority(i32 pri)
         return nullptr;
     }
 
+    // Install the exec.library shared region at user VA 0x4000_0000.
+    // Every Gleas needs this so the inline stubs in <proto/exec.h>
+    // can reach the vec table and trampolines (LVO.md §5.2).
+    if (Croi_ExecLib_InstallMapping(t->user_pt) != CARA_EOK) {
+        Croi_DestroyPT(t->user_pt);
+        HandleTable_Destroy(&t->handles);
+        Croi_Free(t->kstack);
+        Croi_Free(t);
+        return nullptr;
+    }
+
     // Map the user text bytes (already loaded as part of croi.elf's
     // rodata) at the user-VA entry as PTE_USER_RX, page by page.
     u64 base_kva = (u64)(uptr)user_text_kva;
@@ -347,6 +359,16 @@ void Croi_TaskSetSelfPriority(i32 pri)
 
     t->user_pt = Croi_NewKernelPT();
     if (!t->user_pt) {
+        HandleTable_Destroy(&t->handles);
+        Croi_Free(t->kstack);
+        Croi_Free(t);
+        return nullptr;
+    }
+
+    // Install the exec.library shared region at user VA 0x4000_0000
+    // (same as Croi_SpawnUserTask above).
+    if (Croi_ExecLib_InstallMapping(t->user_pt) != CARA_EOK) {
+        Croi_DestroyPT(t->user_pt);
         HandleTable_Destroy(&t->handles);
         Croi_Free(t->kstack);
         Croi_Free(t);

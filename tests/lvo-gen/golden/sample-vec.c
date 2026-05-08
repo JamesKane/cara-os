@@ -44,7 +44,7 @@ void *sample_lib_vec[] = {
     [CARA_IDX_SharedAlias2] = (void *)Croi_Sample_SharedImpl,
 };
 
-constexpr usize sample_lib_vec_count =
+const usize sample_lib_vec_count =
     sizeof(sample_lib_vec) / sizeof(sample_lib_vec[0]);
 
 // Croi_MakeLibrary parameter tags. The library's hand-written

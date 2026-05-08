@@ -41,14 +41,16 @@ MEMORY
     BOOT     (rwx) : ORIGIN = 0x80200000,           LENGTH = 16K
     RAM_PHYS (rwx) : ORIGIN = 0x80204000,           LENGTH = 128M - 16K
     RAM_VIRT (rwx) : ORIGIN = 0xFFFFFFC080204000,   LENGTH = 128M - 16K
+    LIB_VIRT (rwx) : ORIGIN = 0x0000000040000000,   LENGTH = 64K
 }
 
 PHDRS
 {
-    boot   PT_LOAD FLAGS(0x5);    /* R E -- low-phys boot */
-    text   PT_LOAD FLAGS(0x5);    /* R E -- upper-half kernel */
-    rodata PT_LOAD FLAGS(0x4);    /* R   */
-    data   PT_LOAD FLAGS(0x6);    /* RW  */
+    boot     PT_LOAD FLAGS(0x5);  /* R E -- low-phys boot */
+    text     PT_LOAD FLAGS(0x5);  /* R E -- upper-half kernel */
+    rodata   PT_LOAD FLAGS(0x4);  /* R   */
+    data     PT_LOAD FLAGS(0x6);  /* RW  */
+    lib_exec PT_LOAD FLAGS(0x5);  /* R E -- shared library region (user VA 0x4000_0000) */
 }
 
 SECTIONS
@@ -107,6 +109,15 @@ SECTIONS
         QUAD(_kernel_phys_start)
         _kernel_image_phys_end = .;
         QUAD(_kernel_phys_end)
+        /* exec.library LMA window — same PC-relative-reach problem
+         * as the kernel-image extents above, so we route the .exec_lib
+         * LOADADDR / SIZEOF values through this rodata literal pool.
+         * Used by Croi_ExecLib_InstallMapping (per-task PT install)
+         * and Croi_ExecLib_KernelView (kernel-side direct-map view). */
+        _exec_lib_image_lma_start = .;
+        QUAD(LOADADDR(.exec_lib))
+        _exec_lib_image_lma_size = .;
+        QUAD(SIZEOF(.exec_lib))
     } > RAM_VIRT AT > RAM_PHYS :rodata
 
     /* In-kernel self-test registry. Each KERNEL_TEST() macro emits a
@@ -143,13 +154,63 @@ SECTIONS
         __boot_stack_top = .;
     } > RAM_VIRT AT > RAM_PHYS :data
 
+    /* exec.library shared library region. VMA at user-half
+     * 0x0000_0000_4000_0000 (the SASOS library shared region per
+     * ARCHITECTURE.md §4.3); LMA flows in RAM_PHYS so the bytes are
+     * part of the kernel ELF QEMU loads. The kernel writes the
+     * region (Croi_MakeLibrary populating fields, vec-table copy)
+     * via the upper-half direct-map view at
+     *   __exec_lib_lma_start + KERNEL_VA_OFFSET
+     * (i.e. Mm_PhysToVirt(__exec_lib_lma_start) in C). Per-task
+     * page tables map the physical pages back to VMA 0x4000_0000
+     * with R+X+U so user code can read+execute. See docs/LVO.md
+     * §3 for the runtime layout (vec[i] at base[-1-i]).
+     *
+     * Placed after the NOLOAD sections so the LMA cursor in
+     * RAM_PHYS flows past .bss/.stack first; otherwise lld assigns
+     * .bss the cursor it had after .got, leaving an LMA collision. */
+    .exec_lib : ALIGN(4K) {
+        __exec_lib_neg_start = .;
+        /* Negative-side reserve: 2 KiB = 256 vec slots maximum.
+         * Croi_MakeLibrary populates the actual slot count at boot;
+         * lib_NegSize records the populated span. */
+        . = . + 0x800;
+        __exec_lib_base = .;
+        /* Positive-side reserve: struct Library + private state.
+         * One page is generous for a struct Library (~64 bytes) plus
+         * an ExecBase-style private region. */
+        . = . + 4K;
+        __exec_lib_pos_end = .;
+        /* Trampolines: per-LVO ecall stubs from
+         * src/croi/exec_lib/trampolines.S. KEEP() prevents the
+         * linker dropping them when no other section references the
+         * Cara_Trampoline_* symbols (the references arrive when the
+         * generated exec_vec.c lands in C9). */
+        KEEP(*(.lib_text.exec))
+        . = ALIGN(4K);
+        __exec_lib_end = .;
+    } > LIB_VIRT AT > RAM_PHYS :lib_exec
+
+    /* LMA values are exposed to C code via the .kernel_extents
+     * literal pool above (_exec_lib_image_lma_start /
+     * _exec_lib_image_lma_size); the absolute LMA addresses can't
+     * be referenced PC-relative from upper-half kernel code. */
+
     /* Page-aligned end-of-image marker. Mm_Init subtracts the range
      * [_kernel_phys_start, _kernel_phys_end) from the FDT-derived
-     * memory map so the page allocator never hands out kernel memory. */
+     * memory map so the page allocator never hands out kernel memory.
+     * Placed last so its LOADADDR includes everything before it
+     * including .exec_lib. */
     .kernel_end (NOLOAD) : ALIGN(4K) {
     } > RAM_VIRT AT > RAM_PHYS :data
     _kernel_phys_start = KERNEL_LOAD_ADDR;
-    _kernel_phys_end   = LOADADDR(.kernel_end);
+    /* .exec_lib lives in a separate VMA region (LIB_VIRT) but
+     * shares RAM_PHYS for its load address, so the kernel image's
+     * physical extent reaches past it. lld doesn't always advance
+     * .kernel_end's LMA cursor through .exec_lib (the cross-region
+     * insert confuses the AT > RAM_PHYS flow), so we compute the
+     * end explicitly from .exec_lib's LMA + size. */
+    _kernel_phys_end   = LOADADDR(.exec_lib) + SIZEOF(.exec_lib);
 
     /DISCARD/ : {
         *(.note .note.*)

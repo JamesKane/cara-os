@@ -47,11 +47,16 @@ target_link_libraries(croi PRIVATE
     cara_kobj
     cara_sched
     cara_ipc
-    cara_exec_lib
     cara_syscall
     cara_loader
     cara_dath
+    # cara_exec_lib is whole-archived so trampolines.S.obj isn't
+    # dropped — kernel-mode code never references the trampolines
+    # directly (only the user-mode vec table at 0x4000_0000+ does),
+    # so without this they'd be GC'd from the static archive. Same
+    # pattern as cara_kernel_tests just below.
     -Wl,--whole-archive
+    cara_exec_lib
     cara_kernel_tests
     -Wl,--no-whole-archive
 )
