@@ -11,13 +11,16 @@
 
 Tier 1 (console-output-complete): **shipped**.
 Tier 2 (general runtime): E, F, G, I, J **shipped**; H deferred.
-Tier 3 (userspace prep): K **pending** — the natural next slice.
+Tier 3 (userspace prep): K **shipped** (first cut — embedded ASM
+program instead of a parsed ELF; full ELF loader is the natural
+follow-up).
 
-Eight in-kernel tests run on every boot; the QEMU smoke ctest asserts
+Nine in-kernel tests run on every boot; the QEMU smoke ctest asserts
 `kernel tests: N passed, 0 failed`:
 
   pagealloc_smoke, heap_smoke, time_smoke, sched_smoke,
-  signal_smoke, handle_smoke, ipc_smoke, paging_smoke
+  signal_smoke, handle_smoke, ipc_smoke, paging_smoke,
+  usermode_smoke
 
 What landed under each Epic:
 
@@ -37,6 +40,11 @@ What landed under each Epic:
   - **I** MsgPort wrapping Ring + Signal — full producer/consumer IPC
   - **J** Sv39 page-table walker + Page_Map (first cut: kernel-only PTs,
     no per-task satp save)
+  - **K** U-mode tasks + ecall syscall dispatch — sscratch swap convention
+    in trap entry, user_task_trampoline switches satp + sret's into
+    U-mode at CARA_USER_TEXT_BASE = 0x10000, SYS_LOG_WRITE / SYS_EXIT
+    handlers read user pointers via SUM=1, the embedded ASM hello
+    program reaches SYS_EXIT(42) and the smoke test asserts the status
 
 Deferred until they're actually needed:
 
@@ -45,8 +53,15 @@ Deferred until they're actually needed:
   - **H** SMP secondary harts — needs per-hart current pointer +
     run-queue locking that ripples through every existing module;
     the cooperative single-hart cut already validates Tier 2 contracts
-  - **Per-task satp save in ctx_switch + ASID rotation** — not exercised
-    until Epic K introduces address-space switches at task boundaries
+  - **Per-task satp save in ctx_switch + ASID rotation** — Epic K's
+    first cut works because the user task only context-switches via
+    SYS_EXIT (which doesn't return to the user PT). When Phase 3
+    introduces yield-from-syscall, ctx_switch needs to track satp too.
+  - **K full ELF loader** — Epic K ships with a tiny ASM program
+    embedded in croi.elf's .user_text section. A parser that takes a
+    separately-compiled static ELF and walks PT_LOAD into a fresh
+    user PT is the obvious next slice once we want more than one
+    user program.
   - **Timer-driven preemption** — the cooperative path is good enough
     while we're still S-mode-only; preempt handling needs the trap
     frame to be the canonical "saved context" format which is a small
