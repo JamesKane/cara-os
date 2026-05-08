@@ -2,15 +2,26 @@
 //
 // Syscall dispatcher. Trap entry has already saved a full frame on the
 // dying user task's kstack and S-mode is running with SUM=1, so user
-// pointers handed in via a1/a2/... are accessible directly. A real
-// implementation would copy_from_user with bounds + page-fault recovery;
-// Tier 3 first cut just reads them inline and clamps lengths.
+// pointers handed in via a1/a2/... are accessible directly.
+//
+// Phase 3+ (LVO.md §5.2): every exec.library `syscall` flavour LVO
+// reaches here via its trampoline (Cara_Trampoline_<Name> in
+// src/croi/exec_lib/trampolines.S). The trampoline preserves a0..a5
+// from the user-mode caller, sets a7 = SYS_<Name>, and ecalls. Each
+// arm below reads the args it cares about and routes to the matching
+// Croi_*_Impl helper from src/croi/exec_lib/.
 
+#include <cara/exec_lib.h>
 #include <cara/log.h>
 #include <cara/sched.h>
 #include <cara/syscall.h>
+#include <cara/sysno.h>
 #include <cara/trap.h>
 #include <cara/types.h>
+#include <exec/libraries.h>
+#include <exec/ports.h>
+#include <exec/tasks.h>
+#include <exec/types.h>
 
 static volatile bool g_user_exited = false;
 static volatile i64  g_user_exit_status = 0;
@@ -85,6 +96,48 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_EXIT:
         sys_exit(a0);
         // unreachable
+
+    // ---- exec.library library lifecycle ----
+    case SYS_OpenLibrary:
+        return (i64)(uptr)Croi_OpenLibrary_Impl(
+            (STRPTR)(uptr)a0, (ULONG)a1);
+    case SYS_OldOpenLibrary:
+        return (i64)(uptr)Croi_OldOpenLibrary_Impl((STRPTR)(uptr)a0);
+    case SYS_CloseLibrary:
+        Croi_CloseLibrary_Impl((struct Library *)(uptr)a0);
+        return 0;
+
+    // ---- exec.library memory ----
+    case SYS_AllocMem:
+        return (i64)(uptr)Croi_AllocMem_Impl((ULONG)a0, (ULONG)a1);
+    case SYS_FreeMem:
+        Croi_FreeMem_Impl((APTR)(uptr)a0, (ULONG)a1);
+        return 0;
+
+    // ---- exec.library signals ----
+    case SYS_Wait:
+        return (i64)Croi_Wait_Impl((ULONG)a0);
+    case SYS_Signal:
+        Croi_Signal_Impl((struct Task *)(uptr)a0, (ULONG)a1);
+        return 0;
+    case SYS_AllocSignal:
+        return (i64)Croi_AllocSignal_Impl((LONG)a0);
+    case SYS_FreeSignal:
+        Croi_FreeSignal_Impl((LONG)a0);
+        return 0;
+    case SYS_SetSignal:
+        return (i64)Croi_SetSignal_Impl((ULONG)a0, (ULONG)a1);
+
+    // ---- exec.library IPC ----
+    case SYS_PutMsg:
+        Croi_PutMsg_Impl((struct MsgPort *)(uptr)a0,
+                         (struct Message *)(uptr)a1);
+        return 0;
+    case SYS_GetMsg:
+        return (i64)(uptr)Croi_GetMsg_Impl((struct MsgPort *)(uptr)a0);
+    case SYS_WaitPort:
+        return (i64)(uptr)Croi_WaitPort_Impl((struct MsgPort *)(uptr)a0);
+
     default:
         LOG_WARN("sysc", "unknown syscall a7=%lld", num);
         return -CARA_ENOTFOUND;

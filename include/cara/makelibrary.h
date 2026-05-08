@@ -22,11 +22,20 @@ enum : Tag {
     MKL_NAME             = TAG_USER + 1,    // STRPTR  — library filename
     MKL_VERSION          = TAG_USER + 2,    // UWORD   — lib_Version
     MKL_REVISION         = TAG_USER + 3,    // UWORD   — lib_Revision
-    MKL_VEC_TABLE        = TAG_USER + 4,    // void ** — function-pointer table
+    MKL_VEC_TABLE        = TAG_USER + 4,    // void ** — generated vec source array
     MKL_VEC_COUNT        = TAG_USER + 5,    // ULONG   — element count of vec
     MKL_PRIVATE_SIZE     = TAG_USER + 6,    // ULONG   — bytes past struct Library
     MKL_INIT_FN          = TAG_USER + 7,    // void(*)(struct Library *)
     MKL_SERVER_PORT_KOBJ = TAG_USER + 8,    // Handle  — receiving Gleas's port; 0 if none
+
+    // Optional: a pre-allocated base address (linker-placed library).
+    // When absent, Croi_MakeLibrary heap-allocates lib_NegSize +
+    // lib_PosSize bytes and treats `<allocation> + lib_NegSize` as
+    // the libBase. When present, the caller has reserved a
+    // contiguous lib_NegSize + lib_PosSize region with the
+    // libBase pointer at the boundary, and Croi_MakeLibrary just
+    // populates the fields and copies the vec table down.
+    MKL_BASE             = TAG_USER + 9,    // struct Library *  (optional)
 };
 
 #endif

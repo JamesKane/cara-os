@@ -110,6 +110,10 @@ typedef struct {
     char     *owner;         // ##owner
     char     *spdx;          // ##spdx
 
+    char    **includes;      // ##include lines (each is "<header.h>" or "\"header.h\"")
+    size_t    n_includes;
+    size_t    cap_includes;
+
     Function *funcs;
     size_t    nfuncs;
     size_t    cap;
@@ -394,6 +398,17 @@ static bool parse_directive(Library *lib, char *line_buf, int line)
     else if (strcmp(key, "base_type") == 0) { lib->base_type = xstrdup(val); }
     else if (strcmp(key, "owner")     == 0) { lib->owner     = xstrdup(val); }
     else if (strcmp(key, "spdx")      == 0) { lib->spdx      = xstrdup(val); }
+    else if (strcmp(key, "include")   == 0) {
+        // ##include <header.h> or ##include "header.h" — emitted into
+        // the generated proto/<lib>.h so types referenced in args
+        // resolve.
+        if (lib->n_includes == lib->cap_includes) {
+            lib->cap_includes = lib->cap_includes ? lib->cap_includes * 2 : 4;
+            lib->includes = (char **)xrealloc(
+                lib->includes, lib->cap_includes * sizeof(char *));
+        }
+        lib->includes[lib->n_includes++] = xstrdup(val);
+    }
     else if (strcmp(key, "bias") == 0) {
         char *endp = nullptr;
         long b = strtol(val, &endp, 10);
@@ -405,6 +420,47 @@ static bool parse_directive(Library *lib, char *line_buf, int line)
             ok = false;
         } else {
             lib->bias = (int)b;
+        }
+    } else if (strcmp(key, "pad_run") == 0) {
+        // ##pad_run <count>: synthesize <count> consecutive _PAD rows at
+        // the current ordinal. Each row gets impl_symbol
+        // Croi_LvoUnimplemented and the LVO arithmetically next per
+        // bias. Lets exec.conf elide long runs of unused slots without
+        // hand-typing dozens of identical _PAD lines.
+        if (!lib->bias) {
+            diag(line, "##pad_run requires ##bias to be set first");
+            ok = false;
+        } else {
+            char *endp = nullptr;
+            long count = strtol(val, &endp, 10);
+            if (*endp != 0 || count <= 0) {
+                diag(line, "##pad_run requires positive count; got '%s'", val);
+                ok = false;
+            } else {
+                for (long i = 0; i < count; i++) {
+                    if (lib->nfuncs == lib->cap) {
+                        lib->cap = lib->cap ? lib->cap * 2 : 16;
+                        lib->funcs = (Function *)xrealloc(
+                            lib->funcs, lib->cap * sizeof(*lib->funcs));
+                    }
+                    Function f = { 0 };
+                    f.name        = xstrdup("_PAD");
+                    f.return_type = xstrdup("void");
+                    f.args        = nullptr;
+                    f.nargs       = 0;
+                    f.flavour     = FLAVOUR_LOCAL;
+                    f.impl_symbol = xstrdup("Croi_LvoUnimplemented");
+                    f.is_pad      = true;
+                    f.ordinal     = (int)lib->nfuncs;
+                    f.line_no     = line;
+                    if (f.ordinal < 4) {
+                        f.lvo = -((f.ordinal + 1) * 6);
+                    } else {
+                        f.lvo = -(lib->bias + (f.ordinal - 4) * 6);
+                    }
+                    lib->funcs[lib->nfuncs++] = f;
+                }
+            }
         }
     } else {
         diag(line, "unknown directive '##%s'", key);
@@ -610,6 +666,9 @@ static void emit_proto(const Library *lib, FILE *out)
     fprintf(out, "#define PROTO_%s_H\n\n", upper);
     fprintf(out, "#include <exec/libraries.h>\n");
     fprintf(out, "#include <exec/types.h>\n");
+    for (size_t i = 0; i < lib->n_includes; i++) {
+        fprintf(out, "#include %s\n", lib->includes[i]);
+    }
     fprintf(out, "#include <%s/lvo.h>\n\n", shortn);
     fprintf(out, "// Forward declaration only. The library's own type\n"
                  "// header (e.g. <%s/%sbase.h>) is what user code must\n"

@@ -460,6 +460,17 @@ void Croi_Signal(struct Task *target, u32 mask)
     }
 }
 
+u32 Croi_SetSignal(u32 new_signals, u32 mask)
+{
+    if (!g_current) {
+        return 0;
+    }
+    u32 old = g_current->tc_SigRecvd;
+    u32 prev_in_mask = old & mask;
+    g_current->tc_SigRecvd = (old & ~mask) | (new_signals & mask);
+    return prev_in_mask;
+}
+
 u32 Croi_Wait(u32 mask)
 {
     if (!g_current || mask == 0) {

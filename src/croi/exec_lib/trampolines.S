@@ -1,0 +1,59 @@
+// SPDX-License-Identifier: BSD-2-Clause
+//
+// Per-LVO syscall trampolines for exec.library (Phase 3, LVO.md §5.2).
+//
+// Each trampoline below is a tiny U-mode-executable stub that lives
+// in the library's RX page at 0x0000_0000_4000_0000+ (section
+// `.lib_text.exec`, placed by the linker — see src/croi/croi.lds).
+// The vec table slot for each `syscall`-flavour LVO points at the
+// trampoline; calling the LVO via the inline stub from <proto/exec.h>
+// reaches here, the trampoline ecalls into Croi, and the dispatcher
+// in src/croi/syscall/syscall.c routes by a7 = syscall number.
+//
+// Calling convention: the inline stub passes user args verbatim in
+// a0..a5 (followed by SysBase as the trailing arg, ignored by syscall
+// flavour). The trampoline preserves them, sets a7 = SYS_<Name>, and
+// ecalls. Return value comes back in a0; `ret` returns to the inline
+// stub. Net dispatch cost: 3 instructions in U-mode plus the trap.
+
+#include <cara/sysno.h>
+
+.macro CARA_SYSCALL_TRAMPOLINE name, num
+    .global \name
+    .type   \name, @function
+    \name:
+        li      a7, \num
+        ecall
+        ret
+    .size   \name, . - \name
+.endm
+
+// `.lib_text.exec` is the section the linker places at the
+// 0x4000_0000 library RX page (C7). On hosts where the linker script
+// hasn't been updated yet, the section just lands wherever the
+// default placement falls — code still works for kernel-side smoke
+// tests because S-mode can call its own ecall path without minding
+// the page user-bit.
+.section .lib_text.exec, "ax"
+.balign 4
+
+// ---- Library lifecycle ----
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_OpenLibrary,     SYS_OpenLibrary
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_OldOpenLibrary,  SYS_OldOpenLibrary
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_CloseLibrary,    SYS_CloseLibrary
+
+// ---- Memory ----
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AllocMem,        SYS_AllocMem
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_FreeMem,         SYS_FreeMem
+
+// ---- Signals ----
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Wait,            SYS_Wait
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Signal,          SYS_Signal
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AllocSignal,     SYS_AllocSignal
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_FreeSignal,      SYS_FreeSignal
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_SetSignal,       SYS_SetSignal
+
+// ---- IPC ----
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_PutMsg,          SYS_PutMsg
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GetMsg,          SYS_GetMsg
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_WaitPort,        SYS_WaitPort

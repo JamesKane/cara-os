@@ -47,6 +47,7 @@ target_link_libraries(croi PRIVATE
     cara_kobj
     cara_sched
     cara_ipc
+    cara_exec_lib
     cara_syscall
     cara_loader
     cara_dath

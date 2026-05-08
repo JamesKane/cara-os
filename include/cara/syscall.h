@@ -11,10 +11,8 @@
 #ifndef CARA_SYSCALL_H
 #define CARA_SYSCALL_H
 
+#include <cara/sysno.h>
 #include <cara/types.h>
-
-#define SYS_LOG_WRITE 1
-#define SYS_EXIT      2
 
 // Internal API: invoked by the trap dispatcher when scause = 8 (ecall
 // from U-mode). Reads syscall number/args from the trap frame, runs

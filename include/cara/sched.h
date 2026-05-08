@@ -62,4 +62,10 @@ void Croi_FreeSignal(i32 sig);
 void Croi_Signal(struct Task *target, u32 mask);
 u32 Croi_Wait(u32 mask);
 
+// V36+ SetSignal: atomically replaces the bits of the current task's
+// tc_SigRecvd specified by `mask` with the corresponding bits from
+// `new_signals`; returns the previous tc_SigRecvd masked by `mask`.
+// Bits outside `mask` are unchanged.
+u32 Croi_SetSignal(u32 new_signals, u32 mask);
+
 #endif

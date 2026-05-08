@@ -210,6 +210,19 @@ sequence stays aligned with the canonical LVO arithmetic:
 _PAD          void          ()                                                      -288   local      Croi_LvoUnimplemented
 ```
 
+For long runs of consecutive padding (e.g. exec.library has dozens
+of unused slots between `AllocMem` at -198 and `OpenLibrary` at -552),
+the `##pad_run <count>` directive synthesizes `count` consecutive
+`_PAD` rows at the current ordinal:
+
+```
+##pad_run 14    # 14 unused slots after this one — fills LVOs in order
+```
+
+Each synthesized row gets the impl symbol `Croi_LvoUnimplemented`
+and the LVO that arithmetically follows the previous row.
+`##pad_run` requires `##bias` to be set first.
+
 The default `Croi_LvoUnimplemented` returns zero and logs a
 `LVO_UNIMPL` warning to the system log.
 
