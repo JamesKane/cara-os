@@ -7,6 +7,53 @@
 
 ---
 
+## Status — 2026-05-07
+
+Tier 1 (console-output-complete): **shipped**.
+Tier 2 (general runtime): E, F, G, I, J **shipped**; H deferred.
+Tier 3 (userspace prep): K **pending** — the natural next slice.
+
+Eight in-kernel tests run on every boot; the QEMU smoke ctest asserts
+`kernel tests: N passed, 0 failed`:
+
+  pagealloc_smoke, heap_smoke, time_smoke, sched_smoke,
+  signal_smoke, handle_smoke, ipc_smoke, paging_smoke
+
+What landed under each Epic:
+
+  - **A.1/A.2** trap entry + frame + dispatcher with decoded panics
+  - **A.4** Sstc S-mode timer (Croi_Time_Now / SetDeadline)
+  - **B.1** PhysMap from FDT (memory + reserved + kernel + DTB carve-outs)
+  - **B.2** bitmap page allocator (per-run bitmaps in-place)
+  - **B.3** size-class kernel heap with page-magic free dispatch
+  - **C.1–C.3+C.5** structured logging — LogRecord, ring, sinks, banner
+  - **C.4** ANSI level coloring on the UART sink
+  - **D.1–D.3** kernel self-test harness via .kernel_tests linker section
+  - **E** cooperative scheduler (priority + round-robin within), kmain
+    bound to boot context, kernel-thread Spawn API, dead-task reaping
+  - **F** Exec-style signals (sigrecvd/sigwait/sigalloc) + sleeper queue
+  - **G** Kobj base (atomic refcount, monotonic id, destroy callback) +
+    per-task HandleTable with 16-bit generation validation
+  - **I** MsgPort wrapping Ring + Signal — full producer/consumer IPC
+  - **J** Sv39 page-table walker + Page_Map (first cut: kernel-only PTs,
+    no per-task satp save)
+
+Deferred until they're actually needed:
+
+  - **A.3** per-hart trap stack — single-hart Tier 2 runs on the
+    kernel stack; arrives with Epic H
+  - **H** SMP secondary harts — needs per-hart current pointer +
+    run-queue locking that ripples through every existing module;
+    the cooperative single-hart cut already validates Tier 2 contracts
+  - **Per-task satp save in ctx_switch + ASID rotation** — not exercised
+    until Epic K introduces address-space switches at task boundaries
+  - **Timer-driven preemption** — the cooperative path is good enough
+    while we're still S-mode-only; preempt handling needs the trap
+    frame to be the canonical "saved context" format which is a small
+    refactor of Epic E
+
+---
+
 ## Context
 
 Slice 1 is committed. Croi boots under `qemu-system-riscv64 -M virt
