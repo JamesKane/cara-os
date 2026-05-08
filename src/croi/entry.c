@@ -303,6 +303,11 @@ static void console_putc(char c)
                 int src = Croi_Xhci_Setup(&g_xhci);
                 if (src != CARA_EOK) {
                     LOG_WARN("xhci", "setup failed: %d", src);
+                } else {
+                    int prc = Croi_Xhci_PortsWalk(&g_xhci);
+                    if (prc != CARA_EOK) {
+                        LOG_WARN("xhci", "PortsWalk failed: %d", prc);
+                    }
                 }
             } else {
                 LOG_WARN("xhci", "probe failed: %d", xrc);

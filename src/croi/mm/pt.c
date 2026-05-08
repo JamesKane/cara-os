@@ -182,6 +182,7 @@ void Croi_DestroyPT(struct PageTable *pt)
     return CARA_EOK;
 }
 
+#if defined(__riscv)
 [[nodiscard]] int Croi_Mm_InstallBootPT_1GiBLeaf(u64 va, u64 phys, u64 prot)
 {
     // 1 GiB alignment required for both VA and PA per Sv39 leaf rules.
@@ -207,6 +208,16 @@ void Croi_DestroyPT(struct PageTable *pt)
 
     // Sv39 sfence to publish the new leaf to the MMU. va alone is fine
     // — the new mapping covers exactly that 1 GiB and no more.
-    __asm__ volatile("sfence.vma %0, zero" : : "r"(va) : "memory");
+    __asm__ volatile("sfence.vma %0, x0" : : "r"(va) : "memory");
     return CARA_EOK;
 }
+#else
+// cara_mm builds for both host (unit tests) and the rv64 kernel.
+// The host build can't compile sfence.vma; this function is
+// kernel-only so it's gated out for non-RISC-V targets.
+[[nodiscard]] int Croi_Mm_InstallBootPT_1GiBLeaf(u64 va, u64 phys, u64 prot)
+{
+    (void)va; (void)phys; (void)prot;
+    return CARA_EINVAL;
+}
+#endif

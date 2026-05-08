@@ -106,6 +106,38 @@ struct PciInventory;
 #define XHCI_CRCR_CA           (1u << 2)   // Command Abort
 #define XHCI_CRCR_CRR          (1u << 3)   // Command Ring Running (RO)
 
+// PORTSC bits (xHCI 1.2 §5.4.8.1).
+#define XHCI_PORTSC_CCS        (1u << 0)   // Current Connect Status
+#define XHCI_PORTSC_PED        (1u << 1)   // Port Enabled (RW1C)
+#define XHCI_PORTSC_OCA        (1u << 3)   // Overcurrent Active
+#define XHCI_PORTSC_PR         (1u << 4)   // Port Reset (RW1S)
+#define XHCI_PORTSC_PLS_SHIFT  5
+#define XHCI_PORTSC_PLS_MASK   0xFu
+#define XHCI_PORTSC_PP         (1u << 9)   // Port Power
+#define XHCI_PORTSC_SPEED_SHIFT 10
+#define XHCI_PORTSC_SPEED_MASK  0xFu
+// Change bits — RW1C, software clears by writing 1. To preserve
+// state when modifying other PORTSC fields, mask with RW1C_MASK.
+#define XHCI_PORTSC_CSC        (1u << 17)  // Connect Status Change
+#define XHCI_PORTSC_PEC        (1u << 18)  // Port Enable Change
+#define XHCI_PORTSC_WRC        (1u << 19)  // Warm Port Reset Change
+#define XHCI_PORTSC_OCC        (1u << 20)  // Overcurrent Change
+#define XHCI_PORTSC_PRC        (1u << 21)  // Port Reset Change
+#define XHCI_PORTSC_PLC        (1u << 22)  // Port Link State Change
+#define XHCI_PORTSC_CEC        (1u << 23)  // Port Configuration Error Change
+#define XHCI_PORTSC_RW1C_MASK \
+    (XHCI_PORTSC_PED | XHCI_PORTSC_CSC | XHCI_PORTSC_PEC | \
+     XHCI_PORTSC_WRC | XHCI_PORTSC_OCC | XHCI_PORTSC_PRC | \
+     XHCI_PORTSC_PLC | XHCI_PORTSC_CEC)
+
+// Port Speed values (xHCI 1.2 §5.4.8.1.5). Match the default USB
+// speed-id assignments most controllers (incl. qemu-xhci) ship.
+#define XHCI_SPEED_FULL        1   // USB 2.0 Full-speed (12 Mbps)
+#define XHCI_SPEED_LOW         2   // USB 2.0 Low-speed (1.5 Mbps)
+#define XHCI_SPEED_HIGH        3   // USB 2.0 High-speed (480 Mbps)
+#define XHCI_SPEED_SUPER       4   // USB 3.0 SuperSpeed (5 Gbps)
+#define XHCI_SPEED_SUPER_PLUS  5   // USB 3.1 SuperSpeedPlus (10 Gbps)
+
 // ---- Driver state -----------------------------------------------------------
 
 struct XhciController {
@@ -165,6 +197,17 @@ struct XhciController {
     bool          event_ring_cycle;
 
     bool running;                       // USBSTS.HCH cleared after Setup
+
+    // Per-port status populated by Croi_Xhci_PortsWalk. Indexed
+    // 0..max_ports-1; xHCI 1.2 numbers ports 1..N in user docs but
+    // 0-based in the PORTSC register array.
+    struct {
+        bool connected;
+        bool enabled;
+        u8   speed;          // XHCI_SPEED_* or 0 if undefined
+        u8   link_state;     // raw PLS field
+    } port[256];
+    u32 n_connected_ports;
 };
 
 // Discover and reset the xHCI controller behind `func_index` in
@@ -192,5 +235,11 @@ struct XhciController {
 //   6. Wait USBSTS.HCH = 0
 // Returns CARA_EOK on success (c->running = true).
 [[nodiscard]] int Croi_Xhci_Setup(struct XhciController *c);
+
+// Walk every PORTSC register, decode CCS / PED / PLS / Speed, and
+// populate c->port[]. Logs each connected port. Updates
+// c->n_connected_ports. Must be called after Croi_Xhci_Setup so
+// the controller is running and CCS reflects the live link state.
+[[nodiscard]] int Croi_Xhci_PortsWalk(struct XhciController *c);
 
 #endif

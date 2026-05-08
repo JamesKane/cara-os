@@ -49,11 +49,18 @@ KERNEL_TEST(xhci_smoke)
     TEST_ASSERT(ctx, g_xhci.event_ring_phys != 0, "Event Ring not allocated");
     TEST_ASSERT(ctx, g_xhci.erst_phys != 0, "ERST not allocated");
 
+    // PORTSC walk assertion. The smoke harness attaches a usb-kbd
+    // and a usb-mouse to qemu-xhci; once the controller is running
+    // both devices show up as Connected on USB2 root-hub ports.
+    TEST_ASSERT(ctx, g_xhci.n_connected_ports >= 2,
+                "expected >= 2 connected ports (usb-kbd + usb-mouse)");
+
     LOG_INFO("xhcsm",
-             "qemu-xhci running at %x: v0x%x slots=%u ports=%u",
+             "qemu-xhci running at %x: v0x%x slots=%u ports=%u connected=%u",
              ((u32)g_xhci.pci_bus << 16) | ((u32)g_xhci.pci_device << 8)
                  | g_xhci.pci_function,
              (unsigned)g_xhci.hci_version,
              (unsigned)g_xhci.max_slots,
-             (unsigned)g_xhci.max_ports);
+             (unsigned)g_xhci.max_ports,
+             (unsigned)g_xhci.n_connected_ports);
 }
