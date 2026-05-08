@@ -13,6 +13,7 @@
 #ifndef CARA_DATH_H
 #define CARA_DATH_H
 
+#include <cara/fdt.h>
 #include <cara/types.h>
 
 typedef enum : u32 {
@@ -64,5 +65,30 @@ void Dath_Clear(const struct DathFramebuffer *fb, DathColor c);
 void Dath_BlitRect(const struct DathFramebuffer *dst, i32 dx, i32 dy,
                    const struct DathFramebuffer *src, i32 sx, i32 sy,
                    i32 w, i32 h);
+
+// ---- FDT discovery ---------------------------------------------------------
+//
+// The pure parsed shape of a `simple-framebuffer` node — phys base
+// + size, dimensions, stride, format. Kernel callers convert phys
+// to a kernel VA via Mm_PhysToVirt and feed the result into
+// Dath_Framebuffer_Init; host tests can verify the parser without
+// caring about VA mapping.
+
+struct DathFbDescriptor {
+    u64        phys_base;
+    u64        phys_size;
+    u32        width;
+    u32        height;
+    u32        stride;
+    DathFormat format;
+};
+
+// Walk the FDT for a node with compatible = "simple-framebuffer" and
+// fill `out` from its reg / width / height / stride / format
+// properties. Returns CARA_ENOTFOUND when no such node exists,
+// CARA_EINVAL on a malformed node (e.g. unsupported format string),
+// CARA_EOK on success.
+[[nodiscard]] int Dath_Framebuffer_FromFdt(struct DathFbDescriptor *out,
+                                           const struct Fdt *fdt);
 
 #endif

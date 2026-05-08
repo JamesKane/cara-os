@@ -13,6 +13,7 @@ cara_unit_test(test_fdt_header cara_fdt)
 cara_unit_test(test_fdt_walk   cara_fdt)
 cara_unit_test(test_fdt_qemu   cara_fdt)
 cara_unit_test(test_physmap    cara_mm cara_fdt)
+cara_unit_test(test_dath_fdt   cara_dath cara_fdt)
 target_compile_definitions(test_fdt_qemu PRIVATE
     CARA_TEST_DATADIR="${CMAKE_SOURCE_DIR}/tests/data"
 )

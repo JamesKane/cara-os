@@ -33,6 +33,10 @@ endif()
 add_subdirectory(croi/fdt)
 add_subdirectory(croi/mm)
 
+# Always-on extra: dath builds for both targets (host tests verify the
+# FDT parser; the kernel uses the full module).
+add_subdirectory(croi/dath)
+
 if(CARA_TARGET STREQUAL "riscv64")
     add_subdirectory(croi/log)
     add_subdirectory(croi/kobj)
@@ -40,7 +44,6 @@ if(CARA_TARGET STREQUAL "riscv64")
     add_subdirectory(croi/sched)
     add_subdirectory(croi/ipc)
     add_subdirectory(croi/syscall)
-    add_subdirectory(croi/dath)
     add_subdirectory(userland)
     add_subdirectory(croi/tests)
     add_subdirectory(croi)

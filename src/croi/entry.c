@@ -15,6 +15,7 @@
 #include "print.h"
 
 #include <cara/alloc.h>
+#include <cara/dath.h>
 #include <cara/fdt.h>
 #include <cara/log.h>
 #include <cara/mm.h>
@@ -164,6 +165,32 @@ static void console_putc(char c)
                   pm.usable[i].base, pm.usable[i].base + pm.usable[i].size,
                   pm.usable[i].size / 1024);
     }
+    // ---- Probe simple-framebuffer (optional). On QEMU virt without
+    //      `-device ramfb` there's no FDT node so we just log and skip;
+    //      on real boards U-Boot leaves a node here when HDMI's up.
+    {
+        struct DathFbDescriptor fbdesc;
+        int frc = Dath_Framebuffer_FromFdt(&fbdesc, &fdt);
+        if (frc == CARA_EOK) {
+            LOG_INFO("dath", "simple-framebuffer %ux%u stride=%u fmt=%u base=0x%llx",
+                     fbdesc.width, fbdesc.height, fbdesc.stride,
+                     (u32)fbdesc.format, fbdesc.phys_base);
+            struct DathFramebuffer fb;
+            if (Dath_Framebuffer_Init(&fb, Mm_PhysToVirt(fbdesc.phys_base),
+                                      fbdesc.width, fbdesc.height,
+                                      fbdesc.stride, fbdesc.format)
+                == CARA_EOK) {
+                Dath_Clear(&fb, Dath_RGB(0x10, 0x20, 0x40));
+                Dath_FillRect(&fb, 16, 16, 96, 96, Dath_RGB(0x40, 0x80, 0xFF));
+                LOG_INFO("dath", "drew boot pattern");
+            }
+        } else if (frc == CARA_ENOTFOUND) {
+            LOG_INFO("dath", "no simple-framebuffer in FDT; headless boot");
+        } else {
+            LOG_WARN("dath", "FromFdt failed: %d", frc);
+        }
+    }
+
     // ---- Bring up the cooperative scheduler before running tests so
     //      the sched_smoke test can spawn workers and yield.
     Sched_Init();
