@@ -7,7 +7,9 @@ set(_croi_lds "${CMAKE_CURRENT_SOURCE_DIR}/croi.lds")
 
 add_executable(croi
     _start.S
+    trap_entry.S
     entry.c
+    trap.c
     print.c
     panic.c
     sbi.c

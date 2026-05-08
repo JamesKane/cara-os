@@ -15,6 +15,7 @@
 
 #include <cara/fdt.h>
 #include <cara/platform.h>
+#include <cara/trap.h>
 #include <cara/types.h>
 
 [[noreturn]] void croi_entry(u64 hartid, u64 dtb_phys);
@@ -39,6 +40,8 @@ static void console_putc(char c)
 
 [[noreturn]] void croi_entry(u64 hartid, u64 dtb_phys)
 {
+    Croi_TrapInit();
+
     Croi_Print("Hello from Croi (SBI), hart=%llu dtb=0x%llx\n", hartid,
                dtb_phys);
 
