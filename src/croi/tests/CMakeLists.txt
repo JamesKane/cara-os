@@ -15,6 +15,7 @@ add_library(cara_kernel_tests STATIC
     test_paging.c
     test_usermode.c
     test_userelf.c
+    test_dath.c
 )
 target_include_directories(cara_kernel_tests PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/.."
