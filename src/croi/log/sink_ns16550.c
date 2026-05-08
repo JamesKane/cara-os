@@ -20,7 +20,7 @@ void Log_Sink_NS16550_Emit(const struct LogRecord *r, void *ctx)
         return;
     }
     char buf[CARA_LOG_RECORD_BYTES + 64];
-    usize n = Log_FormatHuman(buf, sizeof(buf), r);
+    usize n = Log_FormatHuman(buf, sizeof(buf), r, /*ansi=*/true);
     for (usize i = 0; i < n; i++) {
         char c = buf[i];
         if (c == '\n') {

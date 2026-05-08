@@ -283,7 +283,20 @@ void Log_ReplayInto(const struct LogSink *sink)
     }
 }
 
-usize Log_FormatHuman(char *out, usize len, const struct LogRecord *r)
+static const char *level_color(LogLevel level)
+{
+    switch (level) {
+    case LOG_LV_TRACE: return "\x1b[90m"; // bright black / gray
+    case LOG_LV_DEBUG: return "\x1b[36m"; // cyan
+    case LOG_LV_INFO:  return "\x1b[32m"; // green
+    case LOG_LV_WARN:  return "\x1b[33m"; // yellow
+    case LOG_LV_ERROR: return "\x1b[31m"; // red
+    case LOG_LV_FATAL: return "\x1b[1;31m"; // bold red
+    }
+    return "";
+}
+
+usize Log_FormatHuman(char *out, usize len, const struct LogRecord *r, bool ansi)
 {
     if (!out || len == 0) {
         return 0;
@@ -297,7 +310,13 @@ usize Log_FormatHuman(char *out, usize len, const struct LogRecord *r)
     bw_dec_pad(&bw, usec, 6, '0');
     bw_putc(&bw, ']');
     bw_putc(&bw, ' ');
+    if (ansi) {
+        bw_str(&bw, level_color((LogLevel)r->level));
+    }
     bw_putc(&bw, Log_LevelChar((LogLevel)r->level));
+    if (ansi) {
+        bw_str(&bw, "\x1b[0m");
+    }
     bw_putc(&bw, ' ');
     for (u32 i = 0; i < CARA_LOG_TAG_LEN && r->tag[i]; i++) {
         bw_putc(&bw, r->tag[i]);

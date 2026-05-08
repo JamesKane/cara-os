@@ -81,8 +81,23 @@ void Log_ReplayInto(const struct LogSink *sink);
 char Log_LevelChar(LogLevel level);
 
 // Built-in human-readable formatter: "[ssss.uuuuuu] L tag: msg\n".
-// Writes up to len-1 bytes into out and NUL-terminates.
-usize Log_FormatHuman(char *out, usize len, const struct LogRecord *r);
+// When `ansi` is true the level letter is wrapped in an SGR escape
+// (green INFO, yellow WARN, red ERROR/FATAL). Writes up to len-1 bytes
+// into out and NUL-terminates.
+usize Log_FormatHuman(char *out, usize len, const struct LogRecord *r, bool ansi);
+
+// ANSI color escape strings, ready to splice into LOG_INFO format
+// strings or other terminal output. Sinks that aren't ansi_capable
+// pass these through verbatim — wrap them in a runtime check if you
+// need cross-sink uniformity.
+#define LOG_C_RESET   "\x1b[0m"
+#define LOG_C_BOLD    "\x1b[1m"
+#define LOG_C_RED     "\x1b[31m"
+#define LOG_C_GREEN   "\x1b[32m"
+#define LOG_C_YELLOW  "\x1b[33m"
+#define LOG_C_BLUE    "\x1b[34m"
+#define LOG_C_MAGENTA "\x1b[35m"
+#define LOG_C_CYAN    "\x1b[36m"
 
 // Built-in sinks. Pass the corresponding pointer as LogSink.ctx.
 struct Ns16550;
