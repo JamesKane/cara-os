@@ -10,6 +10,7 @@
 
 #include <cara/kobj.h>
 #include <cara/list.h>
+#include <cara/mm.h>
 #include <cara/types.h>
 
 #define CARA_TASK_NAME_LEN 16
@@ -32,6 +33,13 @@ typedef enum : u32 {
 
 #define CARA_TASK_HANDLE_TABLE_CAP 32
 
+// User VA of the embedded user program's entry / stack. Arbitrary
+// non-zero choices below the kernel ranges; later phases let user code
+// pick its own layout via the ELF.
+#define CARA_USER_TEXT_BASE   0x0000000000010000ull
+#define CARA_USER_STACK_BASE  0x0000000040000000ull
+#define CARA_USER_STACK_SIZE  (4u * 4096u)
+
 struct Task {
     char               name[CARA_TASK_NAME_LEN];
     i32                pri;          // -128..127, larger = higher priority
@@ -45,6 +53,12 @@ struct Task {
     u32                sigwait;      // bits the task is currently Wait()ing on
     u32                sigalloc;     // bits handed out by AllocSignal()
     struct HandleTable handles;      // per-task handle table
+
+    // U-mode tasks only (nullptr / 0 for kernel-mode tasks).
+    struct PageTable  *user_pt;
+    u64                user_entry;   // U-mode VA of e_entry
+    u64                user_sp_top;  // U-mode VA of stack top
+
     struct ListNode    sched_node;
 };
 
@@ -56,6 +70,16 @@ void Sched_Init(void);
 
 [[nodiscard]] struct Task *Croi_SpawnKernelTask(const char *name, i32 pri,
                                                 KernelTaskFn entry, void *arg);
+
+// Spawn a U-mode task. The caller hands in the bytes that should be
+// mapped into the user PT at user_entry_va as PTE_USER_RX (typically
+// the .user_text section of croi.elf for the embedded program), plus
+// the entry VA the task should sret to. A user stack is allocated
+// internally at a fixed VA (CARA_USER_STACK_BASE).
+[[nodiscard]] struct Task *Croi_SpawnUserTask(const char *name, i32 pri,
+                                              const void *user_text_kva,
+                                              usize user_text_size,
+                                              u64 user_entry_va);
 
 // Yield the CPU. Picks the highest-priority READY task from the run
 // queue; if every other ready task has lower priority than the

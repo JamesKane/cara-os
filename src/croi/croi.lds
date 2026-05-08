@@ -75,6 +75,17 @@ SECTIONS
         *(.srodata .srodata.*)
     } > RAM_VIRT AT > RAM_PHYS :rodata
 
+    /* Embedded U-mode program. Croi_SpawnUserTask maps these bytes
+     * into a user page table at CARA_USER_TEXT_BASE. The ALIGN(4K)
+     * pair ensures the section occupies whole pages so per-page
+     * mapping with PTE_USER_RX doesn't leak adjacent rodata. */
+    .user_text : ALIGN(4K) {
+        __user_text_start = .;
+        KEEP(*(.user_text))
+        . = ALIGN(4K);
+        __user_text_end = .;
+    } > RAM_VIRT AT > RAM_PHYS :rodata
+
     /* Literal pool of kernel-image extents. The pre-MMU low-phys
      * symbols can't be referenced from upper-half code via PC-relative
      * (39-bit gap exceeds auipc+addi); we materialise their values into

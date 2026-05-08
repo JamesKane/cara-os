@@ -38,6 +38,7 @@ if(CARA_TARGET STREQUAL "riscv64")
     add_subdirectory(croi/kobj)
     add_subdirectory(croi/sched)
     add_subdirectory(croi/ipc)
+    add_subdirectory(croi/syscall)
     add_subdirectory(croi/tests)
     add_subdirectory(croi)
     # add_subdirectory(splanc)   # arrives in real-hardware slice

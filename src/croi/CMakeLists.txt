@@ -8,6 +8,7 @@ set(_croi_lds "${CMAKE_CURRENT_SOURCE_DIR}/croi.lds")
 add_executable(croi
     _start.S
     trap_entry.S
+    user_program.S
     entry.c
     trap.c
     time.c
@@ -27,6 +28,7 @@ target_link_libraries(croi PRIVATE
     cara_kobj
     cara_sched
     cara_ipc
+    cara_syscall
     -Wl,--whole-archive
     cara_kernel_tests
     -Wl,--no-whole-archive

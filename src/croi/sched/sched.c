@@ -13,6 +13,7 @@
 
 extern void croi_ctx_switch(u64 *from, u64 *to);
 extern void task_trampoline(void);
+extern void user_task_trampoline(void);
 void Sched_Trampoline(void);
 
 static struct Task    *g_current = nullptr;
@@ -195,6 +196,99 @@ void Croi_TaskSetSelfPriority(i32 pri)
     if (g_current) {
         g_current->pri = pri;
     }
+}
+
+[[nodiscard]] struct Task *Croi_SpawnUserTask(const char *name, i32 pri,
+                                              const void *user_text_kva,
+                                              usize user_text_size,
+                                              u64 user_entry_va)
+{
+    if (!g_inited || !user_text_kva || user_text_size == 0) {
+        return nullptr;
+    }
+    struct Task *t = (struct Task *)Croi_Alloc(sizeof(struct Task));
+    if (!t) {
+        return nullptr;
+    }
+    *t = (struct Task){ 0 };
+    name_copy(t->name, name, sizeof(t->name));
+    t->pri = pri;
+    t->state = TASK_STATE_READY;
+
+    t->kstack = Croi_Alloc(CARA_TASK_KSTACK_SIZE);
+    if (!t->kstack) {
+        Croi_Free(t);
+        return nullptr;
+    }
+    t->kstack_size = CARA_TASK_KSTACK_SIZE;
+
+    if (HandleTable_Init(&t->handles, CARA_TASK_HANDLE_TABLE_CAP) != CARA_EOK) {
+        Croi_Free(t->kstack);
+        Croi_Free(t);
+        return nullptr;
+    }
+
+    // ---- Build the user page table ----
+    t->user_pt = Croi_NewKernelPT();
+    if (!t->user_pt) {
+        HandleTable_Destroy(&t->handles);
+        Croi_Free(t->kstack);
+        Croi_Free(t);
+        return nullptr;
+    }
+
+    // Map the user text bytes (already loaded as part of croi.elf's
+    // rodata) at the user-VA entry as PTE_USER_RX, page by page.
+    u64 base_kva = (u64)(uptr)user_text_kva;
+    if (base_kva & (CARA_PAGE_SIZE - 1)) {
+        base_kva &= ~(CARA_PAGE_SIZE - 1);     // drop into containing page
+    }
+    u64 last_byte_kva = (u64)(uptr)user_text_kva + user_text_size - 1;
+    u32 n_text_pages = (u32)(((last_byte_kva | (CARA_PAGE_SIZE - 1)) + 1
+                              - base_kva)
+                             / CARA_PAGE_SIZE);
+    for (u32 i = 0; i < n_text_pages; i++) {
+        u64 src_pa = Mm_VirtToPhys((const void *)(uptr)(base_kva
+                                                        + (u64)i * CARA_PAGE_SIZE));
+        u64 dst_va = CARA_USER_TEXT_BASE + (u64)i * CARA_PAGE_SIZE;
+        if (Page_Map(t->user_pt, dst_va, src_pa,
+                     PTE_V | PTE_R | PTE_X | PTE_U | PTE_A | PTE_D)
+            != CARA_EOK) {
+            // Failed mid-mapping; leak the partially-built PT for now.
+            return nullptr;
+        }
+    }
+
+    // Allocate + map the user stack.
+    extern struct PageAllocator g_page_alloc;
+    u32 stack_pages = CARA_USER_STACK_SIZE / (u32)CARA_PAGE_SIZE;
+    for (u32 i = 0; i < stack_pages; i++) {
+        u64 phys = Page_Alloc(&g_page_alloc, 1);
+        if (phys == 0) {
+            return nullptr;
+        }
+        u64 dst_va = CARA_USER_STACK_BASE + (u64)i * CARA_PAGE_SIZE;
+        if (Page_Map(t->user_pt, dst_va, phys, PTE_USER_RW) != CARA_EOK) {
+            return nullptr;
+        }
+    }
+
+    t->user_entry = user_entry_va;
+    t->user_sp_top = (CARA_USER_STACK_BASE + CARA_USER_STACK_SIZE) & ~15ull;
+
+    // Initial S-mode context: ra = user trampoline; sp = kstack top;
+    // sscratch = kstack top (sscratch convention for U-mode tasks so
+    // that a user-origin trap swaps onto the kernel stack).
+    u64 sp_top = (u64)(uptr)t->kstack + CARA_TASK_KSTACK_SIZE;
+    sp_top &= ~15ull;
+    t->saved_regs[0] = (u64)(uptr)user_task_trampoline;
+    t->saved_regs[1] = sp_top;
+    t->saved_regs[16] = sp_top;     // sscratch
+
+    runq_add(t);
+    LOG_DEBUG("schd", "spawn user '%s' pri=%d entry=0x%llx sp_top=0x%llx",
+              t->name, t->pri, t->user_entry, t->user_sp_top);
+    return t;
 }
 
 // Called from task_trampoline (.S) on the new task's first dispatch.

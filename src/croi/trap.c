@@ -5,6 +5,7 @@
 
 #include "print.h"
 
+#include <cara/syscall.h>
 #include <cara/time.h>
 #include <cara/trap.h>
 #include <cara/types.h>
@@ -61,6 +62,14 @@ void Croi_TrapDispatch(struct TrapFrame *frame)
                        frame->sstatus);
             Croi_Halt();
         }
+    }
+
+    // Synchronous exception — route ecall from U-mode to syscall dispatch.
+    if ((cause & SCAUSE_CAUSE_MASK) == 8) {
+        i64 ret = Croi_Syscall_Dispatch(frame);
+        frame->x[10] = (u64)ret;        // a0 = return value
+        frame->sepc += 4;               // skip past the ecall
+        return;
     }
 
     Croi_Print("\n*** UNHANDLED EXCEPTION ***\n"
