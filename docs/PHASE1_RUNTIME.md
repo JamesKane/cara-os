@@ -54,15 +54,30 @@ What landed under each Epic:
       * Croi_SpawnUserTaskFromElf — parses static ELF64 PT_LOAD
         entries from src/userland/userhello.elf cross-compiled by
         clang and embedded via .incbin (C program reaches SYS_EXIT 1234)
-  - **dath core (Phase 1 Subgoal 4 first cut)** — DathFramebuffer
-    abstraction (RGBA8888 / BGRA8888 / RGB565), Dath_Pixel /
-    FillRect / Clear / BlitRect with full clipping, simple-framebuffer
-    FDT discovery (Dath_Framebuffer_FromFdt → DathFbDescriptor),
-    boot-time probe in entry.c (logs and continues headless when
-    absent), DathFont + Dath_DrawChar / DrawString, 8x8 bitmap font
-    covering space + uppercase A-Z + a few punctuation marks. The
-    cross-target dath library + a host test for FDT parsing land
-    alongside the kernel-only path.
+  - **dath (Phase 1 Subgoal 4)** — DathFramebuffer abstraction
+    (RGBA8888 / BGRA8888 / RGB565 formats), simple-framebuffer FDT
+    discovery (Dath_Framebuffer_FromFdt → DathFbDescriptor), and a
+    full drawing surface:
+      * Dath_Pixel / Dath_FillRect / Dath_Clear / Dath_BlitRect with
+        complete clipping (negative origins, oversize spans, partial
+        off-screen rects) — RGBA8888 + BGRA8888 path.
+      * Dath_DrawLine (Bresenham, all eight octants) and Dath_DrawRect
+        (outlined rectangle, four edges via DrawLine).
+      * Dath_DrawChar / Dath_DrawString over an 8x8 bitmap font that
+        covers space, '!', ',-./:' digits 0-9, uppercase A-Z, lowercase
+        a-z. Unmapped slots render blank, never garbage.
+      * DathConsole wraps a framebuffer + font into a cursor-tracked
+        text surface with newline / carriage-return / soft-tab handling
+        and auto-scroll-up via Dath_BlitRect. Log_Sink_DathConsole_Emit
+        registers as a regular LogSink, so once a framebuffer is up,
+        every Croi_Log line at INFO+ renders to screen alongside the
+        UART.
+      * Boot path probes the FDT for simple-framebuffer; on success
+        clears the framebuffer dark blue, draws a 96x96 lighter-blue
+        boot pattern, and registers the FB log sink. Headless QEMU
+        virt logs "no simple-framebuffer in FDT" and continues normally.
+      * cara_dath is dual-target so a host unit test (test_dath_fdt)
+        verifies the simple-framebuffer FDT parser without a kernel.
 
 Deferred until they're actually needed:
 
