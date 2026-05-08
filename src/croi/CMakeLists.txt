@@ -14,6 +14,7 @@ add_executable(croi
     print.c
     panic.c
     sbi.c
+    string.c
     ns16550.c
     platform_init.c
 )
@@ -21,6 +22,7 @@ target_link_libraries(croi PRIVATE
     cara_kernel_flags
     cara_headers
     cara_fdt
+    cara_mm
 )
 target_link_options(croi PRIVATE
     -nostdlib

@@ -31,6 +31,7 @@ endif()
 
 # Always-on: shared modules that compile in both worlds.
 add_subdirectory(croi/fdt)
+add_subdirectory(croi/mm)
 
 if(CARA_TARGET STREQUAL "riscv64")
     add_subdirectory(croi)

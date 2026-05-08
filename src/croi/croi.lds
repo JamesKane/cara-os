@@ -75,6 +75,19 @@ SECTIONS
         *(.srodata .srodata.*)
     } > RAM_VIRT AT > RAM_PHYS :rodata
 
+    /* Literal pool of kernel-image extents. The pre-MMU low-phys
+     * symbols can't be referenced from upper-half code via PC-relative
+     * (39-bit gap exceeds auipc+addi); we materialise their values into
+     * upper-half rodata at link time and C code reads from the
+     * upper-half address. Pattern from VectraOS riscv64-virt.ld
+     * (.kernel_image_descriptor). */
+    .kernel_extents : ALIGN(8) {
+        _kernel_image_phys_start = .;
+        QUAD(_kernel_phys_start)
+        _kernel_image_phys_end = .;
+        QUAD(_kernel_phys_end)
+    } > RAM_VIRT AT > RAM_PHYS :rodata
+
     .data : ALIGN(4K) {
         *(.data .data.*)
         *(.sdata .sdata.*)
@@ -99,6 +112,14 @@ SECTIONS
         . += 16K;
         __boot_stack_top = .;
     } > RAM_VIRT AT > RAM_PHYS :data
+
+    /* Page-aligned end-of-image marker. Mm_Init subtracts the range
+     * [_kernel_phys_start, _kernel_phys_end) from the FDT-derived
+     * memory map so the page allocator never hands out kernel memory. */
+    .kernel_end (NOLOAD) : ALIGN(4K) {
+    } > RAM_VIRT AT > RAM_PHYS :data
+    _kernel_phys_start = KERNEL_LOAD_ADDR;
+    _kernel_phys_end   = LOADADDR(.kernel_end);
 
     /DISCARD/ : {
         *(.note .note.*)

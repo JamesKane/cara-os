@@ -14,10 +14,17 @@
 #include "print.h"
 
 #include <cara/fdt.h>
+#include <cara/mm.h>
 #include <cara/platform.h>
 #include <cara/time.h>
 #include <cara/trap.h>
 #include <cara/types.h>
+
+// Kernel-image extents materialised into upper-half rodata by the
+// linker script's .kernel_extents — see croi.lds. We can't reach the
+// low-phys symbols directly from upper-half code (39-bit gap).
+extern u64 _kernel_image_phys_start;
+extern u64 _kernel_image_phys_end;
 
 [[noreturn]] void croi_entry(u64 hartid, u64 dtb_phys);
 
@@ -77,6 +84,38 @@ static void console_putc(char c)
 
     Croi_PrintInstallBackend(console_putc);
     Croi_Print("Hello from Croi (NS16550), hart=%llu\n", hartid);
+
+    // ---- Physical memory map ----
+    u64 kphys_start = _kernel_image_phys_start;
+    u64 kphys_end = _kernel_image_phys_end;
+    u64 dtb_start = dtb_phys;
+    u64 dtb_end = dtb_phys + fdt.totalsize;
+
+    struct PhysMap pm;
+    rc = Mm_PhysMapFromFdt(&pm, &fdt, kphys_start, kphys_end, dtb_start, dtb_end);
+    if (rc != CARA_EOK) {
+        Croi_Print("Mm_PhysMapFromFdt failed: %d\n", rc);
+        Croi_Halt();
+    }
+
+    Croi_Print("kernel image: 0x%llx..0x%llx (%llu KiB)\n", kphys_start, kphys_end,
+               (kphys_end - kphys_start) / 1024);
+    Croi_Print("dtb:          0x%llx..0x%llx (%llu bytes)\n", dtb_start, dtb_end,
+               dtb_end - dtb_start);
+    Croi_Print("phys banks:   %u, total %llu MiB\n", pm.n_banks,
+               pm.total_bytes / (1024 * 1024));
+    for (u32 i = 0; i < pm.n_banks; i++) {
+        Croi_Print("  bank[%u]: 0x%llx..0x%llx (%llu MiB)\n", i, pm.bank[i].base,
+                   pm.bank[i].base + pm.bank[i].size,
+                   pm.bank[i].size / (1024 * 1024));
+    }
+    Croi_Print("usable runs:  %u, total %llu MiB\n", pm.n_usable,
+               pm.usable_bytes / (1024 * 1024));
+    for (u32 i = 0; i < pm.n_usable; i++) {
+        Croi_Print("  run[%u]:  0x%llx..0x%llx (%llu KiB)\n", i, pm.usable[i].base,
+                   pm.usable[i].base + pm.usable[i].size,
+                   pm.usable[i].size / 1024);
+    }
 
     if (!plat.sstc_present || plat.timebase_hz == 0) {
         Croi_Print("Sstc not present (timebase=%llu); skipping timer demo\n",
