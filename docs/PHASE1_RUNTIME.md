@@ -14,12 +14,18 @@ Tier 2 (general runtime): E, F, G, I, J **shipped**; H deferred.
 Tier 3 (userspace prep): K **shipped** (full — embedded asm-section
 spawn AND parsed-ELF spawn from a separately-compiled cross binary).
 
-Ten in-kernel tests run on every boot; the QEMU smoke ctest asserts
+Phase 1 Subgoal 4 (framebuffer / dath.library core): **first cut
+shipped** — DathFramebuffer + draw primitives + simple-framebuffer
+FDT discovery + 8x8 bitmap font + DrawChar/DrawString. QEMU virt has
+no framebuffer node by default so the boot logs "headless boot"; the
+synthetic in-heap framebuffer tests verify all primitives end-to-end.
+
+Eleven in-kernel tests run on every boot; the QEMU smoke ctest asserts
 `kernel tests: N passed, 0 failed`:
 
   pagealloc_smoke, heap_smoke, time_smoke, sched_smoke,
   signal_smoke, handle_smoke, ipc_smoke, paging_smoke,
-  usermode_smoke, userelf_smoke
+  usermode_smoke, userelf_smoke, dath_smoke
 
 What landed under each Epic:
 
@@ -48,6 +54,15 @@ What landed under each Epic:
       * Croi_SpawnUserTaskFromElf — parses static ELF64 PT_LOAD
         entries from src/userland/userhello.elf cross-compiled by
         clang and embedded via .incbin (C program reaches SYS_EXIT 1234)
+  - **dath core (Phase 1 Subgoal 4 first cut)** — DathFramebuffer
+    abstraction (RGBA8888 / BGRA8888 / RGB565), Dath_Pixel /
+    FillRect / Clear / BlitRect with full clipping, simple-framebuffer
+    FDT discovery (Dath_Framebuffer_FromFdt → DathFbDescriptor),
+    boot-time probe in entry.c (logs and continues headless when
+    absent), DathFont + Dath_DrawChar / DrawString, 8x8 bitmap font
+    covering space + uppercase A-Z + a few punctuation marks. The
+    cross-target dath library + a host test for FDT parsing land
+    alongside the kernel-only path.
 
 Deferred until they're actually needed:
 
