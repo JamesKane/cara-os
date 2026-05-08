@@ -142,4 +142,39 @@ KERNEL_TEST(dath_smoke)
             TEST_FAIL(ctx, "right-clipped blit bled left");
         }
     }
+
+    // 10. Text rendering. Use a fresh framebuffer so we can read the
+    //     'C' glyph's row[0] pixels without prior garbage. The font's
+    //     'C' starts with row 0 = 0x7C  →  pixels .#####.. across 8 cols.
+    static u32 g_text_buf[16 * 8];
+    struct DathFramebuffer tfb;
+    TEST_ASSERT(ctx,
+                Dath_Framebuffer_Init(&tfb, g_text_buf, 16, 8, 16 * 4,
+                                      DATH_FMT_RGBA8888) == CARA_EOK,
+                "text fb init failed");
+    Dath_Clear(&tfb, Dath_RGB(0, 0, 0));
+    DathColor white = Dath_RGB(0xFF, 0xFF, 0xFF);
+    Dath_DrawChar(&tfb, &dath_font_8x8, 0, 0, 'C', white,
+                  Dath_RGB(0, 0, 0));
+
+    // 'C' row 0 = 0x7C = 0b01111100 — pixels at columns 1..5 are set.
+    static const u8 row0_bits[8] = { 0, 1, 1, 1, 1, 1, 0, 0 };
+    for (u32 x = 0; x < 8; x++) {
+        u32 expected = row0_bits[x] ? 0xFFFFFFFFu : 0xFF000000u;
+        if (g_text_buf[0 * 16 + x] != expected) {
+            TEST_FAIL(ctx, "DrawChar 'C' row 0 pixel mismatch");
+        }
+    }
+
+    // 11. DrawString advances by font width per char.
+    Dath_Clear(&tfb, Dath_RGB(0, 0, 0));
+    Dath_DrawString(&tfb, &dath_font_8x8, 0, 0, "C C", white,
+                    Dath_RGB(0, 0, 0));
+    // Second 'C' starts at x=16, so its row 0 should match too.
+    for (u32 x = 0; x < 8; x++) {
+        u32 expected = row0_bits[x] ? 0xFFFFFFFFu : 0xFF000000u;
+        if (g_text_buf[0 * 16 + x] != expected) {
+            TEST_FAIL(ctx, "DrawString first 'C' wrong");
+        }
+    }
 }

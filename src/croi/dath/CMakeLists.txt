@@ -12,6 +12,8 @@ add_library(cara_dath STATIC
     framebuffer.c
     draw.c
     fdt_simple.c
+    text.c
+    font_8x8.c
 )
 target_include_directories(cara_dath PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 

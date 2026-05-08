@@ -91,4 +91,37 @@ struct DathFbDescriptor {
 [[nodiscard]] int Dath_Framebuffer_FromFdt(struct DathFbDescriptor *out,
                                            const struct Fdt *fdt);
 
+// ---- Text rendering --------------------------------------------------------
+//
+// Bitmap fonts are stored as a flat array of one byte per glyph row,
+// MSB = leftmost pixel. Width must be ≤ 8 in this Tier 1 cut so each
+// row fits in a single byte. Codepoints below first_glyph or above
+// last_glyph render as a solid background block.
+//
+// A complete public-domain font is future work — Phase 3 wants Latin /
+// Greek / Cyrillic and a way to switch faces. For now dath_font_8x8
+// covers space, exclamation, and uppercase A-Z, which is enough to
+// prove text rendering plumbs end-to-end.
+
+struct DathFont {
+    u32        width;        // pixels per glyph (≤ 8)
+    u32        height;       // pixels per glyph
+    u32        first_glyph;  // codepoint of bitmap[0]
+    u32        last_glyph;   // codepoint of last covered glyph (inclusive)
+    const u8  *bitmap;       // (last - first + 1) glyphs, height bytes each
+};
+
+extern const struct DathFont dath_font_8x8;
+
+// Render a single character at (x, y) using `font`. fg is the
+// foreground (set-bit) color; bg is the background (clear-bit) color.
+void Dath_DrawChar(const struct DathFramebuffer *fb,
+                   const struct DathFont *font,
+                   i32 x, i32 y, char c, DathColor fg, DathColor bg);
+
+// Render `s` left-to-right at (x, y). Stops at the NUL terminator.
+void Dath_DrawString(const struct DathFramebuffer *fb,
+                     const struct DathFont *font,
+                     i32 x, i32 y, const char *s, DathColor fg, DathColor bg);
+
 #endif
