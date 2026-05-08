@@ -275,9 +275,10 @@ log ring.
 
 ## What this unblocks
 
-- **Phase 1 ships.** Clar working under QEMU with virtio-input
-  satisfies the success-criterion's QEMU equivalent. Real-hardware
-  Splanc.efi boot (Subgoal 1) lets the same Gleas run on RV2.
+- **Phase 1 ships.** Clar working under QEMU's `qemu-xhci` +
+  `usb-kbd` + `usb-mouse` satisfies the success-criterion's QEMU
+  equivalent. Real-hardware Splanc.efi boot (Subgoal 1) lets the
+  same Gleas run on RV2 silicon — same xHCI driver code path.
 - **Phase 2 (NVMe + CaraFS).** Clar's hard-coded single drawer is
   replaced by an actual filesystem-backed drawer that lists the
   CaraFS directory contents. The Phase 1 Clar code structure

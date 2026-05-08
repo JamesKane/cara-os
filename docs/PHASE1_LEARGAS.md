@@ -19,7 +19,8 @@ the lvo-gen pipeline that will eventually publish
 `intuition.library`'s LVOs. The input pipeline (USB, Subgoal 5)
 is also a hard prerequisite — no input means no useful Intuition.
 This doc plans Leargas; implementation starts after PHASE1_USB.md
-Tier 1 (virtio-input) at minimum.
+Tier 1 (xHCI controller online) at minimum, with Tier 3 (HID
+Gleas) needed before keyboard events flow.
 
 ---
 
@@ -134,7 +135,7 @@ Phase 1, configurable later via Clar).
 
 ### Epic LC — Mouse motion → pointer
 
-**Goal:** events from the input ring (PHASE1_USB Tier 1 / 3)
+**Goal:** events from the input ring (PHASE1_USB Tier 3 HID Gleas)
 update the pointer's `(x, y)` and clamp to the screen extent.
 
 - **LC.1** A Leargas Gleas (U-mode task) opens the input ring,

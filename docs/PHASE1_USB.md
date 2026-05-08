@@ -18,57 +18,65 @@ shipped; nothing actually delivers pointer or keyboard events yet.
 
 ## Context
 
-`docs/ROADMAP.md` Phase 1 names two USB requirements that look like
-one but aren't:
+`docs/ROADMAP.md` Phase 1 names two USB requirements:
 
 - **Real-hardware path.** `xHCI driver on the X1's USB controller.
   HID class driver in user space (a Gleas) that posts events to
   Leargas.`
-- **QEMU equivalent.** `the same Croi binary boots under
-  qemu-system-riscv64 -machine virt and shows Clar in the QEMU
-  display output, with virtio-keyboard and virtio-mouse generating
-  events. Both must work; QEMU is the daily driver.`
+- **QEMU equivalent.** The same Croi binary boots under
+  `qemu-system-riscv64 -machine virt` and runs through the same
+  xHCI driver against QEMU's `qemu-xhci` device — a real xHCI 1.0
+  implementation — with `usb-kbd` / `usb-mouse` devices attached.
 
-These are two transports for the same input pipeline. virtio-input
-is qualitatively easier (no PCIe enumeration, no controller driver,
-no USB protocol — virtio devices ride MMIO with descriptor rings)
-and gives us a working mouse and keyboard for Leargas/Clar
-development *before* xHCI is up. xHCI is the stricter requirement
-because real RV2 silicon ships with USB ports, not virtio devices.
-
-The strategy below ships virtio-input first so Leargas and Clar
-have something to consume; xHCI lands once Leargas/Clar work
-qualitatively, removing schedule dependency between the input
-pipeline and the GUI work.
+**No virtio shortcut.** CaraOS is a real-hardware OS; QEMU is the
+daily driver, but the daily driver runs the same code paths the
+silicon does. virtio-input would have been faster to bring up but
+it's a parallel dead end — every virtio-only line of code would
+have to be deleted before RV2 silicon shipped, and the QEMU/silicon
+divergence would mean QEMU green doesn't imply silicon green. The
+cleanroom xHCI driver is one path that works in both places.
 
 ### Strategy
 
-**Both transports feed the same `input.device`-shaped surface.**
-The input.device LVOs are V36+ canonical (`AddIO` /
-`CheckIO` / `RemIO` etc., already covered by the Phase 3
-`exec.library` subset), and Leargas reads events through the
-public `IECLASS_RAWMOUSE` / `IECLASS_RAWKEY` enum from
-`<devices/inputevent.h>`. Whichever transport produces the event
-(virtio descriptor or USB HID interrupt-pipe transfer), the queue
-into Leargas looks identical.
+**One xHCI driver, two transports underneath.** xHCI 1.0+ is a
+spec'd PCI/PCIe device (USB 3.x Implementer's Forum, eXtensible
+Host Controller Interface for Universal Serial Bus, current is
+1.2b). The driver speaks xHCI; what it sits on is one of:
 
-The work splits into three Tiers:
+- QEMU `qemu-xhci` (PCIe device, `-machine virt -device qemu-xhci
+  -device usb-kbd -device usb-mouse`). Fully xHCI 1.0 compliant.
+- The X1's onboard xHCI controller. PCIe-discoverable; the X1
+  TRM names the controller and its base class is
+  `0x0C / 0x03 / 0x30` (USB host) per PCI conventions.
 
-1. **Tier 1 — virtio-input under QEMU.** Simplest delivery path.
-   Unblocks Leargas and Clar without waiting on the controller
-   driver.
-2. **Tier 2 — xHCI controller driver + USB enumeration on real
-   hardware.** Brings up the X1's USB controller, walks the device
-   tree, parses descriptors.
-3. **Tier 3 — HID class driver as a Gleas.** Polls the
-   interrupt-IN pipe from the keyboard / mouse, reformats reports
-   into `IECLASS_RAWMOUSE` / `IECLASS_RAWKEY` events, and
-   `PutMsg`s them into Leargas's input port.
+The two paths share PCIe enumeration, register layout, command
+ring, transfer ring, and interrupt model. They diverge only on
+peripheral details (interrupt routing, integrated PHY config),
+which the per-platform PCI config-space match handles.
+
+**Three Tiers** layered for clean exit criteria:
+
+1. **Tier 1 — xHCI controller online.** PCIe enumeration finds
+   the controller; xHCI init runs through to `Run/Stop = 1`; an
+   attached HID device's port shows `Connected`; the device's
+   slot transitions Default → Address → Configured.
+2. **Tier 2 — USB device enumeration.** Standard control
+   transfers (Get Descriptor, Set Configuration) complete against
+   the connected device; device / configuration / interface /
+   HID descriptors readable.
+3. **Tier 3 — HID class driver as a Gleas.** A user-mode HID
+   Gleas reads the interrupt-IN endpoint, decodes the boot-
+   protocol mouse / keyboard reports, and posts
+   `IECLASS_RAWMOUSE` / `IECLASS_RAWKEY` events into Leargas's
+   input port.
 
 ### Out of scope for Phase 1
 
-- **USB hub support.** Devices plug straight into the host's root
-  ports for Phase 1; cascaded hubs arrive with Phase 5 SBC
+- **virtio-input.** Explicitly not pursued — no schedule shortcut
+  via emulated virtio devices. The real-hardware xHCI path is
+  what ships; QEMU runs the same driver against `qemu-xhci`.
+- **USB hub support.** Devices plug straight into the host's
+  root ports for Phase 1; cascaded hubs arrive with Phase 5 SBC
   peripheral coverage.
 - **USB mass storage / printer / audio classes.** Phase 5.
 - **Power management** (selective suspend, runtime PM). Stretch.
@@ -77,109 +85,62 @@ The work splits into three Tiers:
   The user must use wired peripherals.
 - **xHCI debug capability** as a kernel diagnostic interface.
   Diagnostic surface stays NS16550 + framebuffer logsinks.
+- **HID Report Descriptor parser.** Phase 1 forces boot protocol
+  via `SET_PROTOCOL(Boot)` so the report layout is fixed
+  (8 bytes mouse / 8 bytes keyboard); the full descriptor parser
+  is Phase 5.
 
 ---
 
-## Tier 1 — virtio-input under QEMU
+## Tier 1 — xHCI controller online
 
-**Exit:** `qemu-system-riscv64 -machine virt -device virtio-keyboard
--device virtio-mouse` brings up two virtio-input devices; pressing
-a key or moving the mouse posts an event on a kernel-side input
-ring; an in-kernel test asserts it received N events of each type
-in a scripted QEMU `sendkey` / mouse-move sequence.
+**Exit:** the kernel boots, discovers the xHCI controller via
+PCIe, brings it through reset, completes xHCI init (DCBAA,
+Command Ring, Event Ring, Run/Stop), and a connected HID device's
+port reports `Connected` with the slot enabled. An in-kernel
+`xhci_smoke` test asserts these state transitions on both QEMU
+`qemu-xhci` and (when available) the X1.
 
-### Epic VA — virtio-mmio driver
+### Epic UA — PCIe enumeration
 
-**Goal:** discover virtio devices listed in the FDT at
-`/soc/virtio_mmio@*`, classify by `device-id`, hand each off to its
-class driver. virtio-MMIO is fully spec'd (virtio v1.2 §4.2);
-no firmware blob.
-
-- **VA.1** FDT walk for `virtio_mmio` nodes. Parse `reg` for the
-  4 KiB MMIO region. Probe `MagicValue` / `Version` /
-  `DeviceID` registers. Reject `DeviceID == 0` (slot empty).
-- **VA.2** Per-device init: feature negotiation, virtqueue
-  allocation (using `Croi_Alloc` for descriptor / available /
-  used ring storage in upper-half kernel pages, page-aligned),
-  `QueueReady`, `DRIVER_OK`.
-- **VA.3** Common interrupt handler stub. Reads
-  `InterruptStatus`, dispatches to the per-device queue handler.
-
-### Epic VB — virtio-input class driver
-
-**Goal:** consume input events from a `virtio-input` device's
-`eventq` and post to a kernel-side input ring. The
-`virtio-input` device class is spec'd in virtio v1.2 §5.8.
-
-- **VB.1** Initial config space read — pull the device's name,
-  serial, properties tag (which axes / button counts / key
-  ranges) into a per-device descriptor.
-- **VB.2** `eventq` consumer: pull `virtio_input_event` records
-  (`type`, `code`, `value`) off the used ring, wrap in a CaraOS
-  `IECLASS_RAW{MOUSE,KEY}`-shaped event, append to the input ring.
-- **VB.3** Replenish the eventq descriptors after consume (to
-  keep the ring full).
-
-### Epic VC — kernel-side input ring + test
-
-**Goal:** events flow from virtio-input through the input ring to
-a test consumer that asserts ordering and totals.
-
-- **VC.1** `struct InputEvent` — V36+ shape from
-  `<devices/inputevent.h>` with `ie_Class` / `ie_Code` /
-  `ie_Qualifier` / `ie_X` / `ie_Y`.
-- **VC.2** `KOBJ_INPUT_RING`: a typed Ring (per `cara/ring.h`)
-  carrying InputEvent slots. Multiple producers (one per
-  virtio-input device); single consumer (eventually Leargas, in
-  Phase 1 Subgoal 6).
-- **VC.3** `T_virtio_input_smoke`: spawn a kernel test task that
-  consumes from the input ring; QEMU script (test harness) sends
-  `sendkey a` and `mouse_move`; assert N keypress + M motion
-  events arrive in order.
-
----
-
-## Tier 2 — PCIe enumeration + xHCI controller (real hardware)
-
-**Exit:** the kernel boots on RV2 silicon, discovers the X1's USB
-controller via PCIe, brings it out of reset, completes xHCI
-controller initialisation (CRCR / DCBAA / Event Ring), and an
-attached HID device's slot transitions through Default → Address →
-Configured states with descriptor reads succeeding.
-
-### Epic UA — PCIe enumeration on X1
-
-**Goal:** walk the X1's PCIe root complex, identify each function
-by class code, hand each one off to its driver.
+**Goal:** walk the platform's PCIe root complex, identify each
+function by class code, hand each one off to its driver.
+PCIe 5.0 spec is the source.
 
 - **UA.1** FDT discovery of the PCIe root complex node. Parse
   `reg`, `ranges` (for the BAR allocation window), `interrupt-map`
-  (for legacy IRQ routing), MSI/MSI-X capability discovery.
-- **UA.2** Configuration-space access primitive (ECAM-shaped
-  on the X1; check the SoC TRM). `Croi_Pci_Read{8,16,32}` /
+  (for legacy IRQ routing), MSI/MSI-X capability discovery. The
+  X1 and QEMU virt both expose a PCIe host bridge in the FDT;
+  the parser handles both.
+- **UA.2** Configuration-space access primitive (ECAM-shaped on
+  both targets). `Croi_Pci_Read{8,16,32}` /
   `Croi_Pci_Write{8,16,32}` on (bus, device, function, offset).
-- **UA.3** Bus-walk: scan bus 0 device functions, recurse into
+- **UA.3** Bus walk: scan bus 0 device functions, recurse into
   bridges. Per-function: read VID/DID/class, allocate BARs from
-  the `ranges` window, write back, store a
-  `struct PciFunction` per matched device.
-- **UA.4** Match xHCI by class code (0x0C / 0x03 / 0x30) and hand
-  off to the xHCI driver below.
+  the `ranges` window, write back, store a `struct PciFunction`
+  per matched device.
+- **UA.4** Match xHCI by class code (`0x0C / 0x03 / 0x30`) and
+  hand off to the xHCI driver below.
+- **UA.5** Cleanroom note: PCIe init is implemented from the
+  PCI-SIG specs (PCI Express Base Spec 5.0+, PCI Local Bus 3.0
+  for legacy config space). No `libpci`, no Linux kernel snippets.
 
 ### Epic UB — xHCI host controller driver
 
 **Goal:** xHCI 1.2 controller initialised; Event Ring servicing
 interrupts; one Slot allocated; one Endpoint Context configured.
-xHCI 1.2 spec is the source.
+The xHCI 1.2b spec (eXtensible Host Controller Interface for
+Universal Serial Bus, USB-IF) is the source.
 
 - **UB.1** Capability registers parse (`HCSPARAMS1`,
   `HCSPARAMS2`, `HCCPARAMS1`, page size, max slots, max ports).
-- **UB.2** Operational registers: reset (USBSTS HCH / USBCMD
-  HCRST), wait CNR, set MaxSlotsEn, allocate DCBAA + scratchpad
-  buffers from the page allocator.
-- **UB.3** Command Ring + Event Ring allocation, ERSTBA / DCBAAP
-  programming, Run/Stop.
-- **UB.4** Port reset and Slot allocation: enable each USB2/USB3
-  port that reports Connected, USBSTS PORTSC bit walk, send
+- **UB.2** Operational registers: reset (USBCMD HCRST), wait
+  CNR clear, set MaxSlotsEn, allocate DCBAA + scratchpad
+  buffers from the page allocator, program DCBAAP.
+- **UB.3** Command Ring + Event Ring allocation, ERSTBA
+  programming, `Run/Stop = 1`.
+- **UB.4** Port reset and Slot allocation: walk PORTSC for
+  each USB2/USB3 port that reports Connected, send
   `Enable Slot` command, wait completion event.
 - **UB.5** Address Device + Configure Endpoint TRBs: build the
   Input Context, send the command, parse the response.
@@ -188,38 +149,59 @@ xHCI 1.2 spec is the source.
 - **UB.7** Event ring interrupt handler: read ERDP, walk the
   ring, dispatch by TRB type (transfer / command-completion /
   port-status-change).
+- **UB.8** `xhci_smoke` kernel test: spawns the driver against
+  the discovered controller, asserts state transitions through
+  reset → init → first device addressed. Runs under QEMU
+  `qemu-xhci` (the daily driver) and on the X1 once the
+  hardware path lands.
 
-### Epic UC — USB device enumeration
+---
 
-**Goal:** standard control-pipe transfers complete; device,
-configuration, interface, and HID descriptors readable. USB 2.0
-spec §9 is the source.
+## Tier 2 — USB device enumeration
+
+**Exit:** standard control-pipe transfers complete; device,
+configuration, interface, and HID descriptors readable; an HID
+interface is recognised and routed to the (yet-to-be-spawned)
+HID Gleas.
+
+### Epic UC — Standard descriptor reads
+
+**Goal:** the canonical USB enumeration sequence runs against any
+attached HID device. USB 2.0 spec §9 is the source (Standard
+Device Requests).
 
 - **UC.1** `GET_DESCRIPTOR(Device)`: full 18-byte device
-  descriptor read, identifies VID/PID/protocol.
+  descriptor read. Identifies VID/PID/protocol class; hands
+  protocol back to the dispatcher.
 - **UC.2** `GET_DESCRIPTOR(Configuration)`: short read for
   total length, then full read for the configuration + nested
   interfaces + endpoints + HID descriptor.
-- **UC.3** `SET_CONFIGURATION` to activate the chosen config.
+- **UC.3** `SET_CONFIGURATION` to activate the chosen
+  configuration. Phase 1 always picks configuration index 0.
 - **UC.4** Interface dispatch: HID interfaces (class = 0x03)
-  routed to the HID class driver below; mass-storage / audio /
-  etc. logged as "unsupported in Phase 1" and ignored.
+  routed to the HID class driver (Tier 3); mass-storage / audio
+  / etc. logged as "unsupported in Phase 1" and ignored.
+- **UC.5** Endpoint Context configuration for the HID interface's
+  interrupt-IN endpoint via the xHCI Configure Endpoint command.
+- **UC.6** A kernel test (`usb_enum_smoke`) attaches a `usb-kbd`
+  device under QEMU and asserts the descriptor reads return the
+  canonical HID-keyboard interface descriptor (class 0x03,
+  subclass 0x01 boot, protocol 0x01 keyboard).
 
 ---
 
 ## Tier 3 — HID class driver as a Gleas
 
-**Exit:** a USB keyboard and a USB mouse plugged into the RV2 (or
-their virtio counterparts under QEMU) generate events that flow
-through the HID Gleas into Leargas's input port. A boot-time
-integration test plugs in synthetic devices and asserts the event
-stream.
+**Exit:** a USB keyboard and a USB mouse plugged into the host
+generate events that flow through the HID Gleas into Leargas's
+input port. A boot-time integration test plugs in synthetic
+devices and asserts the event stream.
 
 ### Epic HA — HID class driver
 
-**Goal:** the boot-protocol HID parser runs as a Gleas Croi spawns
-at boot. It opens the relevant USB endpoint (interrupt-IN), reads
-8-byte boot-protocol report packets, decodes them into
+**Goal:** the boot-protocol HID parser runs as a Gleas Croi
+spawns at boot. It opens the relevant USB endpoint (interrupt-IN),
+reads 8-byte boot-protocol report packets, decodes them into
 `IECLASS_RAWMOUSE` / `IECLASS_RAWKEY` events, and `PutMsg`s into
 Leargas's input port. USB HID 1.11 spec (§B for boot protocols).
 
@@ -234,10 +216,8 @@ Leargas's input port. USB HID 1.11 spec (§B for boot protocols).
 - **HA.3** Keyboard boot-protocol decoder: 8 bits modifiers,
   reserved, 6-key rollover. Map USB usage codes to V36+ rawkey
   codes (the V36+ rawkey table is in `<devices/keymap.h>`).
-- **HA.4** USB-to-V36+ usage-code translation table (lives in
-  `src/userland/hid/usbkeymap.c`). Same table covers virtio-input
-  Linux keycodes (Tier 1 Epic VB) since they're isomorphic to
-  USB usage codes for the boot subset.
+- **HA.4** USB-to-V36+ usage-code translation table in
+  `src/userland/hid/usbkeymap.c`.
 
 ### Epic HB — Gleas wiring
 
@@ -261,19 +241,22 @@ delivers events to Leargas.
   enumerated. (Hot-plug deferred to Phase 5.)
 - **HB.4** End-to-end test: the QEMU smoke harness types the
   string "abc" via `sendkey`, asserts Leargas's input ring sees
-  three IECLASS_RAWKEY events with the right rawkey codes.
+  three IECLASS_RAWKEY events with the right rawkey codes. Same
+  test runs on the X1 via the `qemu-system-riscv64 -monitor`
+  control surface (or, on real silicon, an attached USB
+  keyboard during a manual test).
 
 ---
 
 ## What this unblocks
 
 - **Phase 1 Subgoal 6 (Leargas).** The pointer position tracker
-  and focused-window keyboard router both consume events from the
-  input ring this stack produces.
+  and focused-window keyboard router both consume events from
+  the input ring this stack produces.
 - **Phase 1 Subgoal 7 (Clar).** Clicking a drawer to open it,
   typing into a text Inntin, dragging a window — all driven by
   the events flowing through here.
 - **Phase 5 SBC peripheral coverage.** Beyond mouse/keyboard:
   USB hubs, gamepads, USB-C audio, USB-Ethernet — each one
-  registers a class driver against the Tier 2 xHCI substrate.
+  registers a class driver against the Tier 1 xHCI substrate.
   No Phase 1 code needs to change.

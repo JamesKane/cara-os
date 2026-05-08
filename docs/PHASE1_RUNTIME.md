@@ -599,10 +599,11 @@ All four plan docs now exist:
 - **`docs/PHASE1_FRAMEBUFFER.md`** *(Subgoal 4 — first cut shipped)*
   — `simple-framebuffer` discovery from FDT, CPU blitter, the Dath
   rasteriser Clar will draw through.
-- **`docs/PHASE1_USB.md`** *(Subgoal 5 — not started)* —
-  virtio-input under QEMU first (Tier 1, smallest path to events
-  for Leargas/Clar dev), then xHCI on real RV2 silicon, then HID
-  class driver as a Gleas.
+- **`docs/PHASE1_USB.md`** *(Subgoal 5 — not started)* — cleanroom
+  xHCI driver running unchanged on QEMU's `qemu-xhci` and the
+  X1's onboard controller; PCIe enumeration and USB device
+  enumeration; HID boot-protocol class driver as a Gleas. No
+  virtio shortcut.
 - **`docs/PHASE1_LEARGAS.md`** *(Subgoal 6 — not started)* —
   pointer, screen, window, focus, keyboard routing, string gadget.
   Phase 1 minimum substrate; Phase 3's `intuition.library` wraps
@@ -610,7 +611,8 @@ All four plan docs now exist:
 - **`docs/PHASE1_CLAR.md`** *(Subgoal 7 — not started)* —
   Workbench analogue: backdrop screen, one Bosca (drawer), one
   Inntin (text-input gadget). When this works under QEMU with
-  virtio-input, Phase 1's QEMU equivalent ships.
+  `qemu-xhci` + `usb-kbd` + `usb-mouse`, Phase 1's QEMU
+  equivalent ships.
 
 **Phase 3 (V36+ AmigaOS API parity)** — kicked off with exec.library
 per the Status section above. Subsequent libraries each land via the

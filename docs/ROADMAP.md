@@ -72,9 +72,12 @@ build targets a bootable artefact.
 - Application porting beyond what Clar itself needs.
 
 **QEMU equivalent:** the same Croi binary boots under
-`qemu-system-riscv64 -machine virt` and shows Clar in the QEMU display
-output, with virtio-keyboard and virtio-mouse generating events. Both
-must work; QEMU is the daily driver.
+`qemu-system-riscv64 -machine virt -device qemu-xhci -device usb-kbd
+-device usb-mouse` and shows Clar in the QEMU display output, with
+the USB devices generating events through the same xHCI driver that
+runs on the X1. No virtio shortcut — `qemu-xhci` is a real xHCI 1.0
+implementation, so the daily driver and the silicon target run the
+same code paths. Both must work; QEMU is the daily driver.
 
 ---
 
