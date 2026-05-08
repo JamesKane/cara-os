@@ -356,4 +356,51 @@ KERNEL_TEST(dath_smoke)
             }
         }
     }
+
+    // 18. AllocBitmap / FreeBitmap. Heap-backed off-screen surface,
+    //     drawn into and blitted onto the static framebuffer.
+    struct DathFramebuffer bm;
+    TEST_ASSERT(ctx,
+                Dath_AllocBitmap(&bm, 8, 8, DATH_FMT_RGBA8888) == CARA_EOK,
+                "AllocBitmap failed");
+    TEST_ASSERT(ctx, bm.base != nullptr, "AllocBitmap base null");
+    TEST_ASSERT(ctx, bm.width == 8 && bm.height == 8, "AllocBitmap dims wrong");
+    TEST_ASSERT(ctx, bm.stride == 8 * 4, "AllocBitmap stride wrong");
+    TEST_ASSERT(ctx, bm.bpp == 4, "AllocBitmap bpp wrong");
+
+    // Backing memory was zeroed by Croi_Alloc — every pixel reads 0.
+    for (u32 i = 0; i < 8 * 8; i++) {
+        if (((const u32 *)bm.base)[i] != 0u) {
+            TEST_FAIL(ctx, "AllocBitmap base not zeroed");
+        }
+    }
+
+    Dath_Clear(&bm, Dath_RGB(0xCA, 0x4A, 0x05));
+    DathColor expected_alloc = 0xFFCA4A05u;
+    if (((const u32 *)bm.base)[0] != expected_alloc) {
+        TEST_FAIL(ctx, "AllocBitmap clear didn't paint pixel(0,0)");
+    }
+
+    // Blit the bitmap onto the fixed fb — exercises the same copy loop
+    // BlitRect uses on a heap-backed source.
+    Dath_Clear(&fb, Dath_RGB(0, 0, 0));
+    Dath_BlitRect(&fb, 4, 4, &bm, 0, 0, 8, 8);
+    if (g_buf[4 * W + 4] != expected_alloc) {
+        TEST_FAIL(ctx, "AllocBitmap blit didn't transfer");
+    }
+
+    // Reject zero-sized + format-NONE allocation requests.
+    struct DathFramebuffer junk;
+    TEST_ASSERT(ctx,
+                Dath_AllocBitmap(&junk, 0, 8, DATH_FMT_RGBA8888) != CARA_EOK,
+                "AllocBitmap accepted zero width");
+    TEST_ASSERT(ctx,
+                Dath_AllocBitmap(&junk, 8, 8, DATH_FMT_NONE) != CARA_EOK,
+                "AllocBitmap accepted format NONE");
+
+    Dath_FreeBitmap(&bm);
+    TEST_ASSERT(ctx, bm.base == nullptr, "FreeBitmap didn't null base");
+    TEST_ASSERT(ctx, bm.width == 0, "FreeBitmap didn't reset width");
+    // Idempotent on an already-freed descriptor.
+    Dath_FreeBitmap(&bm);
 }

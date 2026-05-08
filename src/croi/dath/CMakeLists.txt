@@ -19,6 +19,9 @@ add_library(cara_dath STATIC
 target_include_directories(cara_dath PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 
 if(CARA_TARGET STREQUAL "riscv64")
+    # Heap-backed bitmap helpers depend on Croi_Alloc/Free which live
+    # in the kernel heap module — only built for the kernel target.
+    target_sources(cara_dath PRIVATE bitmap.c)
     target_link_libraries(cara_dath
         PUBLIC cara_headers cara_fdt
         PRIVATE cara_kernel_flags

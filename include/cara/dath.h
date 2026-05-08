@@ -44,6 +44,19 @@ typedef u32 DathColor;
                                         u32 width, u32 height, u32 stride,
                                         DathFormat format);
 
+// Allocate an off-screen drawing surface (the AmigaOS BitMap analogue).
+// Backing memory comes from the kernel heap; stride is set to the
+// minimum (width * bpp) and the buffer is zeroed by Croi_Alloc. Pair
+// with Dath_FreeBitmap. Kernel-only — not available in host builds
+// since Croi_Alloc lives in the kernel heap module.
+[[nodiscard]] int Dath_AllocBitmap(struct DathFramebuffer *out,
+                                   u32 width, u32 height, DathFormat format);
+
+// Release a bitmap previously allocated via Dath_AllocBitmap. Safe to
+// call on an already-freed (base == nullptr) descriptor; resets all
+// fields so a stale framebuffer can't accidentally render.
+void Dath_FreeBitmap(struct DathFramebuffer *fb);
+
 // Compose colors. RGBA8888 / BGRA8888 framebuffers store the alpha in
 // the high byte; RGB565 packs into the low 16 bits and the high half
 // is unused. Use Dath_RGB565 explicitly when the target framebuffer is
