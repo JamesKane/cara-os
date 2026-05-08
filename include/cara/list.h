@@ -1,18 +1,22 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
-// Cara intrusive doubly-linked list. The structure follows AmigaOS Exec's
-// MinList: a header with two sentinel nodes (head, tail). The first real
-// element is always head.succ; the last is always tail.pred. An empty list
-// has head.succ == &tail. The sentinels keep insert/remove branchless.
+// Cara intrusive doubly-linked list helpers.
 //
-// Callers embed a struct ListNode in their type:
+// The struct layouts (struct MinList, struct MinNode) come from the
+// AmigaOS V36+ public header <exec/lists.h>. This header just adds
+// brand-namespace MinList_* helpers that kernel code uses for
+// internal queues — they perform exactly the AmigaOS V36+ exec.library
+// AddHead/AddTail/RemHead/RemTail/Remove memory operations. Phase C
+// will publish those LVO names from exec.library on top of these
+// helpers; the inlines here are what the LVO bodies will call.
 //
-//     struct Frob { int v; struct ListNode node; };
-//     struct MinList l; ListInit(&l);
+// V36+ tailpred-sentinel idiom:
+//
+//     struct MinList l; MinList_Init(&l);
 //     struct Frob f = { .v = 7 };
-//     ListAddTail(&l, &f.node);
-//     for (struct ListNode *n = l.head.succ; n != &l.tail; n = n->succ) {
-//         struct Frob *p = ListNodeOf(n, struct Frob, node);
+//     MinList_AddTail(&l, &f.node);
+//     for (struct MinNode *n = l.mlh_Head; n->mln_Succ; n = n->mln_Succ) {
+//         struct Frob *p = MinList_NodeOf(n, struct Frob, node);
 //         // ...
 //     }
 
@@ -20,80 +24,73 @@
 #define CARA_LIST_H
 
 #include <cara/types.h>
+#include <exec/lists.h>
 
-struct ListNode {
-    struct ListNode *succ;
-    struct ListNode *pred;
-};
-
-struct MinList {
-    struct ListNode head;
-    struct ListNode tail;
-};
-
-static inline void ListInit(struct MinList *l)
+static inline void MinList_Init(struct MinList *l)
 {
-    l->head.succ = &l->tail;
-    l->head.pred = nullptr;
-    l->tail.succ = nullptr;
-    l->tail.pred = &l->head;
+    l->mlh_Head     = (struct MinNode *)&l->mlh_Tail;
+    l->mlh_Tail     = nullptr;
+    l->mlh_TailPred = (struct MinNode *)&l->mlh_Head;
 }
 
-[[nodiscard]] static inline bool ListIsEmpty(const struct MinList *l)
+[[nodiscard]] static inline bool MinList_IsEmpty(const struct MinList *l)
 {
-    return l->head.succ == &l->tail;
+    return l->mlh_TailPred == (const struct MinNode *)&l->mlh_Head;
 }
 
-static inline void ListAddHead(struct MinList *l, struct ListNode *n)
+static inline void MinList_AddHead(struct MinList *l, struct MinNode *n)
 {
-    n->pred = &l->head;
-    n->succ = l->head.succ;
-    l->head.succ->pred = n;
-    l->head.succ = n;
+    n->mln_Pred = (struct MinNode *)&l->mlh_Head;
+    n->mln_Succ = l->mlh_Head;
+    l->mlh_Head->mln_Pred = n;
+    l->mlh_Head = n;
 }
 
-static inline void ListAddTail(struct MinList *l, struct ListNode *n)
+static inline void MinList_AddTail(struct MinList *l, struct MinNode *n)
 {
-    n->succ = &l->tail;
-    n->pred = l->tail.pred;
-    l->tail.pred->succ = n;
-    l->tail.pred = n;
+    n->mln_Succ = (struct MinNode *)&l->mlh_Tail;
+    n->mln_Pred = l->mlh_TailPred;
+    l->mlh_TailPred->mln_Succ = n;
+    l->mlh_TailPred = n;
 }
 
-static inline void ListRemove(struct ListNode *n)
+static inline void MinList_Remove(struct MinNode *n)
 {
-    n->pred->succ = n->succ;
-    n->succ->pred = n->pred;
-    n->succ = nullptr;
-    n->pred = nullptr;
+    n->mln_Pred->mln_Succ = n->mln_Succ;
+    n->mln_Succ->mln_Pred = n->mln_Pred;
+    n->mln_Succ = nullptr;
+    n->mln_Pred = nullptr;
 }
 
-static inline struct ListNode *ListRemHead(struct MinList *l)
+static inline struct MinNode *MinList_RemHead(struct MinList *l)
 {
-    if (ListIsEmpty(l)) {
+    if (MinList_IsEmpty(l)) {
         return nullptr;
     }
-    struct ListNode *n = l->head.succ;
-    ListRemove(n);
+    struct MinNode *n = l->mlh_Head;
+    MinList_Remove(n);
     return n;
 }
 
-static inline struct ListNode *ListRemTail(struct MinList *l)
+static inline struct MinNode *MinList_RemTail(struct MinList *l)
 {
-    if (ListIsEmpty(l)) {
+    if (MinList_IsEmpty(l)) {
         return nullptr;
     }
-    struct ListNode *n = l->tail.pred;
-    ListRemove(n);
+    struct MinNode *n = l->mlh_TailPred;
+    MinList_Remove(n);
     return n;
 }
 
-#define ListNodeOf(PTR, TYPE, MEMBER) \
+#define MinList_NodeOf(PTR, TYPE, MEMBER) \
     ((TYPE *)(void *)((char *)(PTR) - offsetof(TYPE, MEMBER)))
 
-#define ListForEach(VAR, LIST) \
-    for (struct ListNode *VAR = (LIST)->head.succ; \
-         VAR != &(LIST)->tail; \
-         VAR = VAR->succ)
+// Forward iteration. The terminating condition `(VAR)->mln_Succ` is true
+// for every real node and false at the virtual tail-node (whose
+// mln_Succ aliases mlh_Tail = nullptr).
+#define MinList_ForEach(VAR, LIST) \
+    for (struct MinNode *VAR = (LIST)->mlh_Head; \
+         (VAR)->mln_Succ; \
+         (VAR) = (VAR)->mln_Succ)
 
 #endif

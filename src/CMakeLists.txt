@@ -39,6 +39,7 @@ add_subdirectory(croi/dath)
 
 if(CARA_TARGET STREQUAL "riscv64")
     add_subdirectory(croi/log)
+    add_subdirectory(croi/util)
     add_subdirectory(croi/kobj)
     add_subdirectory(croi/loader)
     add_subdirectory(croi/sched)

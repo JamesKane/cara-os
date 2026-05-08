@@ -43,6 +43,7 @@ target_link_libraries(croi PRIVATE
     cara_fdt
     cara_mm
     cara_log
+    cara_util
     cara_kobj
     cara_sched
     cara_ipc

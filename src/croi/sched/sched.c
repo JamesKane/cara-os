@@ -23,22 +23,45 @@ static struct MinList  g_sleepers;          // tasks blocked in Croi_Wait
 static struct MinList  g_dead;
 static bool            g_inited = false;
 
-static struct Task *node_to_task(struct ListNode *n)
+static struct Task *node_to_task(struct MinNode *n)
 {
-    return ListNodeOf(n, struct Task, sched_node);
+    return MinList_NodeOf(n, struct Task, sched_node);
 }
 
-static void name_copy(char *dst, const char *src, usize cap)
+// Copy a name into a Task's private buffer and point ln_Name at it.
+// Bounded by CARA_TASK_NAME_LEN; truncated if longer.
+static void task_set_name(struct Task *t, const char *src)
 {
     usize i = 0;
-    if (cap == 0) {
-        return;
-    }
-    while (src && i + 1 < cap && src[i]) {
-        dst[i] = src[i];
+    while (src && i + 1 < CARA_TASK_NAME_LEN && src[i]) {
+        t->_ln_name_buf[i] = src[i];
         i++;
     }
-    dst[i] = 0;
+    t->_ln_name_buf[i] = 0;
+    t->tc_Node.ln_Name = t->_ln_name_buf;
+}
+
+// Initialize the V36+ tc_Node fields common to every spawned Task.
+static void task_init_node(struct Task *t, const char *name, BYTE pri)
+{
+    t->tc_Node.ln_Type = NT_TASK;
+    t->tc_Node.ln_Pri  = pri;
+    task_set_name(t, name);
+    t->tc_IDNestCnt = -1;
+    t->tc_TDNestCnt = -1;
+    // V36+ NewList semantics for the per-task tracked-allocations list.
+    t->tc_MemEntry.lh_Head     = (struct Node *)&t->tc_MemEntry.lh_Tail;
+    t->tc_MemEntry.lh_Tail     = nullptr;
+    t->tc_MemEntry.lh_TailPred = (struct Node *)&t->tc_MemEntry;
+    t->tc_MemEntry.lh_Type     = NT_MEMORY;
+}
+
+// Clamp an i32 priority caller-spec to BYTE (V36+ ln_Pri width).
+static BYTE clamp_pri(i32 pri)
+{
+    if (pri < -128) return -128;
+    if (pri >  127) return  127;
+    return (BYTE)pri;
 }
 
 // Insert t into runq sorted by priority descending. Equal-pri tasks
@@ -46,19 +69,17 @@ static void name_copy(char *dst, const char *src, usize cap)
 // priority level.
 static void runq_add(struct Task *t)
 {
-    struct ListNode *p = g_runq.head.succ;
-    while (p != &g_runq.tail) {
+    for (struct MinNode *p = g_runq.mlh_Head; p->mln_Succ; p = p->mln_Succ) {
         struct Task *q = node_to_task(p);
-        if (q->pri < t->pri) {
-            t->sched_node.pred = p->pred;
-            t->sched_node.succ = p;
-            p->pred->succ = &t->sched_node;
-            p->pred = &t->sched_node;
+        if (q->tc_Node.ln_Pri < t->tc_Node.ln_Pri) {
+            t->sched_node.mln_Pred = p->mln_Pred;
+            t->sched_node.mln_Succ = p;
+            p->mln_Pred->mln_Succ = &t->sched_node;
+            p->mln_Pred = &t->sched_node;
             return;
         }
-        p = p->succ;
     }
-    ListAddTail(&g_runq, &t->sched_node);
+    MinList_AddTail(&g_runq, &t->sched_node);
 }
 
 void Sched_Init(void)
@@ -66,9 +87,9 @@ void Sched_Init(void)
     if (g_inited) {
         return;
     }
-    ListInit(&g_runq);
-    ListInit(&g_sleepers);
-    ListInit(&g_dead);
+    MinList_Init(&g_runq);
+    MinList_Init(&g_sleepers);
+    MinList_Init(&g_dead);
 
     struct Task *boot = (struct Task *)Croi_Alloc(sizeof(struct Task));
     if (!boot) {
@@ -76,9 +97,8 @@ void Sched_Init(void)
         return;
     }
     *boot = (struct Task){ 0 };
-    name_copy(boot->name, "kmain", sizeof(boot->name));
-    boot->pri = 100;
-    boot->state = TASK_STATE_RUNNING;
+    task_init_node(boot, "kmain", 100);
+    boot->tc_State = TS_RUN;
     if (HandleTable_Init(&boot->handles, CARA_TASK_HANDLE_TABLE_CAP)
         != CARA_EOK) {
         LOG_FATAL("schd", "Sched_Init: HandleTable_Init failed");
@@ -105,9 +125,8 @@ struct Task *Sched_Current(void)
         return nullptr;
     }
     *t = (struct Task){ 0 };
-    name_copy(t->name, name, sizeof(t->name));
-    t->pri = pri;
-    t->state = TASK_STATE_READY;
+    task_init_node(t, name, clamp_pri(pri));
+    t->tc_State = TS_READY;
     t->entry_fn = entry;
     t->entry_arg = arg;
 
@@ -117,6 +136,8 @@ struct Task *Sched_Current(void)
         return nullptr;
     }
     t->kstack_size = CARA_TASK_KSTACK_SIZE;
+    t->tc_SPLower = t->kstack;
+    t->tc_SPUpper = (u8 *)t->kstack + t->kstack_size;
     if (HandleTable_Init(&t->handles, CARA_TASK_HANDLE_TABLE_CAP) != CARA_EOK) {
         Croi_Free(t->kstack);
         Croi_Free(t);
@@ -131,8 +152,8 @@ struct Task *Sched_Current(void)
     // gp/tp left zero; s-regs left zero.
 
     runq_add(t);
-    LOG_DEBUG("schd", "spawn '%s' pri=%d kstack=0x%llx", t->name, t->pri,
-              (u64)(uptr)t->kstack);
+    LOG_DEBUG("schd", "spawn '%s' pri=%d kstack=0x%llx",
+              t->tc_Node.ln_Name, (int)t->tc_Node.ln_Pri, (u64)(uptr)t->kstack);
     return t;
 }
 
@@ -142,21 +163,21 @@ void Croi_Yield(void)
         return;
     }
     struct Task *old = g_current;
-    if (ListIsEmpty(&g_runq)) {
+    if (MinList_IsEmpty(&g_runq)) {
         return;     // No-one else ready; current keeps running.
     }
     // Peek at head: if its priority is below the current's, no switch.
-    struct Task *head = node_to_task(g_runq.head.succ);
-    if (old && head->pri < old->pri) {
+    struct Task *head = node_to_task(g_runq.mlh_Head);
+    if (old && head->tc_Node.ln_Pri < old->tc_Node.ln_Pri) {
         return;
     }
 
-    struct ListNode *n = ListRemHead(&g_runq);
+    struct MinNode *n = MinList_RemHead(&g_runq);
     struct Task *next = node_to_task(n);
-    next->state = TASK_STATE_RUNNING;
+    next->tc_State = TS_RUN;
 
     if (old) {
-        old->state = TASK_STATE_READY;
+        old->tc_State = TS_READY;
         runq_add(old);
     }
     g_current = next;
@@ -171,19 +192,19 @@ void Croi_Yield(void)
             __asm__ volatile("wfi");
         }
     }
-    old->state = TASK_STATE_DEAD;
-    LOG_DEBUG("schd", "task '%s' exit", old->name);
-    ListAddTail(&g_dead, &old->sched_node);
+    old->tc_State = TS_REMOVED;
+    LOG_DEBUG("schd", "task '%s' exit", old->tc_Node.ln_Name);
+    MinList_AddTail(&g_dead, &old->sched_node);
 
-    if (ListIsEmpty(&g_runq)) {
+    if (MinList_IsEmpty(&g_runq)) {
         LOG_INFO("schd", "no runnable tasks; halting");
         for (;;) {
             __asm__ volatile("wfi");
         }
     }
-    struct ListNode *n = ListRemHead(&g_runq);
+    struct MinNode *n = MinList_RemHead(&g_runq);
     struct Task *next = node_to_task(n);
-    next->state = TASK_STATE_RUNNING;
+    next->tc_State = TS_RUN;
     g_current = next;
 
     // We pass the dying task's saved_regs as the from buffer; ctx_switch
@@ -195,7 +216,7 @@ void Croi_Yield(void)
 void Croi_TaskSetSelfPriority(i32 pri)
 {
     if (g_current) {
-        g_current->pri = pri;
+        g_current->tc_Node.ln_Pri = clamp_pri(pri);
     }
 }
 
@@ -212,9 +233,8 @@ void Croi_TaskSetSelfPriority(i32 pri)
         return nullptr;
     }
     *t = (struct Task){ 0 };
-    name_copy(t->name, name, sizeof(t->name));
-    t->pri = pri;
-    t->state = TASK_STATE_READY;
+    task_init_node(t, name, clamp_pri(pri));
+    t->tc_State = TS_READY;
 
     t->kstack = Croi_Alloc(CARA_TASK_KSTACK_SIZE);
     if (!t->kstack) {
@@ -222,6 +242,8 @@ void Croi_TaskSetSelfPriority(i32 pri)
         return nullptr;
     }
     t->kstack_size = CARA_TASK_KSTACK_SIZE;
+    t->tc_SPLower = t->kstack;
+    t->tc_SPUpper = (u8 *)t->kstack + t->kstack_size;
 
     if (HandleTable_Init(&t->handles, CARA_TASK_HANDLE_TABLE_CAP) != CARA_EOK) {
         Croi_Free(t->kstack);
@@ -288,7 +310,8 @@ void Croi_TaskSetSelfPriority(i32 pri)
 
     runq_add(t);
     LOG_DEBUG("schd", "spawn user '%s' pri=%d entry=0x%llx sp_top=0x%llx",
-              t->name, t->pri, t->user_entry, t->user_sp_top);
+              t->tc_Node.ln_Name, (int)t->tc_Node.ln_Pri,
+              t->user_entry, t->user_sp_top);
     return t;
 }
 
@@ -304,9 +327,8 @@ void Croi_TaskSetSelfPriority(i32 pri)
         return nullptr;
     }
     *t = (struct Task){ 0 };
-    name_copy(t->name, name, sizeof(t->name));
-    t->pri = pri;
-    t->state = TASK_STATE_READY;
+    task_init_node(t, name, clamp_pri(pri));
+    t->tc_State = TS_READY;
 
     t->kstack = Croi_Alloc(CARA_TASK_KSTACK_SIZE);
     if (!t->kstack) {
@@ -314,6 +336,8 @@ void Croi_TaskSetSelfPriority(i32 pri)
         return nullptr;
     }
     t->kstack_size = CARA_TASK_KSTACK_SIZE;
+    t->tc_SPLower = t->kstack;
+    t->tc_SPUpper = (u8 *)t->kstack + t->kstack_size;
 
     if (HandleTable_Init(&t->handles, CARA_TASK_HANDLE_TABLE_CAP) != CARA_EOK) {
         Croi_Free(t->kstack);
@@ -363,7 +387,8 @@ void Croi_TaskSetSelfPriority(i32 pri)
 
     runq_add(t);
     LOG_DEBUG("schd", "spawn user-elf '%s' pri=%d entry=0x%llx sp_top=0x%llx",
-              t->name, t->pri, t->user_entry, t->user_sp_top);
+              t->tc_Node.ln_Name, (int)t->tc_Node.ln_Pri,
+              t->user_entry, t->user_sp_top);
     return t;
 }
 
@@ -379,8 +404,8 @@ void Sched_Trampoline(void)
 
 void Sched_ReapDead(void)
 {
-    while (!ListIsEmpty(&g_dead)) {
-        struct ListNode *n = ListRemHead(&g_dead);
+    while (!MinList_IsEmpty(&g_dead)) {
+        struct MinNode *n = MinList_RemHead(&g_dead);
         struct Task *t = node_to_task(n);
         if (t->kstack) {
             Croi_Free(t->kstack);
@@ -400,9 +425,9 @@ void Sched_ReapDead(void)
     }
     for (u32 b = 0; b < 32; b++) {
         u32 mask = 1u << b;
-        if (!(g_current->sigalloc & mask)) {
-            g_current->sigalloc |= mask;
-            g_current->sigrecvd &= ~mask;     // start clean
+        if (!(g_current->tc_SigAlloc & mask)) {
+            g_current->tc_SigAlloc |= mask;
+            g_current->tc_SigRecvd &= ~mask;     // start clean
             return (i32)b;
         }
     }
@@ -415,8 +440,8 @@ void Croi_FreeSignal(i32 sig)
         return;
     }
     u32 mask = 1u << (u32)sig;
-    g_current->sigalloc &= ~mask;
-    g_current->sigrecvd &= ~mask;
+    g_current->tc_SigAlloc &= ~mask;
+    g_current->tc_SigRecvd &= ~mask;
 }
 
 void Croi_Signal(struct Task *target, u32 mask)
@@ -424,13 +449,13 @@ void Croi_Signal(struct Task *target, u32 mask)
     if (!target || mask == 0) {
         return;
     }
-    target->sigrecvd |= mask;
-    if (target->state == TASK_STATE_BLOCKED
-        && (target->sigrecvd & target->sigwait) != 0) {
+    target->tc_SigRecvd |= mask;
+    if (target->tc_State == TS_WAIT
+        && (target->tc_SigRecvd & target->tc_SigWait) != 0) {
         // Move from sleepers to runq.
-        ListRemove(&target->sched_node);
-        target->state = TASK_STATE_READY;
-        target->sigwait = 0;
+        MinList_Remove(&target->sched_node);
+        target->tc_State = TS_READY;
+        target->tc_SigWait = 0;
         runq_add(target);
     }
 }
@@ -441,18 +466,18 @@ u32 Croi_Wait(u32 mask)
         return 0;
     }
     while (true) {
-        u32 hit = g_current->sigrecvd & mask;
+        u32 hit = g_current->tc_SigRecvd & mask;
         if (hit != 0) {
-            g_current->sigrecvd &= ~hit;
-            g_current->sigwait = 0;
+            g_current->tc_SigRecvd &= ~hit;
+            g_current->tc_SigWait = 0;
             return hit;
         }
 
         // Block: move self off the run queue and switch to whoever's next.
-        g_current->sigwait = mask;
-        g_current->state = TASK_STATE_BLOCKED;
+        g_current->tc_SigWait = mask;
+        g_current->tc_State = TS_WAIT;
 
-        if (ListIsEmpty(&g_runq)) {
+        if (MinList_IsEmpty(&g_runq)) {
             // No one to switch to. With Tier 1's setup that's usually a
             // bug — Wait without a possible signaler is a deadlock — but
             // we tolerate it by spinning in WFI; an external interrupt
@@ -460,17 +485,17 @@ u32 Croi_Wait(u32 mask)
             // those land. For now, panic.
             LOG_FATAL("schd",
                       "Croi_Wait by '%s' with empty runq (deadlock)",
-                      g_current->name);
+                      g_current->tc_Node.ln_Name);
             for (;;) {
                 __asm__ volatile("wfi");
             }
         }
         struct Task *old = g_current;
-        ListAddTail(&g_sleepers, &old->sched_node);
+        MinList_AddTail(&g_sleepers, &old->sched_node);
 
-        struct ListNode *n = ListRemHead(&g_runq);
+        struct MinNode *n = MinList_RemHead(&g_runq);
         struct Task *next = node_to_task(n);
-        next->state = TASK_STATE_RUNNING;
+        next->tc_State = TS_RUN;
         g_current = next;
         croi_ctx_switch(old->saved_regs, next->saved_regs);
         // resume here when re-scheduled — loop and re-check sigrecvd

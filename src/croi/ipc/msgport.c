@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
-// MsgPort implementation. Allocates RingHeader + slot array in a
-// single heap block (the heap returns sufficiently aligned pointers
-// for our cache-line-padded RingHeader layout — small enough requests
-// land in the slab whose object size is a multiple of CARA_CACHELINE,
-// large enough requests are page-aligned).
+// MsgPort implementation. Allocates a CroiMsgPort wrapper plus the
+// RingHeader + slot array. The wrapper places the V36+ public part
+// (struct MsgPort pub) first so a CroiMsgPort * is interchangeable
+// with a struct MsgPort * via plain cast; PutMsg/GetMsg LVO bodies
+// (Phase C) recover the wrapper from a public pointer via
+// container_of(msgport, struct CroiMsgPort, pub).
 
 #include <cara/alloc.h>
 #include <cara/kobj.h>
@@ -14,17 +15,28 @@
 #include <cara/sched.h>
 #include <cara/types.h>
 
+#include "msgport_impl.h"
+
+#include <stddef.h>     // offsetof
+
+static struct CroiMsgPort *kobj_to_port(struct Kobj *k)
+{
+    return (struct CroiMsgPort *)((char *)k
+                                  - offsetof(struct CroiMsgPort, hdr));
+}
+
 static void msgport_destroy(struct Kobj *k)
 {
-    struct MsgPort *p = (struct MsgPort *)k;
+    struct CroiMsgPort *p = kobj_to_port(k);
     if (p->ring) {
         Croi_Free(p->ring);
     }
     Croi_Free(p);
 }
 
-[[nodiscard]] struct MsgPort *Croi_CreateMsgPort(struct Task *owner,
-                                                 u32 signal_bit, u32 capacity)
+[[nodiscard]] struct CroiMsgPort *Croi_CreateMsgPort(struct Task *owner,
+                                                     u32 signal_bit,
+                                                     u32 capacity)
 {
     if (!owner || signal_bit >= 32 || capacity == 0) {
         return nullptr;
@@ -33,10 +45,12 @@ static void msgport_destroy(struct Kobj *k)
         return nullptr;
     }
 
-    struct MsgPort *p = (struct MsgPort *)Croi_Alloc(sizeof(struct MsgPort));
+    struct CroiMsgPort *p =
+        (struct CroiMsgPort *)Croi_Alloc(sizeof(struct CroiMsgPort));
     if (!p) {
         return nullptr;
     }
+    *p = (struct CroiMsgPort){ 0 };
     Kobj_Init(&p->hdr, KOBJ_MSGPORT, msgport_destroy);
 
     usize ring_bytes = sizeof(struct RingHeader)
@@ -60,7 +74,7 @@ static void msgport_destroy(struct Kobj *k)
     return p;
 }
 
-void Croi_DestroyMsgPort(struct MsgPort *p)
+void Croi_DestroyMsgPort(struct CroiMsgPort *p)
 {
     if (!p) {
         return;
@@ -68,7 +82,7 @@ void Croi_DestroyMsgPort(struct MsgPort *p)
     Kobj_Release(&p->hdr);
 }
 
-[[nodiscard]] bool Croi_PutMsg(struct MsgPort *p, struct RingSlot msg)
+[[nodiscard]] bool Croi_PutMsg(struct CroiMsgPort *p, struct RingSlot msg)
 {
     if (!p) {
         return false;
@@ -83,7 +97,7 @@ void Croi_DestroyMsgPort(struct MsgPort *p)
     return true;
 }
 
-[[nodiscard]] bool Croi_GetMsg(struct MsgPort *p, struct RingSlot *out)
+[[nodiscard]] bool Croi_GetMsg(struct CroiMsgPort *p, struct RingSlot *out)
 {
     if (!p || !out) {
         return false;
@@ -91,7 +105,7 @@ void Croi_DestroyMsgPort(struct MsgPort *p)
     return Ring_Dequeue(p->ring, p->slots, out);
 }
 
-u32 Croi_WaitPort(struct MsgPort *p)
+u32 Croi_WaitPort(struct CroiMsgPort *p)
 {
     if (!p) {
         return 0;

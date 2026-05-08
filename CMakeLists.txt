@@ -123,6 +123,21 @@ endif()
 # (gated inside src/CMakeLists.txt by CARA_TARGET).
 add_subdirectory(src)
 
+# --- Host-side tools ---------------------------------------------------------
+# tools/lvo-gen runs at build time on the host to generate per-library LVO
+# stubs from .conf files (see docs/LVO.md). Built only on host; cross-builds
+# expect the host build dir to provide the binary.
+if(CARA_TARGET STREQUAL "host")
+    add_subdirectory(tools/lvo-gen)
+endif()
+
+# CMake helper for invoking lvo-gen against per-library .conf files.
+# Both host and rv64 builds need it — the host build drives the
+# generator directly, the rv64 cross-build invokes a host-built binary
+# located via LVO_GEN_BIN. Helpers no-op gracefully if no .conf is
+# registered yet.
+include(CaraLvoGen)
+
 # --- Tests -------------------------------------------------------------------
 if(CARA_TARGET STREQUAL "host")
     enable_testing()

@@ -18,7 +18,7 @@
 #define RING_CAP 8                          // smaller than PRODUCERS*MSGS to
                                             // exercise the full path
 
-static struct MsgPort *g_port;
+static struct CroiMsgPort *g_port;
 static struct Task    *g_receiver;
 static u32             g_received;
 static u32             g_per_producer[PRODUCERS];

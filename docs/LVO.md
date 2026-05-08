@@ -154,9 +154,23 @@ between fields is one or more spaces / tabs.
 ##library    graphics.library         # filename in 0x4000_0000 region
 ##base       GfxBase                  # global C variable name
 ##base_type  GfxBase                  # struct type the base points at
-##bias       30                       # first user-defined LVO offset
+##bias       30                       # first user-defined LVO offset (positive)
+##owner      dath                     # subdir under src/ that owns the impl
 ##spdx       BSD-2-Clause             # for the generated headers
 ```
+
+`##owner` names the subdirectory under `src/` that holds the
+flavour-impl C symbols (`src/<owner>/<libname>_vec.c` is where
+`tools/lvo-gen` writes the generated vec-table populator). For
+`exec.library` it is `croi/exec_lib`; for `graphics.library` it
+is `dath`.
+
+`##bias` is the *positive* magnitude of the first user-defined LVO
+offset. With `##bias 30` the `LIB_USERDEF` slot is at canonical V36+
+offset `-30` and each subsequent user-LVO row's `lvo` field decreases
+by `LIB_VECTSIZE = 6`. The validator cross-checks `lvo == -(bias +
+ordinal_within_user_space * 6)`, skipping ordinals consumed by `_PAD`
+rows.
 
 ### 4.2 Function lines
 
@@ -656,38 +670,63 @@ ownership of the GPU command ring, when Phase 4 lands).
 
 ## 12. Open questions (smaller now)
 
-1. **`MakeLibrary` API.** Phase 3's public `MakeLibrary` is the
-   V36+ contract; CaraOS's internal helper is
-   `Croi_MakeLibrary`. The exact shape of the construction
-   parameter struct is not yet pinned. Likely: a tagged-list of
-   `(vec_table, vec_count, struct_size, init_routine,
-   server_port_kobj_id_or_zero)`.
-2. **Server-flavour Message marshalling.** Each server LVO's
-   `struct Message`-prefixed payload layout is generated from the
-   `.conf` argument list; field packing rules need to be pinned.
-   Proposed: each arg is its natural-sized aligned field in
-   declaration order, no padding except what alignment demands.
-   Pointer arguments are SASOS pointers passed verbatim.
+1. **`MakeLibrary` API.** **Resolved (2026-05-08).**
+   `Croi_MakeLibrary(const struct TagItem *tags)` — a tagged-list
+   parameter, walked by the kernel-internal `Croi_GetTagData`
+   helper (`include/cara/tagitem.h`, `src/croi/util/tagitem.c`)
+   until utility.library lands in Phase 3 and publishes the public
+   `GetTagData` LVO over the same struct layout. Tag IDs (declared
+   by `tools/lvo-gen` alongside the per-library vec source it
+   emits, in a stable namespace starting at TAG_USER):
+
+   | Tag                    | ti_Data is …                                                 | Required |
+   |------------------------|--------------------------------------------------------------|----------|
+   | `MKL_NAME`             | `STRPTR` — library name (e.g. `"exec.library"`)              | yes      |
+   | `MKL_VERSION`          | `UWORD` — `lib_Version`                                      | yes      |
+   | `MKL_REVISION`         | `UWORD` — `lib_Revision`                                     | yes      |
+   | `MKL_VEC_TABLE`        | `void **` — generated `<lib>_lib_vec[]`                      | yes      |
+   | `MKL_VEC_COUNT`        | `ULONG` — element count of the vec table                     | yes      |
+   | `MKL_PRIVATE_SIZE`     | `ULONG` — bytes of library-private state past `struct Library` | yes    |
+   | `MKL_INIT_FN`          | `void (*)(struct Library *)` — runs once after construction  | no       |
+   | `MKL_SERVER_PORT_KOBJ` | `Handle` — receiving Gleas's MsgPort Kobj id; zero if none   | no       |
+
+   The construction request fails (returns `nullptr`) if any required
+   tag is absent. Order does not matter; duplicates take the last
+   value. `TAG_MORE` is honoured so callers that accumulate args
+   from multiple sources can chain.
+
+2. **Server-flavour Message marshalling.** **Deferred** until the
+   first `.conf` row with `flavour = server` lands (LVO.md §11.3
+   names that as `graphics.library`'s GPU-bound LVOs in Phase 4).
+   Provisional rule when it lands: each arg is its natural-sized
+   aligned field in declaration order, no padding except what
+   alignment demands; pointer arguments are SASOS pointers passed
+   verbatim. `tools/lvo-gen` emits `[[gnu::error("server flavour
+   not yet wired")]]` stubs for `server` rows until then.
+
 3. **Reply correlation under multi-message dispatch.** A server
-   stub `PutMsg`s, then `WaitPort`s. If the calling task has
-   multiple in-flight server calls (it shouldn't on the synchronous
-   path, but the contract should be explicit), correlation needs
-   a token. v0: synchronous only — the stub `WaitPort`s for the
-   reply to the message it just sent and asserts identity.
+   stub `PutMsg`s, then `WaitPort`s. v0 is synchronous-only — the
+   stub `WaitPort`s for the reply to the message it just sent and
+   asserts identity (the dequeued `mn_*` is the one it queued).
+   Multi-call concurrency is a Phase 4+ question.
+
 4. **Per-task reply port.** Each Gleas needs one reply MsgPort
    used by all server-flavour stubs across all libraries. Owned
    by libcara, created at task startup, freed at task exit.
    Single port suffices for v0 because dispatch is synchronous.
+
 5. **`OldOpenLibrary` (LVO -408) vs `OpenLibrary` (LVO -552).**
-   The V36+ ABI keeps both; `OldOpenLibrary` ignores the version
-   argument. Both reduce to the same `Croi_OpenLibrary_Impl`
-   syscall with `version = 0` for the old form. Trivial; called
-   out only because `lvo-gen` will see two rows pointing at one
-   implementation symbol, and the validator must allow this.
+   **Resolved.** The V36+ ABI keeps both; `OldOpenLibrary` ignores
+   the version argument. Both `.conf` rows point at
+   `Croi_OpenLibrary_Impl` (the old form passes version = 0).
+   `lvo-gen`'s validator allows multiple rows to share one
+   implementation symbol within a library.
+
 6. **Hosted unit-testing of the generated stubs.** Running
    `lvo-gen` on a tiny hand-rolled `.conf` and link-testing the
    result against a stub library that records calls. Before any
-   real exec.library code lands.
+   real exec.library code lands. Lives under `tests/lvo-gen/` per
+   the implementation plan (Phase B5).
 
 ---
 

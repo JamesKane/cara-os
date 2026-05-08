@@ -23,7 +23,7 @@ struct SlabHeader {
     u32 magic;                   // SLAB_MAGIC
     u8  class_id;
     u8  _pad[3];
-    struct ListNode link;        // hangs off HeapClass.slab_pages
+    struct MinNode link;         // hangs off HeapClass.slab_pages
 };
 
 struct LargeHeader {
@@ -51,7 +51,7 @@ void Heap_SetActive(struct Heap *h)
     h->pa = pa;
     for (u32 i = 0; i < CARA_HEAP_NUM_CLASSES; i++) {
         h->classes[i].obj_size = g_class_sizes[i];
-        ListInit(&h->classes[i].slab_pages);
+        MinList_Init(&h->classes[i].slab_pages);
     }
     return CARA_EOK;
 }
@@ -77,7 +77,7 @@ static u32 size_to_class(usize size)
     struct SlabHeader *sh = (struct SlabHeader *)Mm_PhysToVirt(phys);
     sh->magic = SLAB_MAGIC;
     sh->class_id = (u8)cid;
-    ListAddTail(&h->classes[cid].slab_pages, &sh->link);
+    MinList_AddTail(&h->classes[cid].slab_pages, &sh->link);
 
     // Lay objects starting after the header, aligned to obj_size.
     u32 obj_size = h->classes[cid].obj_size;
