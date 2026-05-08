@@ -5,6 +5,7 @@
 
 #include "print.h"
 
+#include <cara/time.h>
 #include <cara/trap.h>
 #include <cara/types.h>
 
@@ -47,12 +48,19 @@ void Croi_TrapDispatch(struct TrapFrame *frame)
 {
     u64 cause = frame->scause;
     if (cause & SCAUSE_INTR_BIT) {
-        Croi_Print("\n*** UNHANDLED INTERRUPT ***\n"
-                   "  cause:   %s (0x%llx)\n"
-                   "  sepc:    0x%llx\n"
-                   "  sstatus: 0x%llx\n",
-                   interrupt_name(cause), cause, frame->sepc, frame->sstatus);
-        Croi_Halt();
+        switch (cause & SCAUSE_CAUSE_MASK) {
+        case 5:                       // supervisor timer
+            Croi_Time_OnTimerTrap();
+            return;
+        default:
+            Croi_Print("\n*** UNHANDLED INTERRUPT ***\n"
+                       "  cause:   %s (0x%llx)\n"
+                       "  sepc:    0x%llx\n"
+                       "  sstatus: 0x%llx\n",
+                       interrupt_name(cause), cause, frame->sepc,
+                       frame->sstatus);
+            Croi_Halt();
+        }
     }
 
     Croi_Print("\n*** UNHANDLED EXCEPTION ***\n"

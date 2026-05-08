@@ -10,6 +10,7 @@ add_executable(croi
     trap_entry.S
     entry.c
     trap.c
+    time.c
     print.c
     panic.c
     sbi.c

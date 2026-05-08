@@ -70,6 +70,21 @@ static int resolve_stdout(const struct Fdt *fdt, u32 *uart_off_out)
     return Fdt_ResolvePath(fdt, target, uart_off_out);
 }
 
+// Substring search; freestanding has no <string.h>.
+static bool contains(const char *hay, const char *needle)
+{
+    for (u32 i = 0; hay[i] != 0; i++) {
+        u32 j = 0;
+        while (needle[j] != 0 && hay[i + j] == needle[j]) {
+            j++;
+        }
+        if (needle[j] == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 [[nodiscard]] int Platform_FromFdt(struct CroiPlatform *out, const struct Fdt *fdt)
 {
     if (!out || !fdt) {
@@ -82,6 +97,25 @@ static int resolve_stdout(const struct Fdt *fdt, u32 *uart_off_out)
     out->console.reg_io_width = 1;
     out->console.clock_hz = 0;
     out->console.baud = 115200;
+    out->timebase_hz = 0;
+    out->sstc_present = false;
+
+    // /cpus/timebase-frequency
+    u32 cpus = 0;
+    if (Fdt_ResolvePath(fdt, "/cpus", &cpus) == CARA_EOK) {
+        u32 v = 0;
+        if (Fdt_PropU32(fdt, cpus, "timebase-frequency", &v) == CARA_EOK) {
+            out->timebase_hz = v;
+        }
+        // Probe first cpu's riscv,isa for sstc.
+        u32 cur = 0, cpu = 0;
+        if (Fdt_ChildIter(fdt, cpus, &cur, &cpu) == CARA_EOK) {
+            const char *isa = Fdt_PropStr(fdt, cpu, "riscv,isa");
+            if (isa && contains(isa, "sstc")) {
+                out->sstc_present = true;
+            }
+        }
+    }
 
     u32 uart = 0;
     int rc = resolve_stdout(fdt, &uart);

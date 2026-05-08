@@ -31,6 +31,8 @@ struct CroiUart {
 
 struct CroiPlatform {
     struct CroiUart console;
+    u64  timebase_hz;            // /cpus/timebase-frequency
+    bool sstc_present;           // /cpus/cpu@0/riscv,isa contains "_sstc" or "sstc"
     // Memory banks, CLINT, PLIC, per-hart ISA bitmaps land in later slices.
 };
 

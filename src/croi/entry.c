@@ -15,6 +15,7 @@
 
 #include <cara/fdt.h>
 #include <cara/platform.h>
+#include <cara/time.h>
 #include <cara/trap.h>
 #include <cara/types.h>
 
@@ -76,6 +77,27 @@ static void console_putc(char c)
 
     Croi_PrintInstallBackend(console_putc);
     Croi_Print("Hello from Croi (NS16550), hart=%llu\n", hartid);
+
+    if (!plat.sstc_present || plat.timebase_hz == 0) {
+        Croi_Print("Sstc not present (timebase=%llu); skipping timer demo\n",
+                   plat.timebase_hz);
+        Croi_Halt();
+    }
+
+    Croi_Time_Init(plat.timebase_hz);
+    Croi_Print("timebase=%llu Hz, time_now=%llu ns\n", plat.timebase_hz,
+               Croi_Time_Now());
+
+    // 100 ms one-shot timer demo. Verify by elapsed measurement.
+    const u64 deadline_ns = 100ull * 1000ull * 1000ull;
+    const u64 t0 = Croi_Time_Now();
+    Croi_Time_SetDeadline(t0 + deadline_ns);
+    while (!Croi_Time_DeadlineFired()) {
+        __asm__ volatile("wfi");
+    }
+    const u64 elapsed = Croi_Time_Now() - t0;
+    Croi_Print("[timer] fired after %llu ns (target %llu ns)\n", elapsed,
+               deadline_ns);
 
     Croi_Halt();
 }
