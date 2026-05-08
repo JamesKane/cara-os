@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: BSD-2-Clause
+#
+# In-kernel self-tests. Each translation unit registers KERNEL_TEST()
+# entries into the .kernel_tests linker section; the runner walks them
+# at boot. Built only for riscv64.
+
+add_library(cara_kernel_tests STATIC
+    runner.c
+    test_mm.c
+    test_time.c
+)
+target_include_directories(cara_kernel_tests PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/.."
+)
+target_link_libraries(cara_kernel_tests
+    PUBLIC cara_headers
+    PRIVATE cara_kernel_flags
+)

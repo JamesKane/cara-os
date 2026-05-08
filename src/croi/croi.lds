@@ -88,6 +88,15 @@ SECTIONS
         QUAD(_kernel_phys_end)
     } > RAM_VIRT AT > RAM_PHYS :rodata
 
+    /* In-kernel self-test registry. Each KERNEL_TEST() macro emits a
+     * struct KernelTestEntry into this section; the runner walks
+     * [__kernel_tests_start, __kernel_tests_end) at boot. */
+    .kernel_tests : ALIGN(8) {
+        __kernel_tests_start = .;
+        KEEP(*(.kernel_tests))
+        __kernel_tests_end = .;
+    } > RAM_VIRT AT > RAM_PHYS :rodata
+
     .data : ALIGN(4K) {
         *(.data .data.*)
         *(.sdata .sdata.*)

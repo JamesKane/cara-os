@@ -24,6 +24,9 @@ target_link_libraries(croi PRIVATE
     cara_fdt
     cara_mm
     cara_log
+    -Wl,--whole-archive
+    cara_kernel_tests
+    -Wl,--no-whole-archive
 )
 target_link_options(croi PRIVATE
     -nostdlib
