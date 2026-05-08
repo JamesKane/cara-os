@@ -138,6 +138,14 @@ include(CaraLvoGen)
 # (gated inside src/CMakeLists.txt by CARA_TARGET).
 add_subdirectory(src)
 
+# --- Phase 9 / aistreoir aggregator -----------------------------------------
+# After every cara_lvo_gen_library() call has appended its fragment to the
+# pending-list, aggregate them into the single
+# include/aistreoir/lvo_table.gen.h that the Phase 9 68k → RV64 translator
+# will consume. No consumer exists yet (Phase 9 is far-future), so this is
+# forward-investment; the file builds and stays in sync with the .conf set.
+cara_lvo_gen_aggregate()
+
 # --- Tests -------------------------------------------------------------------
 if(CARA_TARGET STREQUAL "host")
     enable_testing()

@@ -46,6 +46,13 @@ add_executable(croi
     platform_init.c
 )
 add_dependencies(croi userhello userexec)
+# Make the Phase 9 aggregated lookup table build alongside croi.elf
+# even though no current code references it — keeps the artefact
+# in sync with the active .conf set so when Phase 9 lands the
+# binary translator can drop the file in without surprises.
+if(TARGET cara_aistreoir_table)
+    add_dependencies(croi cara_aistreoir_table)
+endif()
 target_link_libraries(croi PRIVATE
     cara_kernel_flags
     cara_headers
