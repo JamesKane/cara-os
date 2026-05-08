@@ -14,6 +14,7 @@ add_library(cara_dath STATIC
     fdt_simple.c
     text.c
     font_8x8.c
+    console.c
 )
 target_include_directories(cara_dath PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 

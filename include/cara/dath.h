@@ -136,4 +136,40 @@ void Dath_DrawString(const struct DathFramebuffer *fb,
                      const struct DathFont *font,
                      i32 x, i32 y, const char *s, DathColor fg, DathColor bg);
 
+// ---- Console: text-rendering log sink ------------------------------------
+//
+// A DathConsole tracks (col, row) cursor state on top of a framebuffer +
+// font and emits printable characters into the cell at the current
+// position. Newline / carriage return are honoured; auto-scroll-up
+// fires when the cursor would fall off the bottom edge.
+
+struct DathConsole {
+    struct DathFramebuffer *fb;
+    const struct DathFont  *font;
+    u32                     cur_col;
+    u32                     cur_row;
+    u32                     n_cols;       // fb->width / font->width
+    u32                     n_rows;       // fb->height / font->height
+    DathColor               fg;
+    DathColor               bg;
+};
+
+void Dath_Console_Init(struct DathConsole *con, struct DathFramebuffer *fb,
+                       const struct DathFont *font,
+                       DathColor fg, DathColor bg);
+
+// Append a single byte. Handled specials: '\n' (col=0, row++ + scroll),
+// '\r' (col=0). Everything else is rendered as a glyph and the cursor
+// advances one cell, wrapping at end of line.
+void Dath_Console_PutChar(struct DathConsole *con, char c);
+
+// Append a NUL-terminated string via PutChar.
+void Dath_Console_PutString(struct DathConsole *con, const char *s);
+
+// LogSink emit fn: feeds Log_FormatHuman output (ansi=false) into the
+// console one byte at a time. Pass `&DathConsole` as the ctx when
+// registering the sink with Log_RegisterSink.
+struct LogRecord;
+void Log_Sink_DathConsole_Emit(const struct LogRecord *r, void *ctx);
+
 #endif

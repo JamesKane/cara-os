@@ -260,4 +260,48 @@ KERNEL_TEST(dath_smoke)
             TEST_FAIL(ctx, "DrawChar 'a' row 2 mismatch");
         }
     }
+
+    // 16. DathConsole — cursor advance, newline reset, scroll on overflow.
+    static u32 g_con_buf[64 * 32];
+    struct DathFramebuffer cfb;
+    TEST_ASSERT(ctx,
+                Dath_Framebuffer_Init(&cfb, g_con_buf, 64, 32, 64 * 4,
+                                      DATH_FMT_RGBA8888) == CARA_EOK,
+                "console fb init failed");
+    Dath_Clear(&cfb, Dath_RGB(0, 0, 0));
+
+    struct DathConsole con;
+    Dath_Console_Init(&con, &cfb, &dath_font_8x8,
+                      Dath_RGB(0xFF, 0xFF, 0xFF), Dath_RGB(0, 0, 0));
+    TEST_ASSERT(ctx, con.n_cols == 8, "console n_cols wrong");
+    TEST_ASSERT(ctx, con.n_rows == 4, "console n_rows wrong");
+
+    Dath_Console_PutString(&con, "Hi");
+    TEST_ASSERT(ctx, con.cur_col == 2, "cur_col wrong after \"Hi\"");
+    TEST_ASSERT(ctx, con.cur_row == 0, "cur_row should still be 0");
+
+    Dath_Console_PutChar(&con, '\n');
+    TEST_ASSERT(ctx, con.cur_col == 0, "\\n did not reset col");
+    TEST_ASSERT(ctx, con.cur_row == 1, "\\n did not advance row");
+
+    Dath_Console_PutChar(&con, 'X');
+    TEST_ASSERT(ctx, con.cur_col == 1 && con.cur_row == 1,
+                "PutChar on second row mis-tracked");
+
+    // Force scroll. Currently at (1, 1) with n_rows=4. Two more \n's
+    // put cursor at (0, 3); a third triggers scroll-up → (0, 3) again.
+    Dath_Console_PutChar(&con, '\n');
+    Dath_Console_PutChar(&con, '\n');
+    TEST_ASSERT(ctx, con.cur_row == 3, "row should be at last before scroll");
+    Dath_Console_PutChar(&con, '\n');
+    TEST_ASSERT(ctx, con.cur_row == 3 && con.cur_col == 0,
+                "scroll-up did not clamp cursor to last row");
+
+    // Right-edge wrap: filling exactly n_cols characters wraps to (0, 1).
+    Dath_Console_Init(&con, &cfb, &dath_font_8x8,
+                      Dath_RGB(0xFF, 0xFF, 0xFF), Dath_RGB(0, 0, 0));
+    Dath_Clear(&cfb, Dath_RGB(0, 0, 0));
+    Dath_Console_PutString(&con, "12345678");
+    TEST_ASSERT(ctx, con.cur_col == 0, "row-fill did not wrap col to 0");
+    TEST_ASSERT(ctx, con.cur_row == 1, "row-fill did not advance row");
 }
