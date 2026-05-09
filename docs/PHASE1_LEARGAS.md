@@ -13,9 +13,10 @@
 
 ## Status — 2026-05-08
 
-**L0 (input event ring) shipped; LA/LB/LC pending.** PHASE1_USB.md
-Tier 1–2 + HA.1–4 + HidIntReadOnce are in HEAD; that's enough to
-feed the L0 producer side. The L0 commit lands:
+**L0 (input event ring) + LA (pointer rendering) shipped;
+LB/LC pending.** PHASE1_USB.md Tier 1–2 + HA.1–4 + HidIntReadOnce
+are in HEAD; that's enough to feed the L0 producer side. The L0
+commit lands:
 
 - `<devices/inputevent.h>` — V36+ canonical `struct InputEvent`
   shape + IECLASS_* / IECODE_* / IEQUALIFIER_* / IESUBCLASS_*
@@ -37,10 +38,31 @@ End-to-end smoke (`sendkey a` after kbd poll opens) shows the
 seam: `larg: L0 ring drained 1 event(s)` with `class=0x1
 code=0x20 qual=0x0` (rawkey for 'A').
 
-Remaining for Phase 1 Subgoal 6: LA pointer rendering, LB screen,
-LC mouse-motion-to-pointer, LD/LE/LF windows + focus + keyboard
-routing, LG/LH gadgets + string Inntin. The HB.* HID Gleas (Phase
-3 prerequisite) wires the Phase 3 producer side onto the same
+The LA commit adds:
+
+- `struct LeargasPointerImage` (ternary mask: transparent / fg /
+  bg pixels) + the default 16×16 arrow `leargas_pointer_arrow`
+  with hot-spot at the tip (0, 0).
+- `struct LeargasPointer` + `Leargas_Pointer_Init` /
+  `Leargas_Pointer_Move`. Save-and-restore via Dath_BlitRect
+  against a caller-provided same-format save buffer (kernel:
+  Dath_AllocBitmap; tests: stack-mounted synthetic fb).
+  Composite via per-pixel Dath_Pixel walking the mask.
+- `tests/unit/test_leargas_pointer.c` — Init invariants,
+  paint-then-restore exact-pixel match, no-op move, multi-trip
+  stability, off-screen clip without corruption, default-arrow
+  layout sanity.
+
+LA is intentionally not yet wired into entry.c at boot — that
+integration belongs to LC (mouse-motion-to-pointer), which is the
+first epic that has both the framebuffer and a reason to drive
+the pointer. Currently entry.c just drains the L0 ring at the
+end of HID poll for the seam log line.
+
+Remaining for Phase 1 Subgoal 6: LB screen, LC mouse-motion-to-
+pointer, LD/LE/LF windows + focus + keyboard routing, LG/LH
+gadgets + string Inntin. The HB.* HID Gleas (Phase 3
+prerequisite) wires the Phase 3 producer side onto the same
 L0 contract — no L0 changes needed when it lands.
 
 ---

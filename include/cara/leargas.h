@@ -15,6 +15,7 @@
 #ifndef CARA_LEARGAS_H
 #define CARA_LEARGAS_H
 
+#include <cara/dath.h>
 #include <cara/types.h>
 
 // ---- Flat input event record ----------------------------------------------
@@ -89,5 +90,72 @@ constexpr u32 LEARGAS_INPUT_RING_CAP = 64;
 // producer, Leargas consumer) never invoke this. Safe to call
 // before Init has run.
 void Leargas_Input_Reset(void);
+
+// ---- LA — Pointer rendering ----------------------------------------------
+//
+// A LeargasPointerImage is a small static glyph (typically 16×16) with
+// per-pixel ternary state: transparent / foreground / background. The
+// background pixels are usually the dark outline that makes a white
+// arrow visible against any backdrop; transparent pixels skip the
+// composite so the screen below shows through.
+//
+// Pixel encoding (one byte per pixel, row-major, top-left origin):
+//   0 — transparent (composite skips this pixel)
+//   1 — foreground (drawn in the pointer's `fg` colour)
+//   2 — background (drawn in the pointer's `bg` colour)
+
+enum : u8 {
+    LEARGAS_PTR_TRANSPARENT = 0,
+    LEARGAS_PTR_FG = 1,
+    LEARGAS_PTR_BG = 2,
+};
+
+struct LeargasPointerImage {
+    u32 width;
+    u32 height;
+    i32 hot_x;       // hot-spot offset within the image (left = 0)
+    i32 hot_y;       // hot-spot offset within the image (top  = 0)
+    const u8 *pixels;// width*height bytes; values are LEARGAS_PTR_*
+};
+
+// Default 16×16 arrow pointer with hot-spot at (0, 0). Phase 1 ships
+// exactly one cursor; theming and per-window cursors land with
+// Phase 3+.
+extern const struct LeargasPointerImage leargas_pointer_arrow;
+
+// Pointer state — owns no memory. The caller provides:
+//   - `fb`: the screen framebuffer to composite onto.
+//   - `save`: an off-screen DathFramebuffer at least as big as the
+//     image (same format as `fb`); holds the pixels currently
+//     under the pointer so Move can restore them. Kernel callers
+//     allocate via Dath_AllocBitmap; tests can stack-mount a
+//     synthetic backing buffer.
+struct LeargasPointer {
+    struct DathFramebuffer *fb;
+    struct DathFramebuffer *save;
+    const struct LeargasPointerImage *img;
+    DathColor fg;
+    DathColor bg;
+    i32 x; // hot-spot position (visible cursor tip)
+    i32 y;
+    bool save_valid;
+};
+
+// Initialise the pointer state, capture the screen pixels under the
+// initial position, and composite the image. Returns CARA_EINVAL on
+// null pointers, mismatched formats, or save buffer smaller than
+// image dimensions.
+[[nodiscard]] int Leargas_Pointer_Init(struct LeargasPointer *p, struct DathFramebuffer *fb,
+                                       struct DathFramebuffer *save,
+                                       const struct LeargasPointerImage *img, DathColor fg,
+                                       DathColor bg, i32 x0, i32 y0);
+
+// Move the pointer hot-spot to (x, y). Restores the previously-saved
+// underneath pixels at the old position, captures the underneath
+// pixels at the new position, and composites the image. Off-screen
+// (negative or past-edge) moves are clipped via Dath's clipping;
+// the pointer state still tracks the requested coordinates so the
+// next Move from off-screen back into bounds reappears correctly.
+void Leargas_Pointer_Move(struct LeargasPointer *p, i32 x, i32 y);
 
 #endif // CARA_LEARGAS_H

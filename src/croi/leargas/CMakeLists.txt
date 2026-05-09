@@ -6,16 +6,20 @@
 # and rv64 (kernel). When LA/LB add framebuffer-touching code they
 # may need to gate on CARA_TARGET like cara_dath does.
 
-add_library(cara_leargas STATIC input_ring.c)
+add_library(cara_leargas STATIC
+    input_ring.c
+    pointer.c
+    pointer_arrow.c
+)
 
 if(CARA_TARGET STREQUAL "riscv64")
     target_link_libraries(cara_leargas
-        PUBLIC  cara_headers
+        PUBLIC  cara_headers cara_dath
         PRIVATE cara_kernel_flags
     )
 else()
     target_link_libraries(cara_leargas
-        PUBLIC  cara_headers
+        PUBLIC  cara_headers cara_dath
         PRIVATE cara_flags
     )
 endif()
