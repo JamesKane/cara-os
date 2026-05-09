@@ -1,0 +1,11 @@
+# Vendor firmware blobs — large, license-distinct from CaraOS
+# (the only third-party binaries the project tolerates per
+# docs/PRINCIPLES.md §2 "Phase 4 GPU exception"). The directory
+# is tracked; the blobs themselves are not.
+#
+# Provenance and SHA-256 capture for blobs we end up shipping
+# lands in firmware/README.md per docs/ROADMAP.md Phase 4
+# Subgoal 4 — when that file exists, add `!README.md` below.
+
+*
+!.gitignore
