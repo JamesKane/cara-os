@@ -74,6 +74,16 @@ static struct DathFramebuffer g_fb;
 static struct DathConsole g_fb_console;
 static bool g_fb_present = false;
 
+// Leargas LB+LA+LC boot state — initialised when the framebuffer is
+// up. The save buffer is a Dath_AllocBitmap-allocated off-screen
+// surface sized to the default arrow image. `g_leargas_up` gates
+// the post-HID Drain so we don't poke uninitialised state in
+// headless boots.
+static struct LeargasPointer g_pointer;
+static struct DathFramebuffer g_pointer_save;
+static struct Screen *g_screen;
+static bool g_leargas_up = false;
+
 // Croi runs in the upper-half kernel VA. The boot Sv39 PT mirrors the
 // lower 4 GiB into the upper half at L2[256..259], so any physical
 // address P is reachable as P + KERNEL_VA_OFFSET. Anything we read from
@@ -253,6 +263,36 @@ static void console_putc(char c)
                 if (Log_RegisterSink(&fb_sink) == CARA_EOK) {
                     g_fb_present = true;
                     LOG_INFO("dath", "framebuffer console registered");
+                }
+
+                // ---- Leargas LB + LA boot init. Ride the existing
+                //      banner colours so OpenScreen's Dath_Clear
+                //      doesn't visually flash. The pointer renders
+                //      on top; LC's Drain (after HID poll) drives
+                //      it from IECLASS_RAWMOUSE events on the L0
+                //      ring.
+                if (Dath_AllocBitmap(&g_pointer_save, leargas_pointer_arrow.width,
+                                     leargas_pointer_arrow.height, g_fb.format) == CARA_EOK) {
+                    g_screen = Leargas_OpenScreen(&g_fb, "Workbench", bg);
+                    if (g_screen) {
+                        if (Leargas_Pointer_Init(&g_pointer, &g_fb, &g_pointer_save,
+                                                 &leargas_pointer_arrow, white, bg,
+                                                 (i32)g_fb.width / 2,
+                                                 (i32)g_fb.height / 2) == CARA_EOK) {
+                            g_leargas_up = true;
+                            LOG_INFO("larg", "screen %ux%u + pointer at (%d, %d)",
+                                     (unsigned)g_fb.width, (unsigned)g_fb.height,
+                                     (int)g_pointer.x, (int)g_pointer.y);
+                        } else {
+                            LOG_WARN("larg", "Pointer_Init failed");
+                            Leargas_CloseScreen(g_screen);
+                            g_screen = nullptr;
+                        }
+                    } else {
+                        LOG_WARN("larg", "OpenScreen failed");
+                    }
+                } else {
+                    LOG_WARN("larg", "AllocBitmap for pointer save failed");
                 }
             }
         } else if (frc == CARA_ENOTFOUND) {
@@ -458,29 +498,24 @@ static void console_putc(char c)
                                                             }
                                                         }
                                                     }
-                                                    // Sanity tap: drain whatever the HID poll
-                                                    // produced so the seam is observable in
-                                                    // the boot log. The real consumer is
-                                                    // Leargas LC.1 (mouse → pointer) and LF.3
-                                                    // (key → focused window), which replace
-                                                    // this with rendering / IDCMP routing.
-                                                    {
-                                                        u32 drained = 0;
-                                                        struct LeargasInputEvent ev;
-                                                        while (Leargas_Input_Read(&ev)) {
-                                                            drained++;
-                                                            LOG_INFO("larg",
-                                                                     "  ev class=0x%x code=0x%x "
-                                                                     "qual=0x%x dx=%d dy=%d",
-                                                                     (unsigned)ev.ie_class,
-                                                                     (unsigned)ev.ie_code,
-                                                                     (unsigned)ev.ie_qualifier,
-                                                                     (int)ev.ie_dx,
-                                                                     (int)ev.ie_dy);
-                                                        }
+                                                    // LC: drive the pointer from the L0 ring.
+                                                    // Without an active framebuffer the
+                                                    // pointer state isn't initialised, so we
+                                                    // skip Drain — events stay queued and
+                                                    // are dropped at next reboot. With one
+                                                    // up, RAWMOUSE events accumulate onto
+                                                    // the pointer and clamp against the
+                                                    // active screen extent; RAWKEY events
+                                                    // are consumed but dropped (LF will own
+                                                    // them once it lands).
+                                                    if (g_leargas_up) {
+                                                        u32 drained = Leargas_Input_Drain(&g_pointer);
                                                         LOG_INFO("larg",
-                                                                 "L0 ring drained %u event(s)",
-                                                                 (unsigned)drained);
+                                                                 "drained %u event(s); "
+                                                                 "pointer at (%d, %d)",
+                                                                 (unsigned)drained,
+                                                                 (int)g_pointer.x,
+                                                                 (int)g_pointer.y);
                                                     }
                                                 }
                                             }

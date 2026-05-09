@@ -10,6 +10,7 @@ add_library(cara_leargas STATIC
     input_ring.c
     pointer.c
     pointer_arrow.c
+    router.c
     screen.c
 )
 

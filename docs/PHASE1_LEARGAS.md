@@ -13,9 +13,10 @@
 
 ## Status — 2026-05-08
 
-**L0 + LA + LB shipped; LC pending.** PHASE1_USB.md Tier 1–2 +
-HA.1–4 + HidIntReadOnce are in HEAD; that's enough to feed the
-L0 producer side. The L0 commit lands:
+**L0 + LA + LB + LC shipped; Tier 1 done. LD/LE/LF/LG/LH
+remain.** PHASE1_USB.md Tier 1–2 + HA.1–4 + HidIntReadOnce are
+in HEAD; that's enough to feed the L0 producer side. The L0
+commit lands:
 
 - `<devices/inputevent.h>` — V36+ canonical `struct InputEvent`
   shape + IECLASS_* / IECODE_* / IEQUALIFIER_* / IESUBCLASS_*
@@ -89,11 +90,38 @@ screen as render target. Once both are in, entry.c flips from
 draining the L0 ring with a log line to OpenScreen + Pointer_Init
 + a per-event mouse-motion handler.
 
-Remaining for Phase 1 Subgoal 6: LC mouse-motion-to-pointer,
-LD/LE/LF windows + focus + keyboard routing, LG/LH gadgets +
-string Inntin. The HB.* HID Gleas (Phase 3 prerequisite) wires
-the Phase 3 producer side onto the same L0 contract — no L0
-changes needed when it lands.
+The LC commit adds:
+
+- `Leargas_Input_Drain(struct LeargasPointer *p)` in
+  src/croi/leargas/router.c. Reads the L0 ring, accumulates
+  IECLASS_RAWMOUSE deltas onto the pointer, clamps against the
+  active screen extent, calls Pointer_Move; mirrors the
+  position back into Screen.MouseX/Y for hit-testers
+  (LE-onwards). RAWKEY events are consumed but dropped here —
+  LF will pick them up when keyboard routing lands.
+- entry.c boot wiring: at framebuffer-up, Dath_AllocBitmap a
+  pointer save buffer + Leargas_OpenScreen("Workbench", bg) +
+  Leargas_Pointer_Init at center-screen. After the HID poll,
+  call Leargas_Input_Drain(&g_pointer) and log the resulting
+  pointer position. Headless boots (no FDT simple-framebuffer)
+  skip this entirely — the L0 producer still posts events but
+  nothing drains them.
+- `tests/unit/test_leargas_router.c` (test 14/16) — empty-ring
+  no-op, NULL-safety, no-screen accumulation, screen clamp at
+  both edges, MouseX/Y mirror, RAWKEY skip-but-count, ordered
+  multi-event accumulation across the clamp boundary.
+
+End of Tier 1: pointer + screen substrate is now end-to-end
+wired — under a real framebuffer (real silicon or
+QEMU `-device ramfb` + a DTS overlay) Boot ends with a visible
+pointer at center-screen, and any mouse delta from the HID
+poll moves it inside the screen extent.
+
+Remaining for Phase 1 Subgoal 6: LD/LE/LF windows + focus +
+keyboard routing, LG/LH gadgets + string Inntin. The HB.*
+HID Gleas (Phase 3 prerequisite) wires the Phase 3 producer
+side onto the same L0 contract — no L0 changes needed when
+it lands.
 
 ---
 

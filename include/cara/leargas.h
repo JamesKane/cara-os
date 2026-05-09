@@ -222,4 +222,20 @@ void Leargas_Screen_SetActive(struct LeargasScreen *s);
 // active; releases the heap allocation. Safe to call on nullptr.
 void Leargas_CloseScreen(struct Screen *s);
 
+// ---- LC — Mouse motion → pointer router -----------------------------------
+//
+// Drain the input ring; for each IECLASS_RAWMOUSE event, accumulate
+// `ie_dx / ie_dy` onto the pointer's position, clamp to the active
+// screen extent (no clamp if no active screen), and call
+// Leargas_Pointer_Move. Returns the number of events consumed
+// (including IECLASS_RAWKEY events, which are silently dropped here
+// and re-consumed by LF — but only one consumer of the ring exists
+// at a time in Phase 1, so RAWKEY events that arrive before LF lands
+// are lost on the floor).
+//
+// Phase 1 polls; Phase 3 evolves to a U-mode Leargas Gleas blocked
+// on the input ring's signal kobj so motion arrives at IRQ rate
+// rather than poll-loop cadence.
+u32 Leargas_Input_Drain(struct LeargasPointer *p);
+
 #endif // CARA_LEARGAS_H
