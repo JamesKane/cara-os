@@ -18,6 +18,7 @@
 #define CARA_HID_H
 
 #include <cara/types.h>
+#include <devices/inputevent.h>
 
 // ---- USB HID Boot-protocol report layouts ---------------------------------
 
@@ -56,48 +57,6 @@ enum {
     HID_MOUSE_BTN_LEFT = (1u << 0),
     HID_MOUSE_BTN_RIGHT = (1u << 1),
     HID_MOUSE_BTN_MIDDLE = (1u << 2),
-};
-
-// ---- V36+ IECLASS_RAW* surface --------------------------------------------
-//
-// These match the AmigaOS V36+ <devices/inputevent.h> values that the
-// decoders translate into. The Tier 3 HID Gleas will `PutMsg` either a
-// raw `struct InputEvent` (V36+ shape) or a thin Cara-side surface
-// here; for now the decoders just produce the field values.
-//
-// IEQUALIFIER bits (kept as canonical Amiga values).
-enum {
-    IEQUALIFIER_LSHIFT = 0x0001,
-    IEQUALIFIER_RSHIFT = 0x0002,
-    IEQUALIFIER_CAPSLOCK = 0x0004,
-    IEQUALIFIER_CONTROL = 0x0008,
-    IEQUALIFIER_LALT = 0x0010,
-    IEQUALIFIER_RALT = 0x0020,
-    IEQUALIFIER_LCOMMAND = 0x0040, // left Amiga / Win
-    IEQUALIFIER_RCOMMAND = 0x0080, // right Amiga / Win
-    IEQUALIFIER_NUMERICPAD = 0x0100,
-    IEQUALIFIER_REPEAT = 0x0200,
-    IEQUALIFIER_INTERRUPT = 0x0400,
-    IEQUALIFIER_MULTIBROADCAST = 0x0800,
-    IEQUALIFIER_MIDBUTTON = 0x1000,
-    IEQUALIFIER_RBUTTON = 0x2000,
-    IEQUALIFIER_LEFTBUTTON = 0x4000,
-    IEQUALIFIER_RELATIVEMOUSE = 0x8000,
-};
-
-// IECLASS_RAWKEY: ie_Code carries the V36+ rawkey number, with bit 7
-// indicating up-stroke (key release). RAWKEY codes < 0x80 are the
-// hardware-set; bit 7 is the up-stroke flag.
-constexpr u8 IECODE_UP_PREFIX = 0x80;
-
-// IECLASS_RAWMOUSE: ie_Code carries one of these subtypes for button
-// transitions; mouse-move events use IECODE_NOBUTTON and rely on
-// ie_X / ie_Y deltas. (Values match V36+ <devices/inputevent.h>.)
-enum {
-    IECODE_NOBUTTON = 0xFF,
-    IECODE_LBUTTON = 0x68,
-    IECODE_RBUTTON = 0x69,
-    IECODE_MBUTTON = 0x6A,
 };
 
 // V36+ rawkey value returned from Croi_Hid_UsageToRawKey when a USB

@@ -46,6 +46,11 @@ add_subdirectory(croi/pci)
 # the decode invariants; the kernel substrate links the same .o.
 add_subdirectory(croi/hid)
 
+# Always-on: Leargas substrate. L0 is just the input event ring
+# (pure atomics + flat storage); LA/LB pull in framebuffer code
+# and may need to gate on CARA_TARGET like cara_dath does.
+add_subdirectory(croi/leargas)
+
 if(CARA_TARGET STREQUAL "riscv64")
     add_subdirectory(croi/log)
     add_subdirectory(croi/util)

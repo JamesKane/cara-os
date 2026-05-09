@@ -16,6 +16,7 @@ cara_unit_test(test_physmap    cara_mm cara_fdt)
 cara_unit_test(test_dath_fdt   cara_dath cara_fdt)
 cara_unit_test(test_pci_fdt    cara_pci  cara_fdt)
 cara_unit_test(test_hid        cara_hid)
+cara_unit_test(test_leargas_input cara_leargas)
 target_compile_definitions(test_fdt_qemu PRIVATE
     CARA_TEST_DATADIR="${CMAKE_SOURCE_DIR}/tests/data"
 )

@@ -13,14 +13,35 @@
 
 ## Status — 2026-05-08
 
-**Not started.** The substrate Leargas needs is in place: Dath
-rasteriser, kernel-internal IPC (MsgPort), per-task signals, and
-the lvo-gen pipeline that will eventually publish
-`intuition.library`'s LVOs. The input pipeline (USB, Subgoal 5)
-is also a hard prerequisite — no input means no useful Intuition.
-This doc plans Leargas; implementation starts after PHASE1_USB.md
-Tier 1 (xHCI controller online) at minimum, with Tier 3 (HID
-Gleas) needed before keyboard events flow.
+**L0 (input event ring) shipped; LA/LB/LC pending.** PHASE1_USB.md
+Tier 1–2 + HA.1–4 + HidIntReadOnce are in HEAD; that's enough to
+feed the L0 producer side. The L0 commit lands:
+
+- `<devices/inputevent.h>` — V36+ canonical `struct InputEvent`
+  shape + IECLASS_* / IECODE_* / IEQUALIFIER_* / IESUBCLASS_*
+  constants. Source-compatible with V36+ programs.
+- `<devices/timer.h>` — V36+ `struct timeval` (embedded in
+  `struct InputEvent`).
+- `<cara/leargas.h>` — brand-namespace flat `struct
+  LeargasInputEvent` (24 bytes) + `Leargas_Input_Init / _Post /
+  _Read / _Pending / _Reset` SPSC contract.
+- `src/croi/leargas/input_ring.c` — fixed-capacity (64) static
+  SPSC ring, mirrors the atomic ordering of `cara/ring.h`.
+- `src/croi/entry.c` — wires the kernel HID poll: decoded
+  reports translate into LeargasInputEvent and Post; drain-log
+  at end of poll confirms the seam end-to-end.
+- `tests/unit/test_leargas_input.c` — round-trip, FIFO,
+  backpressure, wrap-around, NULL guards (test 11/13).
+
+End-to-end smoke (`sendkey a` after kbd poll opens) shows the
+seam: `larg: L0 ring drained 1 event(s)` with `class=0x1
+code=0x20 qual=0x0` (rawkey for 'A').
+
+Remaining for Phase 1 Subgoal 6: LA pointer rendering, LB screen,
+LC mouse-motion-to-pointer, LD/LE/LF windows + focus + keyboard
+routing, LG/LH gadgets + string Inntin. The HB.* HID Gleas (Phase
+3 prerequisite) wires the Phase 3 producer side onto the same
+L0 contract — no L0 changes needed when it lands.
 
 ---
 

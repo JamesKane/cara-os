@@ -20,6 +20,7 @@
 #include <cara/exec_lib_image.h>
 #include <cara/fdt.h>
 #include <cara/hid.h>
+#include <cara/leargas.h>
 #include <cara/log.h>
 #include <cara/makelibrary.h>
 #include <cara/mm.h>
@@ -130,6 +131,10 @@ static void console_putc(char c)
     if (plat.sstc_present && plat.timebase_hz != 0) {
         Croi_Time_Init(plat.timebase_hz);
     }
+
+    // ---- Leargas L0: input-event ring. Pure storage init; safe to
+    //      run unconditionally even when there's no HID to feed it.
+    (void)Leargas_Input_Init();
 
     // ---- Physical memory map ----
     u64 kphys_start = _kernel_image_phys_start;
@@ -383,6 +388,29 @@ static void console_putc(char c)
                                                                                 kr.ie_qualifier,
                                                                             (unsigned)kr.keys[0],
                                                                             (unsigned)raw0);
+                                                                        // Phase 1 L0 seam: post
+                                                                        // the first pressed key
+                                                                        // through the input ring.
+                                                                        // Full N-key rollover +
+                                                                        // up-stroke tracking lands
+                                                                        // with the HID Gleas
+                                                                        // (HB.* / Phase 3).
+                                                                        if (raw0 !=
+                                                                            CARA_RAWKEY_NONE) {
+                                                                            struct LeargasInputEvent
+                                                                                ev = {
+                                                                                    .ie_class =
+                                                                                        IECLASS_RAWKEY,
+                                                                                    .ie_code = raw0,
+                                                                                    .ie_qualifier =
+                                                                                        kr.ie_qualifier,
+                                                                                    .ie_ts_ns =
+                                                                                        Croi_Time_Now(),
+                                                                                };
+                                                                            (void)
+                                                                                Leargas_Input_Post(
+                                                                                    &ev);
+                                                                        }
                                                                     }
                                                                 } else {
                                                                     struct CaraHidMouseReport mr;
@@ -401,6 +429,21 @@ static void console_putc(char c)
                                                                             (int)mr.wheel,
                                                                             (unsigned)
                                                                                 mr.ie_qualifier);
+                                                                        struct LeargasInputEvent
+                                                                            ev = {
+                                                                                .ie_class =
+                                                                                    IECLASS_RAWMOUSE,
+                                                                                .ie_code =
+                                                                                    IECODE_NOBUTTON,
+                                                                                .ie_qualifier =
+                                                                                    mr.ie_qualifier,
+                                                                                .ie_dx = mr.dx,
+                                                                                .ie_dy = mr.dy,
+                                                                                .ie_ts_ns =
+                                                                                    Croi_Time_Now(),
+                                                                            };
+                                                                        (void)Leargas_Input_Post(
+                                                                            &ev);
                                                                     }
                                                                 }
                                                             } else {
@@ -414,6 +457,30 @@ static void console_putc(char c)
                                                                              : "mouse");
                                                             }
                                                         }
+                                                    }
+                                                    // Sanity tap: drain whatever the HID poll
+                                                    // produced so the seam is observable in
+                                                    // the boot log. The real consumer is
+                                                    // Leargas LC.1 (mouse → pointer) and LF.3
+                                                    // (key → focused window), which replace
+                                                    // this with rendering / IDCMP routing.
+                                                    {
+                                                        u32 drained = 0;
+                                                        struct LeargasInputEvent ev;
+                                                        while (Leargas_Input_Read(&ev)) {
+                                                            drained++;
+                                                            LOG_INFO("larg",
+                                                                     "  ev class=0x%x code=0x%x "
+                                                                     "qual=0x%x dx=%d dy=%d",
+                                                                     (unsigned)ev.ie_class,
+                                                                     (unsigned)ev.ie_code,
+                                                                     (unsigned)ev.ie_qualifier,
+                                                                     (int)ev.ie_dx,
+                                                                     (int)ev.ie_dy);
+                                                        }
+                                                        LOG_INFO("larg",
+                                                                 "L0 ring drained %u event(s)",
+                                                                 (unsigned)drained);
                                                     }
                                                 }
                                             }
