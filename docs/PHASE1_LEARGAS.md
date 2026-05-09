@@ -13,10 +13,9 @@
 
 ## Status — 2026-05-08
 
-**L0 (input event ring) + LA (pointer rendering) shipped;
-LB/LC pending.** PHASE1_USB.md Tier 1–2 + HA.1–4 + HidIntReadOnce
-are in HEAD; that's enough to feed the L0 producer side. The L0
-commit lands:
+**L0 + LA + LB shipped; LC pending.** PHASE1_USB.md Tier 1–2 +
+HA.1–4 + HidIntReadOnce are in HEAD; that's enough to feed the
+L0 producer side. The L0 commit lands:
 
 - `<devices/inputevent.h>` — V36+ canonical `struct InputEvent`
   shape + IECLASS_* / IECODE_* / IEQUALIFIER_* / IESUBCLASS_*
@@ -59,11 +58,42 @@ first epic that has both the framebuffer and a reason to drive
 the pointer. Currently entry.c just drains the L0 ring at the
 end of HID poll for the seam log line.
 
-Remaining for Phase 1 Subgoal 6: LB screen, LC mouse-motion-to-
-pointer, LD/LE/LF windows + focus + keyboard routing, LG/LH
-gadgets + string Inntin. The HB.* HID Gleas (Phase 3
-prerequisite) wires the Phase 3 producer side onto the same
-L0 contract — no L0 changes needed when it lands.
+The LB commit adds:
+
+- `<intuition/screens.h>` — V36+ canonical `struct Screen` with
+  the public field set (NextScreen, FirstWindow, LeftEdge…
+  LayerInfo… UserData). **Pragmatic Phase 1 deviation:** V36+
+  embeds ViewPort / RastPort / BitMap / Layer_Info BY VALUE;
+  Phase 1 carries forward-declared POINTERS instead. Field
+  NAMES match V36+; the layout shape changes when graphics.library
+  ships in Phase 3 / Phase 4.
+- `<graphics/{gfx,view,rastport,layers,text}.h>` and
+  `<intuition/intuition.h>` — minimal forward-decl headers so
+  the canonical V36+ include paths resolve. Full type bodies
+  arrive epic-by-epic.
+- `struct LeargasScreen` (cara/leargas.h) — brand wrapper with
+  `struct Screen pub` first; CroiMsgPort-style cast / container_of.
+- `Leargas_Screen_InitInPlace / SetActive / ActiveScreen / FromPub`
+  in src/croi/leargas/screen.c (dual-target, host-testable).
+- `Leargas_OpenScreen / CloseScreen` in screen_alloc.c (kernel
+  only — heap-backed via Croi_Alloc; sets active, paints
+  background with Pen 0 via Dath_Clear).
+- `tests/unit/test_leargas_screen.c` (test 13/15) — InitInPlace
+  invariants, title bounded copy + truncation, active-screen
+  set/clear/round-trip, FromPub round-trip, layout invariant
+  (pub at offset 0).
+
+LB does not yet wire entry.c either — boot-time OpenScreen is
+deferred until LC lands a mouse consumer that needs an active
+screen as render target. Once both are in, entry.c flips from
+draining the L0 ring with a log line to OpenScreen + Pointer_Init
++ a per-event mouse-motion handler.
+
+Remaining for Phase 1 Subgoal 6: LC mouse-motion-to-pointer,
+LD/LE/LF windows + focus + keyboard routing, LG/LH gadgets +
+string Inntin. The HB.* HID Gleas (Phase 3 prerequisite) wires
+the Phase 3 producer side onto the same L0 contract — no L0
+changes needed when it lands.
 
 ---
 

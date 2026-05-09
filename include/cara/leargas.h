@@ -17,6 +17,7 @@
 
 #include <cara/dath.h>
 #include <cara/types.h>
+#include <intuition/screens.h>
 
 // ---- Flat input event record ----------------------------------------------
 //
@@ -157,5 +158,68 @@ struct LeargasPointer {
 // the pointer state still tracks the requested coordinates so the
 // next Move from off-screen back into bounds reappears correctly.
 void Leargas_Pointer_Move(struct LeargasPointer *p, i32 x, i32 y);
+
+// ---- LB — Screen substrate ------------------------------------------------
+//
+// LeargasScreen is the brand-namespace kernel-internal extension of
+// V36+ struct Screen. The public Screen lives at offset 0 (`pub`
+// field is first) so a `LeargasScreen *` is interchangeable with a
+// `struct Screen *` via plain cast — same pattern as CroiMsgPort
+// (src/croi/ipc/msgport_impl.h). Going the other way uses
+// container_of against the pub member; future Phase 3 LVO bodies
+// (Leargas_OpenScreen LVO) do exactly that.
+//
+// Phase 1 has exactly one screen at a time. The active-screen
+// pointer is a process-wide singleton; Phase 3 evolves to a list
+// of screens with depth-arrange semantics.
+
+#define LEARGAS_SCREEN_TITLE_MAX 64
+
+struct LeargasScreen {
+    struct Screen pub; // V36+ public Screen — must be first field
+
+    // Brand-private state.
+    struct DathFramebuffer *fb; // backing surface for the screen
+    char title_buf[LEARGAS_SCREEN_TITLE_MAX];
+    char default_title_buf[LEARGAS_SCREEN_TITLE_MAX];
+    DathColor pen0; // background colour painted by OpenScreen
+    bool initialised;
+};
+
+// Initialise a caller-provided LeargasScreen from a DathFramebuffer
+// and a screen title. Sets the public Screen field set with V36+
+// defaults (BarHeight, WBor*, MenuVBorder/HBorder), copies the title
+// into the brand-owned buffer, and stores `fb` for later rendering.
+// Does NOT paint, allocate memory, or set the active screen — those
+// are kernel-side concerns owned by Leargas_OpenScreen.
+//
+// Returns CARA_EINVAL on null arguments or a framebuffer with zero
+// width / height; CARA_EOK on success.
+[[nodiscard]] int Leargas_Screen_InitInPlace(struct LeargasScreen *s, struct DathFramebuffer *fb,
+                                             const char *title, DathColor pen0);
+
+// Set / clear the process-wide active screen pointer. Phase 1 has
+// exactly one active screen at a time; passing nullptr clears it.
+// `Leargas_ActiveScreen` returns the current public pointer (or
+// nullptr if no screen is active).
+void Leargas_Screen_SetActive(struct LeargasScreen *s);
+[[nodiscard]] struct Screen *Leargas_ActiveScreen(void);
+
+// Recover a LeargasScreen pointer from its public Screen pointer.
+// Inline so kernel-side hot paths inline the offsetof; callers that
+// hold a LeargasScreen * directly skip this helper.
+[[nodiscard]] struct LeargasScreen *Leargas_Screen_FromPub(struct Screen *pub);
+
+// Kernel-only: heap-allocate a LeargasScreen, init from `fb` + title,
+// paint the screen background with `pen0`, and set as the active
+// screen. Returns the public Screen pointer, or nullptr on
+// allocation failure / invalid arguments.
+[[nodiscard]] struct Screen *Leargas_OpenScreen(struct DathFramebuffer *fb, const char *title,
+                                                DathColor pen0);
+
+// Kernel-only: tear down a screen previously returned from
+// Leargas_OpenScreen. Clears the active-screen pointer if `s` was
+// active; releases the heap allocation. Safe to call on nullptr.
+void Leargas_CloseScreen(struct Screen *s);
 
 #endif // CARA_LEARGAS_H
