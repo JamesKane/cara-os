@@ -37,13 +37,13 @@ void Croi_Exec_Close(struct Library *base)
 
 void Croi_Exec_Expunge(struct Library *base)
 {
-    (void)base;     // exec.library is never expunged
+    (void)base; // exec.library is never expunged
 }
 
 ULONG Croi_Exec_ExtFunc(struct Library *base)
 {
     (void)base;
-    return 0;       // V36+ contract: must return 0
+    return 0; // V36+ contract: must return 0
 }
 
 // Default body for every _PAD row. Returns 0 (covers void / int / ptr

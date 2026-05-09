@@ -88,8 +88,8 @@ int main(void)
         return fail("PropReg on memory failed", 5);
     }
     if (base != 0x80000000ull || msize != 0x8000000ull) {
-        fprintf(stderr, "  got base=0x%llx size=0x%llx\n",
-                (unsigned long long)base, (unsigned long long)msize);
+        fprintf(stderr, "  got base=0x%llx size=0x%llx\n", (unsigned long long)base,
+                (unsigned long long)msize);
         return fail("memory reg wrong", 6);
     }
 
@@ -98,8 +98,8 @@ int main(void)
     if (Fdt_ResolvePath(&fdt, "/soc/clint@2000000", &clint) != CARA_EOK) {
         return fail("ResolvePath clint failed", 7);
     }
-    if (Fdt_PropReg(&fdt, clint, 0, &base, &msize) != CARA_EOK
-        || base != 0x2000000ull || msize != 0x10000ull) {
+    if (Fdt_PropReg(&fdt, clint, 0, &base, &msize) != CARA_EOK || base != 0x2000000ull ||
+        msize != 0x10000ull) {
         return fail("clint reg wrong", 8);
     }
 
@@ -108,8 +108,8 @@ int main(void)
     if (Fdt_ResolvePath(&fdt, "/soc/plic@c000000", &plic) != CARA_EOK) {
         return fail("ResolvePath plic failed", 9);
     }
-    if (Fdt_PropReg(&fdt, plic, 0, &base, &msize) != CARA_EOK
-        || base != 0xc000000ull || msize != 0x600000ull) {
+    if (Fdt_PropReg(&fdt, plic, 0, &base, &msize) != CARA_EOK || base != 0xc000000ull ||
+        msize != 0x600000ull) {
         return fail("plic reg wrong", 10);
     }
 
@@ -118,8 +118,7 @@ int main(void)
     if (Fdt_ResolvePath(&fdt, "/soc/serial@10000000", &uart) != CARA_EOK) {
         return fail("ResolvePath uart failed", 11);
     }
-    if (Fdt_PropReg(&fdt, uart, 0, &base, &msize) != CARA_EOK
-        || base != 0x10000000ull) {
+    if (Fdt_PropReg(&fdt, uart, 0, &base, &msize) != CARA_EOK || base != 0x10000000ull) {
         return fail("uart reg wrong", 12);
     }
 

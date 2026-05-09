@@ -19,12 +19,12 @@
 
 static void warn_advisory_once(ULONG flags)
 {
-    static bool warned_chip       = false;
-    static bool warned_fast       = false;
-    static bool warned_local      = false;
-    static bool warned_24bit      = false;
-    static bool warned_kick       = false;
-    static bool warned_reverse    = false;
+    static bool warned_chip = false;
+    static bool warned_fast = false;
+    static bool warned_local = false;
+    static bool warned_24bit = false;
+    static bool warned_kick = false;
+    static bool warned_reverse = false;
 
     if ((flags & MEMF_CHIP) && !warned_chip) {
         warned_chip = true;

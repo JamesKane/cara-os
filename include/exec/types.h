@@ -21,19 +21,19 @@
 
 #include <cara/types.h>
 
-typedef int8_t    BYTE;
-typedef uint8_t   UBYTE;
-typedef int16_t   WORD;
-typedef uint16_t  UWORD;
-typedef int32_t   LONG;       // V36+ 32-bit, NOT C `long` on RV64
-typedef uint32_t  ULONG;
+typedef int8_t BYTE;
+typedef uint8_t UBYTE;
+typedef int16_t WORD;
+typedef uint16_t UWORD;
+typedef int32_t LONG; // V36+ 32-bit, NOT C `long` on RV64
+typedef uint32_t ULONG;
 
-typedef void     *APTR;
-typedef void     *BPTR;       // opaque pointer-sized; non-BCPL on CaraOS
-typedef LONG      BSTR;       // BCPL string descriptor — opaque to CaraOS
-typedef char     *STRPTR;
-typedef ULONG     CPTR;       // legacy 32-bit absolute pointer
-typedef WORD      RPTR;       // relative pointer
+typedef void *APTR;
+typedef void *BPTR; // opaque pointer-sized; non-BCPL on CaraOS
+typedef LONG BSTR;  // BCPL string descriptor — opaque to CaraOS
+typedef char *STRPTR;
+typedef ULONG CPTR; // legacy 32-bit absolute pointer
+typedef WORD RPTR;  // relative pointer
 
 // AROS-style pointer-sized integer types. V36+ predates 64-bit so its
 // utility.library TagItem ti_Data was ULONG (32-bit). CaraOS follows
@@ -41,18 +41,18 @@ typedef WORD      RPTR;       // relative pointer
 // pointers — see <utility/tagitem.h>. Source that read ti_Data as
 // ULONG truncates on RV64 and is a portability bug.
 typedef uintptr_t IPTR;
-typedef intptr_t  SIPTR;
+typedef intptr_t SIPTR;
 
-typedef WORD      BOOL;
+typedef WORD BOOL;
 #ifndef TRUE
-#  define TRUE  ((BOOL)1)
+#define TRUE ((BOOL)1)
 #endif
 #ifndef FALSE
-#  define FALSE ((BOOL)0)
+#define FALSE ((BOOL)0)
 #endif
 
 #ifndef NULL
-#  define NULL nullptr
+#define NULL nullptr
 #endif
 
 #endif // EXEC_TYPES_H

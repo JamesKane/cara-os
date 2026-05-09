@@ -41,7 +41,7 @@ static void _libcara_ecall1_noreturn(long n, long a0)
 {
     register long r0 __asm__("a0") = a0;
     register long r7 __asm__("a7") = n;
-    __asm__ volatile("ecall" :: "r"(r0), "r"(r7) : "memory");
+    __asm__ volatile("ecall" ::"r"(r0), "r"(r7) : "memory");
     for (;;) {
         // SYS_EXIT does not return; spin guard is dead code.
     }
@@ -54,8 +54,7 @@ extern int main(void);
 [[noreturn]] void _start(void)
 {
     static const char exec_lib_name[] = "exec.library";
-    SysBase = (struct ExecBase *)
-        _libcara_ecall2(SYS_OpenLibrary, (long)exec_lib_name, 0);
+    SysBase = (struct ExecBase *)_libcara_ecall2(SYS_OpenLibrary, (long)exec_lib_name, 0);
 
     int rc = main();
 

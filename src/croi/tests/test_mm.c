@@ -22,8 +22,7 @@ KERNEL_TEST(pagealloc_smoke)
         for (u32 j = 0; j < i; j++) {
             TEST_ASSERT(ctx, pages[j] != pages[i], "duplicate page returned");
         }
-        TEST_ASSERT(ctx, (pages[i] & (CARA_PAGE_SIZE - 1)) == 0,
-                    "page not aligned");
+        TEST_ASSERT(ctx, (pages[i] & (CARA_PAGE_SIZE - 1)) == 0, "page not aligned");
     }
     TEST_ASSERT(ctx, g_page_alloc.free_pages == saved - 16,
                 "free count wrong after 16 single-page allocs");
@@ -31,15 +30,13 @@ KERNEL_TEST(pagealloc_smoke)
     for (u32 i = 0; i < 16; i++) {
         Page_Free(&g_page_alloc, pages[i], 1);
     }
-    TEST_ASSERT(ctx, g_page_alloc.free_pages == saved,
-                "free count not restored after free");
+    TEST_ASSERT(ctx, g_page_alloc.free_pages == saved, "free count not restored after free");
 
     u64 multi = Page_Alloc(&g_page_alloc, 4);
     TEST_ASSERT(ctx, multi != 0, "4-page contiguous alloc failed");
     TEST_ASSERT(ctx, (multi & (CARA_PAGE_SIZE - 1)) == 0, "multi-page not aligned");
     Page_Free(&g_page_alloc, multi, 4);
-    TEST_ASSERT(ctx, g_page_alloc.free_pages == saved,
-                "free count wrong after multi-free");
+    TEST_ASSERT(ctx, g_page_alloc.free_pages == saved, "free count wrong after multi-free");
 }
 
 KERNEL_TEST(heap_smoke)

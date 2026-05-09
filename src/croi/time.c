@@ -4,14 +4,14 @@
 #include <cara/types.h>
 
 // CSR numbers (RISC-V Privileged + Sstc).
-#define CSR_TIME      0xC01
-#define CSR_STIMECMP  0x14D
-#define CSR_SIE       0x104
-#define CSR_SSTATUS   0x100
+#define CSR_TIME 0xC01
+#define CSR_STIMECMP 0x14D
+#define CSR_SIE 0x104
+#define CSR_SSTATUS 0x100
 
 // Bit positions in sie / sip / sstatus.
-#define SIE_STIE      (1ull << 5)
-#define SSTATUS_SIE   (1ull << 1)
+#define SIE_STIE (1ull << 5)
+#define SSTATUS_SIE (1ull << 1)
 
 static u64 g_timebase_hz = 0;
 static volatile bool g_deadline_fired = false;

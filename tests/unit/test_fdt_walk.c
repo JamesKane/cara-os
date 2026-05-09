@@ -12,9 +12,9 @@
 
 #define FDT_MAGIC 0xD00DFEEDu
 #define BEGIN_NODE 0x00000001u
-#define END_NODE   0x00000002u
-#define PROP       0x00000003u
-#define FDT_END    0x00000009u
+#define END_NODE 0x00000002u
+#define PROP 0x00000003u
+#define FDT_END 0x00000009u
 
 static int fail(const char *msg, int code)
 {
@@ -91,13 +91,13 @@ int main(void)
     // ---- Build strings block first (we need offsets to emit props). ----
     static u8 strings[256];
     u32 slen = 0;
-    u32 s_compat   = string_intern(strings, &slen, "compatible");
-    u32 s_acells   = string_intern(strings, &slen, "#address-cells");
-    u32 s_scells   = string_intern(strings, &slen, "#size-cells");
-    u32 s_reg      = string_intern(strings, &slen, "reg");
-    u32 s_strlist  = string_intern(strings, &slen, "string-list");
-    u32 s_u32prop  = string_intern(strings, &slen, "magic");
-    u32 s_u64prop  = string_intern(strings, &slen, "magic64");
+    u32 s_compat = string_intern(strings, &slen, "compatible");
+    u32 s_acells = string_intern(strings, &slen, "#address-cells");
+    u32 s_scells = string_intern(strings, &slen, "#size-cells");
+    u32 s_reg = string_intern(strings, &slen, "reg");
+    u32 s_strlist = string_intern(strings, &slen, "string-list");
+    u32 s_u32prop = string_intern(strings, &slen, "magic");
+    u32 s_u64prop = string_intern(strings, &slen, "magic64");
     u32 s_emptypropdummy = string_intern(strings, &slen, "present");
 
     // ---- Build structure block. ----
@@ -158,7 +158,7 @@ int main(void)
     // Move what we just wrote (currently at offset 0) to its real location.
     u32 hdr_size = 40;
     u32 rsvmap_off = hdr_size;
-    u32 rsvmap_size = 16; // single (0,0) terminator
+    u32 rsvmap_size = 16;                      // single (0,0) terminator
     u32 struct_off = rsvmap_off + rsvmap_size; // 56, already 8-aligned
     u32 struct_len = soff;
     u32 strings_off = struct_off + struct_len;
@@ -174,9 +174,9 @@ int main(void)
     put_be32(final_blob + 8, struct_off);
     put_be32(final_blob + 12, strings_off);
     put_be32(final_blob + 16, rsvmap_off);
-    put_be32(final_blob + 20, 17);    // version
-    put_be32(final_blob + 24, 16);    // last_comp_version
-    put_be32(final_blob + 28, 0);     // boot_cpuid_phys
+    put_be32(final_blob + 20, 17); // version
+    put_be32(final_blob + 24, 16); // last_comp_version
+    put_be32(final_blob + 28, 0);  // boot_cpuid_phys
     put_be32(final_blob + 32, strings_len);
     put_be32(final_blob + 36, struct_len);
 
@@ -237,8 +237,7 @@ int main(void)
 
     // PropU64
     u64 m64 = 0;
-    if (Fdt_PropU64(&fdt, child, "magic64", &m64) != CARA_EOK
-        || m64 != 0x123456789ABCDEF0ull) {
+    if (Fdt_PropU64(&fdt, child, "magic64", &m64) != CARA_EOK || m64 != 0x123456789ABCDEF0ull) {
         return fail("PropU64 wrong", 10);
     }
 

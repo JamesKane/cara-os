@@ -26,18 +26,18 @@
 #include <exec/types.h>
 
 // V36+ exec/memory.i flag bits (verbatim values).
-#define MEMF_ANY        0UL
-#define MEMF_PUBLIC     (1UL <<  0)   // 0x00000001
-#define MEMF_CHIP       (1UL <<  1)   // 0x00000002
-#define MEMF_FAST       (1UL <<  2)   // 0x00000004
-#define MEMF_LOCAL      (1UL <<  8)   // 0x00000100
-#define MEMF_24BITDMA   (1UL <<  9)   // 0x00000200
-#define MEMF_KICK       (1UL << 10)   // 0x00000400
-#define MEMF_CLEAR      (1UL << 16)   // 0x00010000
-#define MEMF_LARGEST    (1UL << 17)   // 0x00020000  (AvailMem mode)
-#define MEMF_REVERSE    (1UL << 18)   // 0x00040000
-#define MEMF_TOTAL      (1UL << 19)   // 0x00080000  (AvailMem mode)
-#define MEMF_NO_EXPUNGE (1UL << 31)   // 0x80000000  (V39+ — accepted)
+#define MEMF_ANY 0UL
+#define MEMF_PUBLIC (1UL << 0)      // 0x00000001
+#define MEMF_CHIP (1UL << 1)        // 0x00000002
+#define MEMF_FAST (1UL << 2)        // 0x00000004
+#define MEMF_LOCAL (1UL << 8)       // 0x00000100
+#define MEMF_24BITDMA (1UL << 9)    // 0x00000200
+#define MEMF_KICK (1UL << 10)       // 0x00000400
+#define MEMF_CLEAR (1UL << 16)      // 0x00010000
+#define MEMF_LARGEST (1UL << 17)    // 0x00020000  (AvailMem mode)
+#define MEMF_REVERSE (1UL << 18)    // 0x00040000
+#define MEMF_TOTAL (1UL << 19)      // 0x00080000  (AvailMem mode)
+#define MEMF_NO_EXPUNGE (1UL << 31) // 0x80000000  (V39+ — accepted)
 
 // MemEntry / MemList — the per-task memory-tracking shape used by
 // tc_MemEntry. Tasks created via CreateTask hand a MemList describing
@@ -46,18 +46,18 @@
 // (which actually frees on exit) lives in the brand namespace.
 struct MemEntry {
     union {
-        ULONG meu_Reqs;     // requirements (MEMF_*)
-        APTR  meu_Addr;     // address (after allocation)
+        ULONG meu_Reqs; // requirements (MEMF_*)
+        APTR meu_Addr;  // address (after allocation)
     } me_Un;
-    ULONG  me_Length;
+    ULONG me_Length;
 };
 #define me_Reqs me_Un.meu_Reqs
 #define me_Addr me_Un.meu_Addr
 
 struct MemList {
-    struct Node      ml_Node;
-    UWORD            ml_NumEntries;
-    struct MemEntry  ml_ME[1];      // variable length
+    struct Node ml_Node;
+    UWORD ml_NumEntries;
+    struct MemEntry ml_ME[1]; // variable length
 };
 
 #endif // EXEC_MEMORY_H

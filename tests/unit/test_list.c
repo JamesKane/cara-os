@@ -70,7 +70,8 @@ int main(void)
     // Verify forward order is 1,2,3.
     int expected[] = { 1, 2, 3 };
     int idx = 0;
-    MinList_ForEach(p, &l) {
+    MinList_ForEach(p, &l)
+    {
         struct Item *it = MinList_NodeOf(p, struct Item, node);
         if (it->v != expected[idx]) {
             return fail("forward order wrong", 6);
@@ -128,7 +129,8 @@ int main(void)
     MinList_AddHead(&l, &c.node);
     int hexp[] = { 3, 2, 1 };
     idx = 0;
-    MinList_ForEach(p, &l) {
+    MinList_ForEach(p, &l)
+    {
         if (MinList_NodeOf(p, struct Item, node)->v != hexp[idx++]) {
             return fail("head-insert ordering wrong", 15);
         }

@@ -19,11 +19,11 @@
 // Empty struct List; initialised lazily on first registration so
 // callers don't depend on a Croi_LibList_Init() boot order step.
 static struct List g_lib_list = {
-    .lh_Head     = nullptr,
-    .lh_Tail     = nullptr,
+    .lh_Head = nullptr,
+    .lh_Tail = nullptr,
     .lh_TailPred = nullptr,
-    .lh_Type     = NT_LIBRARY,
-    .l_pad       = 0,
+    .lh_Type = NT_LIBRARY,
+    .l_pad = 0,
 };
 static bool g_lib_list_inited = false;
 
@@ -32,8 +32,8 @@ static void list_init_once(void)
     if (g_lib_list_inited) {
         return;
     }
-    g_lib_list.lh_Head     = (struct Node *)&g_lib_list.lh_Tail;
-    g_lib_list.lh_Tail     = nullptr;
+    g_lib_list.lh_Head = (struct Node *)&g_lib_list.lh_Tail;
+    g_lib_list.lh_Tail = nullptr;
     g_lib_list.lh_TailPred = (struct Node *)&g_lib_list;
     g_lib_list_inited = true;
 }

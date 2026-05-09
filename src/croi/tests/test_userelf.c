@@ -23,15 +23,12 @@ KERNEL_TEST(userelf_smoke)
     TEST_ASSERT(ctx, elf_size >= 64, "embedded ELF blob too small");
 
     // The first four bytes must be the ELF magic.
-    TEST_ASSERT(ctx, (u8)__userhello_elf_start[0] == 0x7F
-                         && __userhello_elf_start[1] == 'E'
-                         && __userhello_elf_start[2] == 'L'
-                         && __userhello_elf_start[3] == 'F',
+    TEST_ASSERT(ctx,
+                (u8)__userhello_elf_start[0] == 0x7F && __userhello_elf_start[1] == 'E' &&
+                    __userhello_elf_start[2] == 'L' && __userhello_elf_start[3] == 'F',
                 "blob does not start with \\x7fELF");
 
-    struct Task *user = Croi_SpawnUserTaskFromElf(
-        "uelf", 5,
-        __userhello_elf_start, elf_size);
+    struct Task *user = Croi_SpawnUserTaskFromElf("uelf", 5, __userhello_elf_start, elf_size);
     TEST_ASSERT(ctx, user != nullptr, "Croi_SpawnUserTaskFromElf failed");
 
     Croi_TaskSetSelfPriority(-1);

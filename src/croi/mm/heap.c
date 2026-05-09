@@ -16,18 +16,18 @@
 #include <cara/mm.h>
 #include <cara/types.h>
 
-#define SLAB_MAGIC   0x534C4142u    // 'SLAB'
-#define LARGE_MAGIC  0x4C415247u    // 'LARG'
+#define SLAB_MAGIC 0x534C4142u  // 'SLAB'
+#define LARGE_MAGIC 0x4C415247u // 'LARG'
 
 struct SlabHeader {
-    u32 magic;                   // SLAB_MAGIC
-    u8  class_id;
-    u8  _pad[3];
-    struct MinNode link;         // hangs off HeapClass.slab_pages
+    u32 magic; // SLAB_MAGIC
+    u8 class_id;
+    u8 _pad[3];
+    struct MinNode link; // hangs off HeapClass.slab_pages
 };
 
 struct LargeHeader {
-    u32 magic;                   // LARGE_MAGIC
+    u32 magic; // LARGE_MAGIC
     u32 n_pages;
 };
 
@@ -63,7 +63,7 @@ static u32 size_to_class(usize size)
             return i;
         }
     }
-    return CARA_HEAP_NUM_CLASSES;       // sentinel: "too large for slabs"
+    return CARA_HEAP_NUM_CLASSES; // sentinel: "too large for slabs"
 }
 
 // Carve a fresh slab page for class `cid`, push it onto the class's

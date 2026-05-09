@@ -12,10 +12,10 @@
 #define FDT_MAGIC 0xD00DFEEDu
 
 #define FDT_BEGIN_NODE 0x00000001u
-#define FDT_END_NODE   0x00000002u
-#define FDT_PROP       0x00000003u
-#define FDT_NOP        0x00000004u
-#define FDT_END        0x00000009u
+#define FDT_END_NODE 0x00000002u
+#define FDT_PROP 0x00000003u
+#define FDT_NOP 0x00000004u
+#define FDT_END 0x00000009u
 
 // Big-endian u32 → host. The blob's bytes may be unaligned, so read byte by
 // byte; the compiler will collapse this to a load + bswap on most targets
@@ -39,14 +39,12 @@ static inline u32 fdt_align4(u32 x)
 // Read one structure-block token at `off` (offset into the structure block).
 // Returns the token value; *next_off becomes the offset of the next token
 // (after any payload). Returns CARA_EOK or a negative error.
-[[nodiscard]] int fdt_read_token(const struct Fdt *fdt, u32 off,
-                                 u32 *token_out, u32 *payload_off_out,
-                                 u32 *next_off_out);
+[[nodiscard]] int fdt_read_token(const struct Fdt *fdt, u32 off, u32 *token_out,
+                                 u32 *payload_off_out, u32 *next_off_out);
 
 // Skip the current node (whose BEGIN_NODE starts at `node_off`) and return
 // the offset of the token immediately after its matching END_NODE.
-[[nodiscard]] int fdt_skip_node(const struct Fdt *fdt, u32 node_off,
-                                u32 *after_end_off_out);
+[[nodiscard]] int fdt_skip_node(const struct Fdt *fdt, u32 node_off, u32 *after_end_off_out);
 
 // Look up a string in the strings block by offset. Returns nullptr if the
 // offset is out of range or the string is not NUL-terminated within the

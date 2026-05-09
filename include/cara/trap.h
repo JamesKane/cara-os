@@ -14,7 +14,7 @@
 // Layout must match the offsets used in src/croi/trap_entry.S exactly.
 // Total size: 32*8 + 4*8 = 288 bytes.
 struct TrapFrame {
-    u64 x[32];     // x[0] is reserved (always 0); x[2] is sp at trap entry
+    u64 x[32]; // x[0] is reserved (always 0); x[2] is sp at trap entry
     u64 sepc;
     u64 scause;
     u64 stval;

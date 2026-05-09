@@ -22,9 +22,8 @@ static int fdt_strcmp(const char *a, const char *b)
 
 // Locate the named property under `node_off`. On success writes the
 // structure-block offset of the property's data bytes and the data length.
-[[nodiscard]] static int fdt_find_prop(const struct Fdt *fdt, u32 node_off,
-                                       const char *name, u32 *data_off_out,
-                                       u32 *len_out)
+[[nodiscard]] static int fdt_find_prop(const struct Fdt *fdt, u32 node_off, const char *name,
+                                       u32 *data_off_out, u32 *len_out)
 {
     u32 token = 0;
     u32 next = 0;
@@ -90,8 +89,7 @@ static int fdt_strcmp(const char *a, const char *b)
     return CARA_EOK;
 }
 
-[[nodiscard]] int Fdt_PropU32(const struct Fdt *fdt, u32 node, const char *name,
-                              u32 *out)
+[[nodiscard]] int Fdt_PropU32(const struct Fdt *fdt, u32 node, const char *name, u32 *out)
 {
     const void *bytes = nullptr;
     u32 len = 0;
@@ -108,8 +106,7 @@ static int fdt_strcmp(const char *a, const char *b)
     return CARA_EOK;
 }
 
-[[nodiscard]] int Fdt_PropU64(const struct Fdt *fdt, u32 node, const char *name,
-                              u64 *out)
+[[nodiscard]] int Fdt_PropU64(const struct Fdt *fdt, u32 node, const char *name, u64 *out)
 {
     const void *bytes = nullptr;
     u32 len = 0;
@@ -126,8 +123,7 @@ static int fdt_strcmp(const char *a, const char *b)
     return CARA_EOK;
 }
 
-[[nodiscard]] const char *Fdt_PropStr(const struct Fdt *fdt, u32 node,
-                                      const char *name)
+[[nodiscard]] const char *Fdt_PropStr(const struct Fdt *fdt, u32 node, const char *name)
 {
     const void *bytes = nullptr;
     u32 len = 0;
@@ -144,9 +140,8 @@ static int fdt_strcmp(const char *a, const char *b)
     return s;
 }
 
-[[nodiscard]] int Fdt_PropStrIter(const struct Fdt *fdt, u32 node,
-                                  const char *name, u32 *cursor_inout,
-                                  const char **str_out)
+[[nodiscard]] int Fdt_PropStrIter(const struct Fdt *fdt, u32 node, const char *name,
+                                  u32 *cursor_inout, const char **str_out)
 {
     if (!cursor_inout) {
         return CARA_EINVAL;
@@ -180,14 +175,12 @@ static int fdt_strcmp(const char *a, const char *b)
     return CARA_EOK;
 }
 
-[[nodiscard]] bool Fdt_NodeIsCompatible(const struct Fdt *fdt, u32 node,
-                                        const char *compat)
+[[nodiscard]] bool Fdt_NodeIsCompatible(const struct Fdt *fdt, u32 node, const char *compat)
 {
     u32 cursor = 0;
     const char *s = nullptr;
     int rc = 0;
-    while ((rc = Fdt_PropStrIter(fdt, node, "compatible", &cursor, &s))
-           == CARA_EOK) {
+    while ((rc = Fdt_PropStrIter(fdt, node, "compatible", &cursor, &s)) == CARA_EOK) {
         if (fdt_strcmp(s, compat) == 0) {
             return true;
         }
@@ -197,8 +190,7 @@ static int fdt_strcmp(const char *a, const char *b)
 
 // Walk from root to find the parent of `child_off`. Returns CARA_ENOTFOUND
 // if the child is the root (root has no parent) or is not present.
-[[nodiscard]] static int fdt_find_parent(const struct Fdt *fdt, u32 child_off,
-                                         u32 *parent_off_out)
+[[nodiscard]] static int fdt_find_parent(const struct Fdt *fdt, u32 child_off, u32 *parent_off_out)
 {
     enum { MAX_DEPTH = 16 };
     u32 ancestors[MAX_DEPTH];
@@ -239,8 +231,8 @@ static int fdt_strcmp(const char *a, const char *b)
     return CARA_ENOTFOUND;
 }
 
-static void fdt_get_parent_cells(const struct Fdt *fdt, u32 node_off,
-                                 u32 *addr_cells_out, u32 *size_cells_out)
+static void fdt_get_parent_cells(const struct Fdt *fdt, u32 node_off, u32 *addr_cells_out,
+                                 u32 *size_cells_out)
 {
     // Defaults from Devicetree Specification §2.3.5.
     *addr_cells_out = 2;
@@ -259,8 +251,8 @@ static void fdt_get_parent_cells(const struct Fdt *fdt, u32 node_off,
     }
 }
 
-[[nodiscard]] int Fdt_PropReg(const struct Fdt *fdt, u32 node, u32 index,
-                              u64 *base_out, u64 *size_out)
+[[nodiscard]] int Fdt_PropReg(const struct Fdt *fdt, u32 node, u32 index, u64 *base_out,
+                              u64 *size_out)
 {
     u32 addr_cells = 0;
     u32 size_cells = 0;

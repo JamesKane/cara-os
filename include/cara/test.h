@@ -13,36 +13,35 @@
 
 struct TestCtx {
     const char *name;
-    bool        failed;
-    const char *reason;     // static string set by TEST_FAIL
+    bool failed;
+    const char *reason; // static string set by TEST_FAIL
 };
 
 typedef void (*KernelTestFn)(struct TestCtx *ctx);
 
 struct KernelTestEntry {
-    const char  *name;
+    const char *name;
     KernelTestFn fn;
 };
 
-#define TEST_FAIL(ctx, msg)                                                  \
-    do {                                                                     \
-        (ctx)->failed = true;                                                \
-        (ctx)->reason = (msg);                                               \
-        return;                                                              \
+#define TEST_FAIL(ctx, msg)                                                                        \
+    do {                                                                                           \
+        (ctx)->failed = true;                                                                      \
+        (ctx)->reason = (msg);                                                                     \
+        return;                                                                                    \
     } while (0)
 
-#define TEST_ASSERT(ctx, cond, msg)                                          \
-    do {                                                                     \
-        if (!(cond)) {                                                       \
-            TEST_FAIL((ctx), (msg));                                         \
-        }                                                                    \
+#define TEST_ASSERT(ctx, cond, msg)                                                                \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            TEST_FAIL((ctx), (msg));                                                               \
+        }                                                                                          \
     } while (0)
 
-#define KERNEL_TEST(NAME)                                                    \
-    static void test_##NAME(struct TestCtx *);                               \
-    static const struct KernelTestEntry _ktest_##NAME                        \
-        __attribute__((used, section(".kernel_tests"))) =                    \
-        { #NAME, test_##NAME };                                              \
+#define KERNEL_TEST(NAME)                                                                          \
+    static void test_##NAME(struct TestCtx *);                                                     \
+    static const struct KernelTestEntry _ktest_##NAME                                              \
+        __attribute__((used, section(".kernel_tests"))) = { #NAME, test_##NAME };                  \
     static void test_##NAME(struct TestCtx *ctx)
 
 // Run every registered test. Counts and prints a summary line that

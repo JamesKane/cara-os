@@ -40,8 +40,7 @@ struct Library *Croi_OpenLibrary_Impl(STRPTR name, ULONG version)
         return nullptr;
     }
     if (version != 0 && lib->lib_Version < version) {
-        LOG_INFO("oplib", "OpenLibrary: '%s' V%u < requested V%u",
-                 name, lib->lib_Version, version);
+        LOG_INFO("oplib", "OpenLibrary: '%s' V%u < requested V%u", name, lib->lib_Version, version);
         return nullptr;
     }
     // lib_OpenCnt is UWORD; treat the field as if atomic for the

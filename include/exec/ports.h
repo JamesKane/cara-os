@@ -18,27 +18,26 @@
 #include <exec/types.h>
 
 struct MsgPort {
-    struct Node  mp_Node;
-    UBYTE        mp_Flags;
-    UBYTE        mp_SigBit;       // signal bit number (0..31), not a mask
-    void        *mp_SigTask;      // struct Task * (PA_SIGNAL) or struct Interrupt * (PA_SOFTINT)
-    struct List  mp_MsgList;
+    struct Node mp_Node;
+    UBYTE mp_Flags;
+    UBYTE mp_SigBit;  // signal bit number (0..31), not a mask
+    void *mp_SigTask; // struct Task * (PA_SIGNAL) or struct Interrupt * (PA_SOFTINT)
+    struct List mp_MsgList;
 };
 
 struct Message {
-    struct Node     mn_Node;
+    struct Node mn_Node;
     struct MsgPort *mn_ReplyPort;
-    UWORD           mn_Length;    // total length, including this header
+    UWORD mn_Length; // total length, including this header
 };
 
 // V36+ mp_Flags — PF_ACTION holds the arrival-action selector.
-#define PF_ACTION   3              // mask covering the action bits
-#define PA_SIGNAL   0              // signal mp_SigTask on arrival
-#define PA_SOFTINT  1              // cause a software interrupt
-#define PA_IGNORE   2              // arrival is silent
+#define PF_ACTION 3  // mask covering the action bits
+#define PA_SIGNAL 0  // signal mp_SigTask on arrival
+#define PA_SOFTINT 1 // cause a software interrupt
+#define PA_IGNORE 2  // arrival is silent
 
-#define IsMsgPortEmpty(p) \
-    (((struct List *)&((p)->mp_MsgList))->lh_TailPred \
-        == (struct Node *)&((p)->mp_MsgList))
+#define IsMsgPortEmpty(p)                                                                          \
+    (((struct List *)&((p)->mp_MsgList))->lh_TailPred == (struct Node *)&((p)->mp_MsgList))
 
 #endif // EXEC_PORTS_H

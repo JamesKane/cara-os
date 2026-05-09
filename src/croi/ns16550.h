@@ -10,9 +10,9 @@
 #include <cara/types.h>
 
 struct Ns16550 {
-    uptr base;          // MMIO base (any addressable u8/u32 address)
-    u32  shift;         // reg-shift from FDT (0 for 8-bit, 2 for 32-bit lanes)
-    u32  width;         // reg-io-width from FDT (1 or 4)
+    uptr base; // MMIO base (any addressable u8/u32 address)
+    u32 shift; // reg-shift from FDT (0 for 8-bit, 2 for 32-bit lanes)
+    u32 width; // reg-io-width from FDT (1 or 4)
 };
 
 void ns16550_init(struct Ns16550 *u, u32 clock_hz, u32 baud);

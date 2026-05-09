@@ -23,10 +23,8 @@ KERNEL_TEST(usermode_smoke)
     usize ut_size = (usize)(__user_text_end - __user_text_start);
     TEST_ASSERT(ctx, ut_size > 0, "user program section empty");
 
-    struct Task *user = Croi_SpawnUserTask(
-        "uhi", 5,
-        __user_text_start, ut_size,
-        /*user_entry_va=*/ 0x10000ull);
+    struct Task *user = Croi_SpawnUserTask("uhi", 5, __user_text_start, ut_size,
+                                           /*user_entry_va=*/0x10000ull);
     TEST_ASSERT(ctx, user != nullptr, "Croi_SpawnUserTask failed");
 
     // Drop kmain below the user task's priority so the user runs.
@@ -36,6 +34,5 @@ KERNEL_TEST(usermode_smoke)
     }
     Croi_TaskSetSelfPriority(100);
 
-    TEST_ASSERT(ctx, Croi_Syscall_UserExitStatus() == 42,
-                "user task did not exit with status 42");
+    TEST_ASSERT(ctx, Croi_Syscall_UserExitStatus() == 42, "user task did not exit with status 42");
 }

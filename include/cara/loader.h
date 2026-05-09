@@ -25,7 +25,7 @@ struct PageTable;
 //   CARA_EINVAL      - not ET_EXEC, wrong machine, malformed phdrs
 //   CARA_ERANGE      - phdr / segment slice extends past blob bounds
 //   CARA_ENOMEM      - page allocation or PT walk failed
-[[nodiscard]] int Croi_LoadElf(const void *blob, usize size,
-                               struct PageTable *pt, u64 *entry_va_out);
+[[nodiscard]] int Croi_LoadElf(const void *blob, usize size, struct PageTable *pt,
+                               u64 *entry_va_out);
 
 #endif

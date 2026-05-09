@@ -34,17 +34,13 @@ KERNEL_TEST(userexec_smoke)
     usize elf_size = (usize)(__userexec_elf_end - __userexec_elf_start);
     TEST_ASSERT(ctx, elf_size >= 64, "embedded userexec.elf blob too small");
 
-    TEST_ASSERT(ctx, (u8)__userexec_elf_start[0] == 0x7F
-                         && __userexec_elf_start[1] == 'E'
-                         && __userexec_elf_start[2] == 'L'
-                         && __userexec_elf_start[3] == 'F',
+    TEST_ASSERT(ctx,
+                (u8)__userexec_elf_start[0] == 0x7F && __userexec_elf_start[1] == 'E' &&
+                    __userexec_elf_start[2] == 'L' && __userexec_elf_start[3] == 'F',
                 "userexec blob does not start with \\x7fELF");
 
-    struct Task *user = Croi_SpawnUserTaskFromElf(
-        "uexec", 5,
-        __userexec_elf_start, elf_size);
-    TEST_ASSERT(ctx, user != nullptr,
-                "Croi_SpawnUserTaskFromElf(userexec) failed");
+    struct Task *user = Croi_SpawnUserTaskFromElf("uexec", 5, __userexec_elf_start, elf_size);
+    TEST_ASSERT(ctx, user != nullptr, "Croi_SpawnUserTaskFromElf(userexec) failed");
 
     // Drop our priority so the user task can actually run.
     Croi_TaskSetSelfPriority(-1);
@@ -59,8 +55,8 @@ KERNEL_TEST(userexec_smoke)
         // — userexec returns distinct USEREXEC_EXIT_BAD_* values for
         // each assertion. Status is the i32 sign-extended return of
         // main(), so cast to short for display.
-        LOG_ERROR("uxsm", "userexec.elf exited with 0x%llx (expected 0x%x)",
-                  (u64)status, USEREXEC_EXIT_OK);
+        LOG_ERROR("uxsm", "userexec.elf exited with 0x%llx (expected 0x%x)", (u64)status,
+                  USEREXEC_EXIT_OK);
         TEST_FAIL(ctx, "userexec did not exit with USEREXEC_EXIT_OK");
     }
 }

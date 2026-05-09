@@ -19,16 +19,16 @@
 #ifndef EXEC_TASKS_H
 #define EXEC_TASKS_H
 
-#include <cara/types.h>          // u64, kernel-private widths
-#include <cara/kobj.h>           // struct HandleTable
+#include <cara/kobj.h>  // struct HandleTable
+#include <cara/types.h> // u64, kernel-private widths
 
 #include <exec/lists.h>
 #include <exec/nodes.h>
 #include <exec/types.h>
 
-#define CARA_TASK_NAME_LEN          16
-#define CARA_TASK_KSTACK_SIZE       16384u
-#define CARA_TASK_HANDLE_TABLE_CAP  32
+#define CARA_TASK_NAME_LEN 16
+#define CARA_TASK_KSTACK_SIZE 16384u
+#define CARA_TASK_HANDLE_TABLE_CAP 32
 
 // 16 callee-saved registers we round-trip across a voluntary yield:
 //   [0]=ra, [1]=sp, [2]=gp, [3]=tp, [4..15]=s0..s11
@@ -37,54 +37,54 @@
 #define TASK_NSAVED 17
 
 // V36+ tc_State constants (exec/tasks.i verbatim).
-#define TS_INVALID  0
-#define TS_ADDED    1
-#define TS_RUN      2
-#define TS_READY    3
-#define TS_WAIT     4
-#define TS_EXCEPT   5
-#define TS_REMOVED  6
+#define TS_INVALID 0
+#define TS_ADDED 1
+#define TS_RUN 2
+#define TS_READY 3
+#define TS_WAIT 4
+#define TS_EXCEPT 5
+#define TS_REMOVED 6
 
-struct PageTable;     // forward — kernel-private, defined in cara/mm.h
+struct PageTable; // forward — kernel-private, defined in cara/mm.h
 
 struct Task {
     // ---- V36+ public ABI -------------------------------------------------
     struct Node tc_Node;
-    UBYTE       tc_Flags;
-    UBYTE       tc_State;
-    BYTE        tc_IDNestCnt;
-    BYTE        tc_TDNestCnt;
-    ULONG       tc_SigAlloc;
-    ULONG       tc_SigWait;
-    ULONG       tc_SigRecvd;
-    ULONG       tc_SigExcept;
-    UWORD       tc_TrapAlloc;
-    UWORD       tc_TrapAble;
-    APTR        tc_ExceptData;
-    APTR        tc_ExceptCode;
-    APTR        tc_TrapData;
-    APTR        tc_TrapCode;
-    APTR        tc_SPReg;
-    APTR        tc_SPLower;
-    APTR        tc_SPUpper;
-    void      (*tc_Switch)(void);
-    void      (*tc_Launch)(void);
+    UBYTE tc_Flags;
+    UBYTE tc_State;
+    BYTE tc_IDNestCnt;
+    BYTE tc_TDNestCnt;
+    ULONG tc_SigAlloc;
+    ULONG tc_SigWait;
+    ULONG tc_SigRecvd;
+    ULONG tc_SigExcept;
+    UWORD tc_TrapAlloc;
+    UWORD tc_TrapAble;
+    APTR tc_ExceptData;
+    APTR tc_ExceptCode;
+    APTR tc_TrapData;
+    APTR tc_TrapCode;
+    APTR tc_SPReg;
+    APTR tc_SPLower;
+    APTR tc_SPUpper;
+    void (*tc_Switch)(void);
+    void (*tc_Launch)(void);
     struct List tc_MemEntry;
-    APTR        tc_UserData;
+    APTR tc_UserData;
 
     // ---- CaraOS kernel-private state (post-tc_UserData) -----------------
     // Field order is implementation-only; V36+ source must not depend on it.
-    char               _ln_name_buf[CARA_TASK_NAME_LEN];   // backs tc_Node.ln_Name
-    u64                saved_regs[TASK_NSAVED];
-    void              *kstack;
-    usize              kstack_size;
-    void             (*entry_fn)(void *);
-    void              *entry_arg;
+    char _ln_name_buf[CARA_TASK_NAME_LEN]; // backs tc_Node.ln_Name
+    u64 saved_regs[TASK_NSAVED];
+    void *kstack;
+    usize kstack_size;
+    void (*entry_fn)(void *);
+    void *entry_arg;
     struct HandleTable handles;
-    struct PageTable  *user_pt;
-    u64                user_entry;
-    u64                user_sp_top;
-    struct MinNode     sched_node;
+    struct PageTable *user_pt;
+    u64 user_entry;
+    u64 user_sp_top;
+    struct MinNode sched_node;
 };
 
 #endif // EXEC_TASKS_H

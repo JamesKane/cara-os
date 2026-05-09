@@ -33,8 +33,7 @@ static int reserved_add(struct ReservedList *rl, u64 base, u64 size)
 
 // Subtract one reserved interval from one usable run, possibly
 // splitting into head + tail. out has space for two PhysRun.
-static u32 subtract_one(struct PhysRun bank, struct PhysRun rsv,
-                        struct PhysRun *out)
+static u32 subtract_one(struct PhysRun bank, struct PhysRun rsv, struct PhysRun *out)
 {
     u64 b_lo = bank.base;
     u64 b_hi = bank.base + bank.size;
@@ -78,10 +77,9 @@ static bool str_eq(const char *a, const char *b)
     return *a == 0 && *b == 0;
 }
 
-[[nodiscard]] int
-Mm_PhysMapFromFdt(struct PhysMap *out, const struct Fdt *fdt,
-                  u64 kernel_phys_start, u64 kernel_phys_end,
-                  u64 dtb_phys_start, u64 dtb_phys_end)
+[[nodiscard]] int Mm_PhysMapFromFdt(struct PhysMap *out, const struct Fdt *fdt,
+                                    u64 kernel_phys_start, u64 kernel_phys_end, u64 dtb_phys_start,
+                                    u64 dtb_phys_end)
 {
     if (!out || !fdt) {
         return CARA_EINVAL;
@@ -142,8 +140,7 @@ Mm_PhysMapFromFdt(struct PhysMap *out, const struct Fdt *fdt,
     }
 
     if (kernel_phys_end > kernel_phys_start) {
-        int rc =
-            reserved_add(&rl, kernel_phys_start, kernel_phys_end - kernel_phys_start);
+        int rc = reserved_add(&rl, kernel_phys_start, kernel_phys_end - kernel_phys_start);
         if (rc != CARA_EOK) {
             return rc;
         }

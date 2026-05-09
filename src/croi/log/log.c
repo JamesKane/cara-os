@@ -14,12 +14,12 @@
 #define MAX_SINKS 4
 #define RECORDS_PER_RING (CARA_LOG_RING_BYTES / CARA_LOG_RECORD_BYTES)
 
-static struct LogRecord *g_ring = nullptr;     // CARA_LOG_RING_BYTES
-static u32 g_ring_head = 0;                    // monotonic, mod = ring index
-static u32 g_ring_total = 0;                   // total records appended
+static struct LogRecord *g_ring = nullptr; // CARA_LOG_RING_BYTES
+static u32 g_ring_head = 0;                // monotonic, mod = ring index
+static u32 g_ring_total = 0;               // total records appended
 static struct LogSink g_sinks[MAX_SINKS];
 static u32 g_n_sinks = 0;
-static u8  g_min_level = (u8)LOG_LV_TRACE;
+static u8 g_min_level = (u8)LOG_LV_TRACE;
 
 // ----- printf-flavoured formatter into a fixed-size buffer ------------------
 
@@ -246,7 +246,7 @@ void Croi_Log(LogLevel level, const char *tag, const char *fmt, ...)
     struct LogRecord r = {
         .ts_ns = Croi_Time_Now(),
         .level = (u8)level,
-        .hartid = 0,                    // SMP later
+        .hartid = 0, // SMP later
         .msg_len = 0,
     };
     for (u32 i = 0; i < CARA_LOG_TAG_LEN; i++) {
@@ -272,9 +272,7 @@ void Log_ReplayInto(const struct LogSink *sink)
         return;
     }
     u32 count = g_ring_total < RECORDS_PER_RING ? g_ring_total : RECORDS_PER_RING;
-    u32 start = g_ring_total < RECORDS_PER_RING
-                    ? 0
-                    : g_ring_head % RECORDS_PER_RING;
+    u32 start = g_ring_total < RECORDS_PER_RING ? 0 : g_ring_head % RECORDS_PER_RING;
     for (u32 i = 0; i < count; i++) {
         const struct LogRecord *r = &g_ring[(start + i) % RECORDS_PER_RING];
         if (r->level >= sink->min_level) {
@@ -286,12 +284,18 @@ void Log_ReplayInto(const struct LogSink *sink)
 static const char *level_color(LogLevel level)
 {
     switch (level) {
-    case LOG_LV_TRACE: return "\x1b[90m"; // bright black / gray
-    case LOG_LV_DEBUG: return "\x1b[36m"; // cyan
-    case LOG_LV_INFO:  return "\x1b[32m"; // green
-    case LOG_LV_WARN:  return "\x1b[33m"; // yellow
-    case LOG_LV_ERROR: return "\x1b[31m"; // red
-    case LOG_LV_FATAL: return "\x1b[1;31m"; // bold red
+    case LOG_LV_TRACE:
+        return "\x1b[90m"; // bright black / gray
+    case LOG_LV_DEBUG:
+        return "\x1b[36m"; // cyan
+    case LOG_LV_INFO:
+        return "\x1b[32m"; // green
+    case LOG_LV_WARN:
+        return "\x1b[33m"; // yellow
+    case LOG_LV_ERROR:
+        return "\x1b[31m"; // red
+    case LOG_LV_FATAL:
+        return "\x1b[1;31m"; // bold red
     }
     return "";
 }

@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Golden files compare byte-for-byte against the lvo-gen output.
+# The generator's emission is the source of truth; clang-format
+# must not rewrite them.
+DisableFormat: true
+SortIncludes: false

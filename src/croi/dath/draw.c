@@ -65,8 +65,7 @@ void Dath_Pixel(const struct DathFramebuffer *fb, i32 x, i32 y, DathColor c)
     }
 }
 
-void Dath_FillRect(const struct DathFramebuffer *fb, i32 x, i32 y,
-                   i32 w, i32 h, DathColor c)
+void Dath_FillRect(const struct DathFramebuffer *fb, i32 x, i32 y, i32 w, i32 h, DathColor c)
 {
     if (!fb || !fb->base || w <= 0 || h <= 0) {
         return;
@@ -107,8 +106,7 @@ void Dath_Clear(const struct DathFramebuffer *fb, DathColor c)
 }
 
 void Dath_BlitRect(const struct DathFramebuffer *dst, i32 dx, i32 dy,
-                   const struct DathFramebuffer *src, i32 sx, i32 sy,
-                   i32 w, i32 h)
+                   const struct DathFramebuffer *src, i32 sx, i32 sy, i32 w, i32 h)
 {
     if (!dst || !src || !dst->base || !src->base || w <= 0 || h <= 0) {
         return;
@@ -151,24 +149,22 @@ void Dath_BlitRect(const struct DathFramebuffer *dst, i32 dx, i32 dy,
 
     if (dst->bpp == 4) {
         for (i32 r = 0; r < ch; r++) {
-            const u32 *sp = (const u32 *)((const u8 *)src->base
-                                          + (usize)(u32)(sy0 + r) * src->stride
-                                          + (usize)(u32)sx0 * 4);
-            u32       *dp = (u32 *)((u8 *)dst->base
-                                    + (usize)(u32)(dy0 + r) * dst->stride
-                                    + (usize)(u32)dx0 * 4);
+            const u32 *sp = (const u32 *)((const u8 *)src->base +
+                                          (usize)(u32)(sy0 + r) * src->stride +
+                                          (usize)(u32)sx0 * 4);
+            u32 *dp = (u32 *)((u8 *)dst->base + (usize)(u32)(dy0 + r) * dst->stride +
+                              (usize)(u32)dx0 * 4);
             for (i32 i = 0; i < cw; i++) {
                 dp[i] = sp[i];
             }
         }
     } else if (dst->bpp == 2) {
         for (i32 r = 0; r < ch; r++) {
-            const u16 *sp = (const u16 *)((const u8 *)src->base
-                                          + (usize)(u32)(sy0 + r) * src->stride
-                                          + (usize)(u32)sx0 * 2);
-            u16       *dp = (u16 *)((u8 *)dst->base
-                                    + (usize)(u32)(dy0 + r) * dst->stride
-                                    + (usize)(u32)dx0 * 2);
+            const u16 *sp = (const u16 *)((const u8 *)src->base +
+                                          (usize)(u32)(sy0 + r) * src->stride +
+                                          (usize)(u32)sx0 * 2);
+            u16 *dp = (u16 *)((u8 *)dst->base + (usize)(u32)(dy0 + r) * dst->stride +
+                              (usize)(u32)dx0 * 2);
             for (i32 i = 0; i < cw; i++) {
                 dp[i] = sp[i];
             }
@@ -179,8 +175,7 @@ void Dath_BlitRect(const struct DathFramebuffer *dst, i32 dx, i32 dy,
 // Bresenham line. Tracks absolute deltas, signs both axes, accumulates
 // a 2*err threshold to decide when to step the minor axis. Off-screen
 // pixels are silently dropped by Dath_Pixel's bounds check.
-void Dath_DrawLine(const struct DathFramebuffer *fb, i32 x0, i32 y0,
-                   i32 x1, i32 y1, DathColor c)
+void Dath_DrawLine(const struct DathFramebuffer *fb, i32 x0, i32 y0, i32 x1, i32 y1, DathColor c)
 {
     if (!fb || !fb->base) {
         return;
@@ -215,16 +210,15 @@ void Dath_DrawLine(const struct DathFramebuffer *fb, i32 x0, i32 y0,
 
 // Outlined rectangle: four edges via DrawLine. Endpoints are inclusive
 // so each corner pixel is written exactly once.
-void Dath_DrawRect(const struct DathFramebuffer *fb, i32 x, i32 y,
-                   i32 w, i32 h, DathColor c)
+void Dath_DrawRect(const struct DathFramebuffer *fb, i32 x, i32 y, i32 w, i32 h, DathColor c)
 {
     if (!fb || w <= 0 || h <= 0) {
         return;
     }
     i32 x1 = x + w - 1;
     i32 y1 = y + h - 1;
-    Dath_DrawLine(fb, x,  y,  x1, y,  c);     // top
-    Dath_DrawLine(fb, x,  y1, x1, y1, c);     // bottom
-    Dath_DrawLine(fb, x,  y,  x,  y1, c);     // left
-    Dath_DrawLine(fb, x1, y,  x1, y1, c);     // right
+    Dath_DrawLine(fb, x, y, x1, y, c);   // top
+    Dath_DrawLine(fb, x, y1, x1, y1, c); // bottom
+    Dath_DrawLine(fb, x, y, x, y1, c);   // left
+    Dath_DrawLine(fb, x1, y, x1, y1, c); // right
 }

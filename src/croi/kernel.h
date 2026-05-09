@@ -13,7 +13,7 @@
 #include <cara/mm.h>
 
 extern struct PageAllocator g_page_alloc;
-extern struct Heap          g_heap;
-extern struct Ns16550       g_console_uart;
+extern struct Heap g_heap;
+extern struct Ns16550 g_console_uart;
 
 #endif

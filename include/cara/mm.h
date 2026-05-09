@@ -11,8 +11,8 @@
 #include <cara/fdt.h>
 #include <cara/types.h>
 
-#define CARA_PAGE_SIZE         4096ull
-#define CARA_KERNEL_VA_OFFSET  0xFFFFFFC000000000ull
+constexpr u64 CARA_PAGE_SIZE = 4096ull;
+constexpr u64 CARA_KERNEL_VA_OFFSET = 0xFFFFFFC000000000ull;
 
 // All physical RAM is mapped into the kernel direct-map region by the
 // boot Sv39 PT (L2[256..259]); for any physical address P below 4 GiB,
@@ -27,21 +27,21 @@ static inline u64 Mm_VirtToPhys(const void *virt)
     return (u64)(uptr)virt - CARA_KERNEL_VA_OFFSET;
 }
 
-#define CARA_MAX_PHYS_BANKS    8
-#define CARA_MAX_PHYS_RUNS    32   // banks + reserved carve-outs can fragment
+constexpr u32 CARA_MAX_PHYS_BANKS = 8;
+constexpr u32 CARA_MAX_PHYS_RUNS = 32; // banks + reserved carve-outs can fragment
 
 struct PhysRun {
-    u64 base;       // physical start, page-aligned
-    u64 size;       // bytes, page-multiple
+    u64 base; // physical start, page-aligned
+    u64 size; // bytes, page-multiple
 };
 
 struct PhysMap {
-    struct PhysRun bank[CARA_MAX_PHYS_BANKS];   // raw /memory@* nodes
-    u32            n_banks;
-    struct PhysRun usable[CARA_MAX_PHYS_RUNS];  // banks - reserved - kernel
-    u32            n_usable;
-    u64            total_bytes;                 // sum of bank.size
-    u64            usable_bytes;                // sum of usable.size
+    struct PhysRun bank[CARA_MAX_PHYS_BANKS]; // raw /memory@* nodes
+    u32 n_banks;
+    struct PhysRun usable[CARA_MAX_PHYS_RUNS]; // banks - reserved - kernel
+    u32 n_usable;
+    u64 total_bytes;  // sum of bank.size
+    u64 usable_bytes; // sum of usable.size
 };
 
 // Build the physical memory map. `kernel_phys_{start,end}` and
@@ -49,10 +49,9 @@ struct PhysMap {
 // allocator never hands them back. Walks /memory@*, /memreserve/, and
 // /reserved-memory/*. Returns CARA_EOK on success or a negative error
 // when the FDT is unsuitable (no memory nodes, too many runs, etc.).
-[[nodiscard]] int
-Mm_PhysMapFromFdt(struct PhysMap *out, const struct Fdt *fdt,
-                  u64 kernel_phys_start, u64 kernel_phys_end,
-                  u64 dtb_phys_start, u64 dtb_phys_end);
+[[nodiscard]] int Mm_PhysMapFromFdt(struct PhysMap *out, const struct Fdt *fdt,
+                                    u64 kernel_phys_start, u64 kernel_phys_end, u64 dtb_phys_start,
+                                    u64 dtb_phys_end);
 
 // ---- Page allocator -------------------------------------------------------
 //
@@ -62,20 +61,20 @@ Mm_PhysMapFromFdt(struct PhysMap *out, const struct Fdt *fdt,
 // return.
 
 struct PageRun {
-    u64  base;            // page-aligned physical base of the run
-    u32  n_pages;         // total pages in the run (incl. bitmap)
-    u32  bitmap_pages;    // pages reserved at run start to hold the bitmap
-    u8  *bitmap;          // upper-half VA pointer (n_data bits, packed)
-    u32  data_pages;      // n_pages - bitmap_pages (allocatable count)
-    u32  free_pages;      // currently free in this run
+    u64 base;         // page-aligned physical base of the run
+    u32 n_pages;      // total pages in the run (incl. bitmap)
+    u32 bitmap_pages; // pages reserved at run start to hold the bitmap
+    u8 *bitmap;       // upper-half VA pointer (n_data bits, packed)
+    u32 data_pages;   // n_pages - bitmap_pages (allocatable count)
+    u32 free_pages;   // currently free in this run
 };
 
 struct PageAllocator {
     struct PageRun runs[CARA_MAX_PHYS_RUNS];
-    u32  n_runs;
-    u64  total_data_pages;
-    u64  free_pages;
-    u64  peak_in_flight_pages;
+    u32 n_runs;
+    u64 total_data_pages;
+    u64 free_pages;
+    u64 peak_in_flight_pages;
 };
 
 [[nodiscard]] int Page_Init(struct PageAllocator *pa, const struct PhysMap *pm);
@@ -91,25 +90,27 @@ void Page_Free(struct PageAllocator *pa, u64 phys, u32 n_pages);
 
 // ---- Sv39 page tables ------------------------------------------------------
 
-#define PTE_V    0x001ull
-#define PTE_R    0x002ull
-#define PTE_W    0x004ull
-#define PTE_X    0x008ull
-#define PTE_U    0x010ull       // user-accessible
-#define PTE_G    0x020ull       // global mapping (kernel half)
-#define PTE_A    0x040ull
-#define PTE_D    0x080ull
+enum : u64 {
+    PTE_V = 0x001ull,
+    PTE_R = 0x002ull,
+    PTE_W = 0x004ull,
+    PTE_X = 0x008ull,
+    PTE_U = 0x010ull, // user-accessible
+    PTE_G = 0x020ull, // global mapping (kernel half)
+    PTE_A = 0x040ull,
+    PTE_D = 0x080ull,
+};
 
-#define PTE_KERNEL_RWX (PTE_V | PTE_R | PTE_W | PTE_X | PTE_G | PTE_A | PTE_D)
-#define PTE_KERNEL_RW  (PTE_V | PTE_R | PTE_W |         PTE_G | PTE_A | PTE_D)
-#define PTE_USER_RW    (PTE_V | PTE_R | PTE_W | PTE_U |         PTE_A | PTE_D)
-#define PTE_USER_RX    (PTE_V | PTE_R |         PTE_X | PTE_U |         PTE_A)
-#define PTE_USER_RO    (PTE_V | PTE_R |                 PTE_U |         PTE_A)
-#define PTE_USER_RWX   (PTE_V | PTE_R | PTE_W | PTE_X | PTE_U | PTE_A | PTE_D)
+constexpr u64 PTE_KERNEL_RWX = (PTE_V | PTE_R | PTE_W | PTE_X | PTE_G | PTE_A | PTE_D);
+constexpr u64 PTE_KERNEL_RW = (PTE_V | PTE_R | PTE_W | PTE_G | PTE_A | PTE_D);
+constexpr u64 PTE_USER_RW = (PTE_V | PTE_R | PTE_W | PTE_U | PTE_A | PTE_D);
+constexpr u64 PTE_USER_RX = (PTE_V | PTE_R | PTE_X | PTE_U | PTE_A);
+constexpr u64 PTE_USER_RO = (PTE_V | PTE_R | PTE_U | PTE_A);
+constexpr u64 PTE_USER_RWX = (PTE_V | PTE_R | PTE_W | PTE_X | PTE_U | PTE_A | PTE_D);
 
 struct PageTable {
-    u64 *root;             // upper-half VA pointer to the 4 KiB L2 root
-    u16  asid;
+    u64 *root; // upper-half VA pointer to the 4 KiB L2 root
+    u16 asid;
 };
 
 // Allocate a fresh kernel-flavoured page table: zeroed root with the

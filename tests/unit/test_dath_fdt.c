@@ -15,9 +15,9 @@
 
 #define FDT_MAGIC 0xD00DFEEDu
 #define BEGIN_NODE 0x00000001u
-#define END_NODE   0x00000002u
-#define PROP       0x00000003u
-#define FDT_END    0x00000009u
+#define END_NODE 0x00000002u
+#define PROP 0x00000003u
+#define FDT_END 0x00000009u
 
 static int fail(const char *msg, int code)
 {
@@ -129,8 +129,7 @@ static u32 build_fdt(u8 *final, u32 final_cap, bool omit_fb, bool bad_format)
             emit_begin_node(sblk, &soff, "framebuffer");
             {
                 const char *cc = "simple-framebuffer";
-                emit_prop(sblk, &soff, s_compat, (const u8 *)cc,
-                          (u32)strlen(cc) + 1);
+                emit_prop(sblk, &soff, s_compat, (const u8 *)cc, (u32)strlen(cc) + 1);
                 // reg = <0x0 0x80800000 0x0 0x300000> (2 addr + 2 size cells)
                 u8 reg_be[16];
                 put_be32(reg_be + 0, 0);
@@ -147,8 +146,7 @@ static u32 build_fdt(u8 *final, u32 final_cap, bool omit_fb, bool bad_format)
                 emit_prop(sblk, &soff, s_stride, v, 4);
 
                 const char *fc = bad_format ? "wat" : "a8r8g8b8";
-                emit_prop(sblk, &soff, s_format, (const u8 *)fc,
-                          (u32)strlen(fc) + 1);
+                emit_prop(sblk, &soff, s_format, (const u8 *)fc, (u32)strlen(fc) + 1);
             }
             emit_end_node(sblk, &soff);
         }
@@ -214,8 +212,7 @@ int main(void)
     if (desc.phys_size != 0x300000ull) {
         return fail("phys_size wrong", 5);
     }
-    if (desc.width != 800 || desc.height != 600
-        || desc.stride != 800 * 4) {
+    if (desc.width != 800 || desc.height != 600 || desc.stride != 800 * 4) {
         return fail("dims/stride wrong", 6);
     }
     if (desc.format != DATH_FMT_RGBA8888) {

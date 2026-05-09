@@ -21,9 +21,8 @@ static u32 bpp_from_format(DathFormat fmt)
     }
 }
 
-[[nodiscard]] int Dath_Framebuffer_Init(struct DathFramebuffer *fb, void *base,
-                                        u32 width, u32 height, u32 stride,
-                                        DathFormat format)
+[[nodiscard]] int Dath_Framebuffer_Init(struct DathFramebuffer *fb, void *base, u32 width,
+                                        u32 height, u32 stride, DathFormat format)
 {
     if (!fb || !base || width == 0 || height == 0) {
         return CARA_EINVAL;

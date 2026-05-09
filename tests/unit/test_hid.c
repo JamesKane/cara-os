@@ -40,12 +40,16 @@ static int test_mouse_boot_left_click_with_motion(void)
     if (Croi_Hid_DecodeMouseBoot(raw, sizeof(raw), &r) != CARA_EOK) {
         return fail("mouse left-click: decode failed");
     }
-    if (r.buttons != HID_MOUSE_BTN_LEFT) return fail("buttons mismatch");
-    if (r.dx != 5)       return fail("dx mismatch");
-    if (r.dy != -3)      return fail("dy mismatch (sign extension?)");
-    if (r.wheel != 1)    return fail("wheel mismatch");
-    if (!(r.ie_qualifier & IEQUALIFIER_LEFTBUTTON)
-        || !(r.ie_qualifier & IEQUALIFIER_RELATIVEMOUSE)) {
+    if (r.buttons != HID_MOUSE_BTN_LEFT)
+        return fail("buttons mismatch");
+    if (r.dx != 5)
+        return fail("dx mismatch");
+    if (r.dy != -3)
+        return fail("dy mismatch (sign extension?)");
+    if (r.wheel != 1)
+        return fail("wheel mismatch");
+    if (!(r.ie_qualifier & IEQUALIFIER_LEFTBUTTON) ||
+        !(r.ie_qualifier & IEQUALIFIER_RELATIVEMOUSE)) {
         return fail("ie_qualifier missing LEFTBUTTON|RELATIVEMOUSE");
     }
     if (r.ie_qualifier & IEQUALIFIER_RBUTTON) {
@@ -58,8 +62,7 @@ static int test_mouse_boot_short_report_3byte(void)
 {
     // USB HID 1.11 §B.2 minimum: 3 bytes, no wheel. The decoder
     // must accept it and zero out the wheel field.
-    const u8 raw[3] = { HID_MOUSE_BTN_RIGHT | HID_MOUSE_BTN_MIDDLE,
-                        (u8)(i8)127, (u8)(i8)-128 };
+    const u8 raw[3] = { HID_MOUSE_BTN_RIGHT | HID_MOUSE_BTN_MIDDLE, (u8)(i8)127, (u8)(i8)-128 };
     struct CaraHidMouseReport r;
     if (Croi_Hid_DecodeMouseBoot(raw, sizeof(raw), &r) != CARA_EOK) {
         return fail("3-byte mouse: decode failed");
@@ -70,8 +73,7 @@ static int test_mouse_boot_short_report_3byte(void)
     if (r.wheel != 0) {
         return fail("3-byte mouse: wheel not zeroed");
     }
-    if (!(r.ie_qualifier & IEQUALIFIER_RBUTTON)
-        || !(r.ie_qualifier & IEQUALIFIER_MIDBUTTON)) {
+    if (!(r.ie_qualifier & IEQUALIFIER_RBUTTON) || !(r.ie_qualifier & IEQUALIFIER_MIDBUTTON)) {
         return fail("3-byte mouse: button qualifiers missing");
     }
     if (r.ie_qualifier & IEQUALIFIER_LEFTBUTTON) {
@@ -100,8 +102,9 @@ static int test_keyboard_boot_idle(void)
     if (r.modifiers != 0 || r.ie_qualifier != 0) {
         return fail("kbd idle: non-zero state from idle report");
     }
-    for (int i = 0; i < HID_BOOT_KBD_MAX_KEYS; i++) {
-        if (r.keys[i] != 0) return fail("kbd idle: nonzero key slot");
+    for (u32 i = 0; i < HID_BOOT_KBD_MAX_KEYS; i++) {
+        if (r.keys[i] != 0)
+            return fail("kbd idle: nonzero key slot");
     }
     return 0;
 }
@@ -114,22 +117,23 @@ static int test_keyboard_boot_lshift_a(void)
     if (Croi_Hid_DecodeKeyboardBoot(raw, sizeof(raw), &r) != CARA_EOK) {
         return fail("kbd shift+a: decode failed");
     }
-    if (r.modifiers != HID_MOD_LSHIFT) return fail("modifiers mismatch");
+    if (r.modifiers != HID_MOD_LSHIFT)
+        return fail("modifiers mismatch");
     if (!(r.ie_qualifier & IEQUALIFIER_LSHIFT)) {
         return fail("ie_qualifier missing LSHIFT");
     }
     if (r.ie_qualifier & IEQUALIFIER_RSHIFT) {
         return fail("ie_qualifier RSHIFT spuriously set");
     }
-    if (r.keys[0] != 0x04) return fail("first key slot != 'a' usage");
+    if (r.keys[0] != 0x04)
+        return fail("first key slot != 'a' usage");
     return 0;
 }
 
 static int test_keyboard_boot_ctrl_collapses(void)
 {
     // Both Ctrls held — Amiga collapses to single CONTROL bit.
-    const u8 raw[8] = { HID_MOD_LCTRL | HID_MOD_RCTRL,
-                        0, 0, 0, 0, 0, 0, 0 };
+    const u8 raw[8] = { HID_MOD_LCTRL | HID_MOD_RCTRL, 0, 0, 0, 0, 0, 0, 0 };
     struct CaraHidKeyboardReport r;
     (void)Croi_Hid_DecodeKeyboardBoot(raw, sizeof(raw), &r);
     if (!(r.ie_qualifier & IEQUALIFIER_CONTROL)) {
@@ -146,7 +150,7 @@ static int test_keyboard_boot_six_key_rollover(void)
     if (Croi_Hid_DecodeKeyboardBoot(raw, sizeof(raw), &r) != CARA_EOK) {
         return fail("kbd 6-rollover: decode failed");
     }
-    for (int i = 0; i < HID_BOOT_KBD_MAX_KEYS; i++) {
+    for (u32 i = 0; i < HID_BOOT_KBD_MAX_KEYS; i++) {
         if (r.keys[i] != (u8)(0x04 + i)) {
             return fail("kbd 6-rollover: key slot wrong");
         }
@@ -167,10 +171,14 @@ static int test_keyboard_boot_too_short(void)
 static int test_usage_to_rawkey_letters(void)
 {
     // Spot-check: a (0x04) → 0x20, z (0x1D) → 0x31.
-    if (Croi_Hid_UsageToRawKey(0x04) != 0x20) return fail("'a' rawkey wrong");
-    if (Croi_Hid_UsageToRawKey(0x1D) != 0x31) return fail("'z' rawkey wrong");
-    if (Croi_Hid_UsageToRawKey(0x16) != 0x21) return fail("'s' rawkey wrong");
-    if (Croi_Hid_UsageToRawKey(0x07) != 0x22) return fail("'d' rawkey wrong");
+    if (Croi_Hid_UsageToRawKey(0x04) != 0x20)
+        return fail("'a' rawkey wrong");
+    if (Croi_Hid_UsageToRawKey(0x1D) != 0x31)
+        return fail("'z' rawkey wrong");
+    if (Croi_Hid_UsageToRawKey(0x16) != 0x21)
+        return fail("'s' rawkey wrong");
+    if (Croi_Hid_UsageToRawKey(0x07) != 0x22)
+        return fail("'d' rawkey wrong");
     return 0;
 }
 
@@ -191,15 +199,24 @@ static int test_usage_to_rawkey_digits(void)
 
 static int test_usage_to_rawkey_specials(void)
 {
-    if (Croi_Hid_UsageToRawKey(0x28) != 0x44) return fail("Enter wrong");
-    if (Croi_Hid_UsageToRawKey(0x29) != 0x45) return fail("Escape wrong");
-    if (Croi_Hid_UsageToRawKey(0x2A) != 0x41) return fail("Backspace wrong");
-    if (Croi_Hid_UsageToRawKey(0x2B) != 0x42) return fail("Tab wrong");
-    if (Croi_Hid_UsageToRawKey(0x2C) != 0x40) return fail("Space wrong");
-    if (Croi_Hid_UsageToRawKey(0x4F) != 0x4E) return fail("Right wrong");
-    if (Croi_Hid_UsageToRawKey(0x50) != 0x4F) return fail("Left wrong");
-    if (Croi_Hid_UsageToRawKey(0x51) != 0x4D) return fail("Down wrong");
-    if (Croi_Hid_UsageToRawKey(0x52) != 0x4C) return fail("Up wrong");
+    if (Croi_Hid_UsageToRawKey(0x28) != 0x44)
+        return fail("Enter wrong");
+    if (Croi_Hid_UsageToRawKey(0x29) != 0x45)
+        return fail("Escape wrong");
+    if (Croi_Hid_UsageToRawKey(0x2A) != 0x41)
+        return fail("Backspace wrong");
+    if (Croi_Hid_UsageToRawKey(0x2B) != 0x42)
+        return fail("Tab wrong");
+    if (Croi_Hid_UsageToRawKey(0x2C) != 0x40)
+        return fail("Space wrong");
+    if (Croi_Hid_UsageToRawKey(0x4F) != 0x4E)
+        return fail("Right wrong");
+    if (Croi_Hid_UsageToRawKey(0x50) != 0x4F)
+        return fail("Left wrong");
+    if (Croi_Hid_UsageToRawKey(0x51) != 0x4D)
+        return fail("Down wrong");
+    if (Croi_Hid_UsageToRawKey(0x52) != 0x4C)
+        return fail("Up wrong");
     return 0;
 }
 

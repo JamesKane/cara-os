@@ -7,9 +7,8 @@
 #include <cara/dath.h>
 #include <cara/types.h>
 
-void Dath_DrawChar(const struct DathFramebuffer *fb,
-                   const struct DathFont *font,
-                   i32 x, i32 y, char c, DathColor fg, DathColor bg)
+void Dath_DrawChar(const struct DathFramebuffer *fb, const struct DathFont *font, i32 x, i32 y,
+                   char c, DathColor fg, DathColor bg)
 {
     if (!fb || !font || !font->bitmap) {
         return;
@@ -29,9 +28,8 @@ void Dath_DrawChar(const struct DathFramebuffer *fb,
     }
 }
 
-void Dath_DrawString(const struct DathFramebuffer *fb,
-                     const struct DathFont *font,
-                     i32 x, i32 y, const char *s, DathColor fg, DathColor bg)
+void Dath_DrawString(const struct DathFramebuffer *fb, const struct DathFont *font, i32 x, i32 y,
+                     const char *s, DathColor fg, DathColor bg)
 {
     if (!fb || !font || !s) {
         return;

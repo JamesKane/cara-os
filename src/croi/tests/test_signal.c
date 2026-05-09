@@ -12,8 +12,8 @@
 #include <cara/types.h>
 
 static struct Task *g_consumer;
-static i32  g_sig_bit;
-static u32  g_received;
+static i32 g_sig_bit;
+static u32 g_received;
 static bool g_failed;
 
 static void consumer(void *arg)
@@ -60,8 +60,7 @@ KERNEL_TEST(signal_smoke)
 
     g_consumer = Croi_SpawnKernelTask("cons", 5, consumer, nullptr);
     TEST_ASSERT(ctx, g_consumer != nullptr, "spawn consumer failed");
-    TEST_ASSERT(ctx,
-                Croi_SpawnKernelTask("prod", 5, producer, nullptr) != nullptr,
+    TEST_ASSERT(ctx, Croi_SpawnKernelTask("prod", 5, producer, nullptr) != nullptr,
                 "spawn producer failed");
 
     Croi_TaskSetSelfPriority(-1);

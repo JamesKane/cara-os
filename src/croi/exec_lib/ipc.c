@@ -32,8 +32,7 @@
 
 static struct CroiMsgPort *port_to_croi(struct MsgPort *port)
 {
-    return (struct CroiMsgPort *)((char *)port
-                                  - offsetof(struct CroiMsgPort, pub));
+    return (struct CroiMsgPort *)((char *)port - offsetof(struct CroiMsgPort, pub));
 }
 
 void Croi_PutMsg_Impl(struct MsgPort *port, struct Message *msg)
@@ -43,9 +42,9 @@ void Croi_PutMsg_Impl(struct MsgPort *port, struct Message *msg)
     }
     struct CroiMsgPort *cmp = port_to_croi(port);
     struct RingSlot slot = {
-        .kind     = NT_MESSAGE,
-        .length   = msg->mn_Length,
-        .payload  = (uptr)msg,
+        .kind = NT_MESSAGE,
+        .length = msg->mn_Length,
+        .payload = (uptr)msg,
         .reserved = 0,
     };
     if (!Croi_PutMsg(cmp, slot)) {

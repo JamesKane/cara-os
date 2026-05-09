@@ -33,8 +33,7 @@ static u64 align_up(u64 v, u64 a)
     return (v + a - 1) & ~(a - 1);
 }
 
-[[nodiscard]] int Croi_Pci_AllocateBar(struct PciInventory *inv,
-                                       u32 func_index, u32 bar_index)
+[[nodiscard]] int Croi_Pci_AllocateBar(struct PciInventory *inv, u32 func_index, u32 bar_index)
 {
     if (!inv || func_index >= inv->n_funcs || bar_index >= CARA_MAX_PCI_BARS) {
         return CARA_EINVAL;
@@ -62,8 +61,7 @@ static u64 align_up(u64 v, u64 a)
         return CARA_EINVAL;
     }
     if (is_64) {
-        orig_hi = Croi_Pci_Read32(&inv->bridge, bus, dev, fnnum,
-                                  (u16)(bar_off + 4));
+        orig_hi = Croi_Pci_Read32(&inv->bridge, bus, dev, fnnum, (u16)(bar_off + 4));
     }
 
     // Probe size: write 1s to both halves, read back, restore.
@@ -71,16 +69,13 @@ static u64 align_up(u64 v, u64 a)
     u32 sz_lo = Croi_Pci_Read32(&inv->bridge, bus, dev, fnnum, bar_off);
     u32 sz_hi = 0;
     if (is_64) {
-        Croi_Pci_Write32(&inv->bridge, bus, dev, fnnum,
-                         (u16)(bar_off + 4), 0xFFFFFFFFu);
-        sz_hi = Croi_Pci_Read32(&inv->bridge, bus, dev, fnnum,
-                                (u16)(bar_off + 4));
+        Croi_Pci_Write32(&inv->bridge, bus, dev, fnnum, (u16)(bar_off + 4), 0xFFFFFFFFu);
+        sz_hi = Croi_Pci_Read32(&inv->bridge, bus, dev, fnnum, (u16)(bar_off + 4));
     }
     // Restore original (we'll overwrite with the allocated address below).
     Croi_Pci_Write32(&inv->bridge, bus, dev, fnnum, bar_off, orig_lo);
     if (is_64) {
-        Croi_Pci_Write32(&inv->bridge, bus, dev, fnnum,
-                         (u16)(bar_off + 4), orig_hi);
+        Croi_Pci_Write32(&inv->bridge, bus, dev, fnnum, (u16)(bar_off + 4), orig_hi);
     }
 
     // Compute size. Mask off type bits, invert, add 1.
@@ -105,8 +100,7 @@ static u64 align_up(u64 v, u64 a)
     Croi_Pci_Write32(&inv->bridge, bus, dev, fnnum, bar_off,
                      (u32)((base & 0xFFFFFFF0u) | type_bits));
     if (is_64) {
-        Croi_Pci_Write32(&inv->bridge, bus, dev, fnnum,
-                         (u16)(bar_off + 4), (u32)(base >> 32));
+        Croi_Pci_Write32(&inv->bridge, bus, dev, fnnum, (u16)(bar_off + 4), (u32)(base >> 32));
     }
 
     // Enable Memory Space + Bus Master decoding.
@@ -116,10 +110,10 @@ static u64 align_up(u64 v, u64 a)
 
     // Stash in the function's bar[] record.
     fn->bar[bar_index] = (struct PciBar){
-        .kind         = is_64 ? PCI_RANGE_MEM64 : PCI_RANGE_MEM32,
+        .kind = is_64 ? PCI_RANGE_MEM64 : PCI_RANGE_MEM32,
         .prefetchable = prefetchable,
-        .base         = base,
-        .size         = size,
+        .base = base,
+        .size = size,
     };
     if (is_64) {
         // Mark the consumed upper-half slot so callers don't double-allocate.
@@ -129,17 +123,12 @@ static u64 align_up(u64 v, u64 a)
     // Read back to confirm the BAR write actually took (some
     // platforms ignore writes outside the bridge's ranges).
     u32 readback_lo = Croi_Pci_Read32(&inv->bridge, bus, dev, fnnum, bar_off);
-    u32 readback_hi = is_64 ? Croi_Pci_Read32(&inv->bridge, bus, dev, fnnum,
-                                              (u16)(bar_off + 4))
+    u32 readback_hi = is_64 ? Croi_Pci_Read32(&inv->bridge, bus, dev, fnnum, (u16)(bar_off + 4))
                             : 0;
-    u16 cmd_after = Croi_Pci_Read16(&inv->bridge, bus, dev, fnnum,
-                                    PCI_CFG_COMMAND);
-    LOG_INFO("pci ",
-             "alloc BAR%u for %x: base=0x%llx size=0x%llx %s readback=%x:%x cmd=%x",
-             (unsigned)bar_index,
-             ((u32)bus << 16) | ((u32)dev << 8) | fnnum,
-             (u64)base, (u64)size,
-             is_64 ? "(64-bit MEM)" : "(32-bit MEM)",
-             readback_hi, readback_lo, (unsigned)cmd_after);
+    u16 cmd_after = Croi_Pci_Read16(&inv->bridge, bus, dev, fnnum, PCI_CFG_COMMAND);
+    LOG_INFO("pci ", "alloc BAR%u for %x: base=0x%llx size=0x%llx %s readback=%x:%x cmd=%x",
+             (unsigned)bar_index, ((u32)bus << 16) | ((u32)dev << 8) | fnnum, (u64)base, (u64)size,
+             is_64 ? "(64-bit MEM)" : "(32-bit MEM)", readback_hi, readback_lo,
+             (unsigned)cmd_after);
     return CARA_EOK;
 }

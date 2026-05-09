@@ -26,22 +26,21 @@
 
 struct List {
     struct Node *lh_Head;
-    struct Node *lh_Tail;       // always NULL — sentinel
+    struct Node *lh_Tail; // always NULL — sentinel
     struct Node *lh_TailPred;
-    UBYTE        lh_Type;
-    UBYTE        l_pad;
+    UBYTE lh_Type;
+    UBYTE l_pad;
 };
 
 struct MinList {
     struct MinNode *mlh_Head;
-    struct MinNode *mlh_Tail;       // always NULL
+    struct MinNode *mlh_Tail; // always NULL
     struct MinNode *mlh_TailPred;
 };
 
 // V36+ exec/lists.h IsListEmpty macro. Works on both struct List and
 // struct MinList because the first three fields are pointer-compatible
 // and the test only touches the third.
-#define IsListEmpty(lh) \
-    (((struct List *)(lh))->lh_TailPred == (struct Node *)(lh))
+#define IsListEmpty(lh) (((struct List *)(lh))->lh_TailPred == (struct Node *)(lh))
 
 #endif // EXEC_LISTS_H

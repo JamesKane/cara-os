@@ -31,7 +31,7 @@ static void bit_set(u8 *bm, u32 i)
 
 static void bit_clr(u8 *bm, u32 i)
 {
-    bm[i >> 3] &= (u8)~(1u << (i & 7));
+    bm[i >> 3] &= (u8) ~(1u << (i & 7));
 }
 
 static void zero_bytes(u8 *p, usize n)
@@ -59,8 +59,7 @@ static void zero_pages_at(u64 phys, u32 n_pages)
             return CARA_ERANGE;
         }
         const struct PhysRun *src = &pm->usable[i];
-        if ((src->base & (CARA_PAGE_SIZE - 1)) != 0
-            || (src->size & (CARA_PAGE_SIZE - 1)) != 0) {
+        if ((src->base & (CARA_PAGE_SIZE - 1)) != 0 || (src->size & (CARA_PAGE_SIZE - 1)) != 0) {
             return CARA_EINVAL;
         }
         u32 n_pages = (u32)(src->size / CARA_PAGE_SIZE);
@@ -70,8 +69,7 @@ static void zero_pages_at(u64 phys, u32 n_pages)
             continue;
         }
         u32 bitmap_bytes = (n_pages + BITS_PER_BYTE - 1) / BITS_PER_BYTE;
-        u32 bitmap_pages = (u32)align_up_u64(bitmap_bytes, CARA_PAGE_SIZE)
-                           / (u32)CARA_PAGE_SIZE;
+        u32 bitmap_pages = (u32)align_up_u64(bitmap_bytes, CARA_PAGE_SIZE) / (u32)CARA_PAGE_SIZE;
         if (bitmap_pages >= n_pages) {
             continue;
         }
@@ -124,8 +122,7 @@ static void zero_pages_at(u64 phys, u32 n_pages)
                     if (in_flight > pa->peak_in_flight_pages) {
                         pa->peak_in_flight_pages = in_flight;
                     }
-                    u64 phys = r->base
-                             + (u64)(r->bitmap_pages + run_start) * CARA_PAGE_SIZE;
+                    u64 phys = r->base + (u64)(r->bitmap_pages + run_start) * CARA_PAGE_SIZE;
                     zero_pages_at(phys, n_pages);
                     return phys;
                 }

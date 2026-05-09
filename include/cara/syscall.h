@@ -23,7 +23,7 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame);
 
 // Test/observability hooks — set by SYS_EXIT, polled by usermode_smoke.
 bool Croi_Syscall_UserExited(void);
-i64  Croi_Syscall_UserExitStatus(void);
+i64 Croi_Syscall_UserExitStatus(void);
 void Croi_Syscall_ResetUserExit(void);
 
 #endif

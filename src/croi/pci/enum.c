@@ -20,23 +20,22 @@
 #include <cara/pci.h>
 #include <cara/types.h>
 
-static void
-classify_function(const struct PciHostBridge *b, u8 bus, u8 dev, u8 fn,
-                  struct PciFunction *out)
+static void classify_function(const struct PciHostBridge *b, u8 bus, u8 dev, u8 fn,
+                              struct PciFunction *out)
 {
     *out = (struct PciFunction){
-        .bus       = bus,
-        .device    = dev,
-        .function  = fn,
+        .bus = bus,
+        .device = dev,
+        .function = fn,
         .vendor_id = Croi_Pci_Read16(b, bus, dev, fn, PCI_CFG_VENDOR_ID),
         .device_id = Croi_Pci_Read16(b, bus, dev, fn, PCI_CFG_DEVICE_ID),
-        .revision  = Croi_Pci_Read8 (b, bus, dev, fn, PCI_CFG_REVISION),
-        .prog_if   = Croi_Pci_Read8 (b, bus, dev, fn, PCI_CFG_PROG_IF),
-        .subclass  = Croi_Pci_Read8 (b, bus, dev, fn, PCI_CFG_SUBCLASS),
-        .base_class= Croi_Pci_Read8 (b, bus, dev, fn, PCI_CFG_BASE_CLASS),
+        .revision = Croi_Pci_Read8(b, bus, dev, fn, PCI_CFG_REVISION),
+        .prog_if = Croi_Pci_Read8(b, bus, dev, fn, PCI_CFG_PROG_IF),
+        .subclass = Croi_Pci_Read8(b, bus, dev, fn, PCI_CFG_SUBCLASS),
+        .base_class = Croi_Pci_Read8(b, bus, dev, fn, PCI_CFG_BASE_CLASS),
     };
     u8 ht = Croi_Pci_Read8(b, bus, dev, fn, PCI_CFG_HEADER_TYPE);
-    out->header_type   = ht & 0x7Fu;
+    out->header_type = ht & 0x7Fu;
     out->multifunction = (ht & PCI_HEADER_TYPE_MULTI) != 0;
 }
 
@@ -56,12 +55,9 @@ static bool function_present(const struct PciHostBridge *b, u8 bus, u8 dev, u8 f
     if (rc != CARA_EOK) {
         return rc;
     }
-    LOG_INFO("pci ",
-             "host bridge: ECAM 0x%llx (%llu MiB), bus [%u..%u], %u ranges",
-             (u64)out->bridge.ecam_base,
-             (u64)(out->bridge.ecam_size >> 20),
-             (unsigned)out->bridge.bus_first,
-             (unsigned)out->bridge.bus_last,
+    LOG_INFO("pci ", "host bridge: ECAM 0x%llx (%llu MiB), bus [%u..%u], %u ranges",
+             (u64)out->bridge.ecam_base, (u64)(out->bridge.ecam_size >> 20),
+             (unsigned)out->bridge.bus_first, (unsigned)out->bridge.bus_last,
              (unsigned)out->bridge.n_ranges);
 
     // Initialise BAR-allocation cursors from the host bridge's MEM32
@@ -75,19 +71,17 @@ static bool function_present(const struct PciHostBridge *b, u8 bus, u8 dev, u8 f
         const struct PciRange *r = &out->bridge.range[i];
         if (r->kind == PCI_RANGE_MEM32 && out->mem32_cursor == 0) {
             out->mem32_cursor = r->cpu_addr;
-            out->mem32_end    = r->cpu_addr + r->size;
+            out->mem32_end = r->cpu_addr + r->size;
             // QEMU virt and the X1 both expose a 1 GiB MEM32 window
             // aligned on a 1 GiB boundary; the install here is a
             // cheap one-leaf op. If a future platform shows up with
             // a smaller / unaligned window the call returns
             // CARA_EINVAL and we'll need a finer-grain install path.
             u64 va = (u64)Mm_PhysToVirt(r->cpu_addr);
-            int mrc = Croi_Mm_InstallBootPT_1GiBLeaf(va, r->cpu_addr,
-                                                     PTE_KERNEL_RW);
+            int mrc = Croi_Mm_InstallBootPT_1GiBLeaf(va, r->cpu_addr, PTE_KERNEL_RW);
             if (mrc == CARA_EOK) {
-                LOG_INFO("pci ",
-                         "MEM32 mapped: PA 0x%llx -> VA 0x%llx (1 GiB)",
-                         (u64)r->cpu_addr, (u64)va);
+                LOG_INFO("pci ", "MEM32 mapped: PA 0x%llx -> VA 0x%llx (1 GiB)", (u64)r->cpu_addr,
+                         (u64)va);
             } else {
                 LOG_WARN("pci ",
                          "MEM32 1 GiB leaf install failed: %d "
@@ -96,16 +90,13 @@ static bool function_present(const struct PciHostBridge *b, u8 bus, u8 dev, u8 f
             }
         } else if (r->kind == PCI_RANGE_MEM64 && out->mem64_cursor == 0) {
             out->mem64_cursor = r->cpu_addr;
-            out->mem64_end    = r->cpu_addr + r->size;
+            out->mem64_end = r->cpu_addr + r->size;
         }
     }
 
     for (u32 bus = out->bridge.bus_first;
-         bus <= out->bridge.bus_last && out->n_funcs < CARA_MAX_PCI_FUNCTIONS;
-         bus++) {
-        for (u8 dev = 0;
-             dev < 32 && out->n_funcs < CARA_MAX_PCI_FUNCTIONS;
-             dev++) {
+         bus <= out->bridge.bus_last && out->n_funcs < CARA_MAX_PCI_FUNCTIONS; bus++) {
+        for (u8 dev = 0; dev < 32 && out->n_funcs < CARA_MAX_PCI_FUNCTIONS; dev++) {
             // Probe function 0 first — if absent, skip the whole device
             // (multi-function devices must populate fn 0). Per PCI 3.0 §6.2.
             if (!function_present(&out->bridge, (u8)bus, dev, 0)) {
@@ -115,17 +106,14 @@ static bool function_present(const struct PciHostBridge *b, u8 bus, u8 dev, u8 f
             classify_function(&out->bridge, (u8)bus, dev, 0, &f0);
             out->func[out->n_funcs++] = f0;
             if (f0.header_type == PCI_HEADER_TYPE_BRIDGE) {
-                LOG_DEBUG("pci ",
-                          "bridge at %02x:%02x.0 — nested-bus walk deferred",
-                          (unsigned)bus, (unsigned)dev);
+                LOG_DEBUG("pci ", "bridge at %02x:%02x.0 — nested-bus walk deferred", (unsigned)bus,
+                          (unsigned)dev);
             }
 
             if (!f0.multifunction) {
                 continue;
             }
-            for (u8 fn = 1;
-                 fn < 8 && out->n_funcs < CARA_MAX_PCI_FUNCTIONS;
-                 fn++) {
+            for (u8 fn = 1; fn < 8 && out->n_funcs < CARA_MAX_PCI_FUNCTIONS; fn++) {
                 if (!function_present(&out->bridge, (u8)bus, dev, fn)) {
                     continue;
                 }
@@ -136,37 +124,31 @@ static bool function_present(const struct PciHostBridge *b, u8 bus, u8 dev, u8 f
         }
     }
 
-    LOG_INFO("pci ", "enumerated %u function(s) across bus [%u..%u]",
-             (unsigned)out->n_funcs,
-             (unsigned)out->bridge.bus_first,
-             (unsigned)out->bridge.bus_last);
+    LOG_INFO("pci ", "enumerated %u function(s) across bus [%u..%u]", (unsigned)out->n_funcs,
+             (unsigned)out->bridge.bus_first, (unsigned)out->bridge.bus_last);
     for (u32 i = 0; i < out->n_funcs; i++) {
         const struct PciFunction *f = &out->func[i];
         // Kernel printf doesn't grok %02x width modifiers; encode the
         // bus/device/function and class triple as packed u32s and let
         // the caller decode by sight.
-        u32 bdf      = ((u32)f->bus << 16) | ((u32)f->device << 8) | f->function;
-        u32 vid_did  = ((u32)f->vendor_id << 16) | f->device_id;
-        u32 class_tr = ((u32)f->base_class << 16) | ((u32)f->subclass << 8)
-                       | f->prog_if;
-        LOG_INFO("pci ", "  bdf=%x vid:did=%x class=%x hdr=%x",
-                 bdf, vid_did, class_tr, (unsigned)f->header_type);
+        u32 bdf = ((u32)f->bus << 16) | ((u32)f->device << 8) | f->function;
+        u32 vid_did = ((u32)f->vendor_id << 16) | f->device_id;
+        u32 class_tr = ((u32)f->base_class << 16) | ((u32)f->subclass << 8) | f->prog_if;
+        LOG_INFO("pci ", "  bdf=%x vid:did=%x class=%x hdr=%x", bdf, vid_did, class_tr,
+                 (unsigned)f->header_type);
     }
     return CARA_EOK;
 }
 
-const struct PciFunction *
-Croi_Pci_FindByClass(const struct PciInventory *inv, u8 base_class,
-                     u8 subclass, u8 prog_if, u32 *cursor_inout)
+const struct PciFunction *Croi_Pci_FindByClass(const struct PciInventory *inv, u8 base_class,
+                                               u8 subclass, u8 prog_if, u32 *cursor_inout)
 {
     if (!inv || !cursor_inout) {
         return nullptr;
     }
     for (u32 i = *cursor_inout; i < inv->n_funcs; i++) {
         const struct PciFunction *f = &inv->func[i];
-        if (f->base_class == base_class
-            && f->subclass == subclass
-            && f->prog_if  == prog_if) {
+        if (f->base_class == base_class && f->subclass == subclass && f->prog_if == prog_if) {
             *cursor_inout = i + 1;
             return f;
         }

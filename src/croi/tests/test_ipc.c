@@ -15,14 +15,15 @@
 #define PRODUCERS 4
 #define MSGS_PER_PRODUCER 5
 #define TOTAL_MSGS (PRODUCERS * MSGS_PER_PRODUCER)
-#define RING_CAP 8                          // smaller than PRODUCERS*MSGS to
-                                            // exercise the full path
+#define RING_CAP                                                                                   \
+    8 // smaller than PRODUCERS*MSGS to
+      // exercise the full path
 
 static struct CroiMsgPort *g_port;
-static struct Task    *g_receiver;
-static u32             g_received;
-static u32             g_per_producer[PRODUCERS];
-static bool            g_failed;
+static struct Task *g_receiver;
+static u32 g_received;
+static u32 g_per_producer[PRODUCERS];
+static bool g_failed;
 
 static void receiver(void *arg)
 {
@@ -93,10 +94,7 @@ KERNEL_TEST(ipc_smoke)
 
     static const char *names[PRODUCERS] = { "prod0", "prod1", "prod2", "prod3" };
     for (u32 i = 0; i < PRODUCERS; i++) {
-        TEST_ASSERT(ctx,
-                    Croi_SpawnKernelTask(names[i], 5, producer,
-                                         (void *)(uptr)i)
-                        != nullptr,
+        TEST_ASSERT(ctx, Croi_SpawnKernelTask(names[i], 5, producer, (void *)(uptr)i) != nullptr,
                     "spawn producer failed");
     }
 
@@ -109,7 +107,6 @@ KERNEL_TEST(ipc_smoke)
     TEST_ASSERT(ctx, !g_failed, "receiver/port failure");
     TEST_ASSERT(ctx, g_received == TOTAL_MSGS, "received != total");
     for (u32 i = 0; i < PRODUCERS; i++) {
-        TEST_ASSERT(ctx, g_per_producer[i] == MSGS_PER_PRODUCER,
-                    "per-producer count wrong");
+        TEST_ASSERT(ctx, g_per_producer[i] == MSGS_PER_PRODUCER, "per-producer count wrong");
     }
 }

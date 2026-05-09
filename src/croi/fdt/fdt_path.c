@@ -12,8 +12,7 @@
 // either include or omit the unit-address suffix. Match if either:
 //  - segment_len == name_len and bytes match exactly, or
 //  - segment ends before '@' in the name and bytes match up to that.
-[[nodiscard]] static bool fdt_segment_matches(const char *segment, u32 seg_len,
-                                              const char *name)
+[[nodiscard]] static bool fdt_segment_matches(const char *segment, u32 seg_len, const char *name)
 {
     u32 i = 0;
     while (i < seg_len && name[i] != 0 && name[i] == segment[i]) {
@@ -27,8 +26,7 @@
 
 // Advance from a BEGIN_NODE offset to the offset of the first interior token
 // (i.e. immediately after the node name).
-[[nodiscard]] static int fdt_node_body(const struct Fdt *fdt, u32 node_off,
-                                       u32 *body_off_out)
+[[nodiscard]] static int fdt_node_body(const struct Fdt *fdt, u32 node_off, u32 *body_off_out)
 {
     u32 token = 0;
     u32 next = 0;
@@ -43,8 +41,8 @@
     return CARA_EOK;
 }
 
-[[nodiscard]] int Fdt_ChildIter(const struct Fdt *fdt, u32 parent,
-                                u32 *cursor_inout, u32 *node_off_out)
+[[nodiscard]] int Fdt_ChildIter(const struct Fdt *fdt, u32 parent, u32 *cursor_inout,
+                                u32 *node_off_out)
 {
     if (!cursor_inout || !node_off_out) {
         return CARA_EINVAL;
@@ -94,9 +92,8 @@
 
 // Resolve one path segment within `parent`. `seg` and `seg_len` describe the
 // segment without leading or trailing '/'.
-[[nodiscard]] static int fdt_resolve_segment(const struct Fdt *fdt, u32 parent,
-                                             const char *seg, u32 seg_len,
-                                             u32 *out)
+[[nodiscard]] static int fdt_resolve_segment(const struct Fdt *fdt, u32 parent, const char *seg,
+                                             u32 seg_len, u32 *out)
 {
     u32 cursor = 0;
     u32 child = 0;
@@ -111,8 +108,7 @@
     return CARA_ENOTFOUND;
 }
 
-[[nodiscard]] int Fdt_ResolvePath(const struct Fdt *fdt, const char *path,
-                                  u32 *node_off_out)
+[[nodiscard]] int Fdt_ResolvePath(const struct Fdt *fdt, const char *path, u32 *node_off_out)
 {
     if (!path || !node_off_out) {
         return CARA_EINVAL;
@@ -153,8 +149,7 @@
     return CARA_EOK;
 }
 
-[[nodiscard]] int Fdt_FindByCompatible(const struct Fdt *fdt,
-                                       const char *compat,
+[[nodiscard]] int Fdt_FindByCompatible(const struct Fdt *fdt, const char *compat,
                                        u32 *node_off_inout)
 {
     if (!compat || !node_off_inout) {

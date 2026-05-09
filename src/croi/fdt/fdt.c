@@ -26,8 +26,8 @@ struct FdtRawHeader {
 // We require version >= 17 (which adds size_dt_struct), and we accept
 // blobs whose last_comp_version <= 16 (the "16+strings_size" boundary
 // we know how to read).
-#define FDT_REQUIRED_VERSION   17u
-#define FDT_MAX_LAST_COMP      16u
+#define FDT_REQUIRED_VERSION 17u
+#define FDT_MAX_LAST_COMP 16u
 
 [[nodiscard]] int Fdt_Open(struct Fdt *out, const void *blob)
 {
@@ -43,16 +43,16 @@ struct FdtRawHeader {
         return CARA_EINVAL;
     }
 
-    u32 magic       = fdt_be32(bytes + 0);
-    u32 totalsize   = fdt_be32(bytes + 4);
-    u32 off_struct  = fdt_be32(bytes + 8);
+    u32 magic = fdt_be32(bytes + 0);
+    u32 totalsize = fdt_be32(bytes + 4);
+    u32 off_struct = fdt_be32(bytes + 8);
     u32 off_strings = fdt_be32(bytes + 12);
-    u32 off_rsvmap  = fdt_be32(bytes + 16);
-    u32 version     = fdt_be32(bytes + 20);
-    u32 last_comp   = fdt_be32(bytes + 24);
-    u32 boot_cpu    = fdt_be32(bytes + 28);
+    u32 off_rsvmap = fdt_be32(bytes + 16);
+    u32 version = fdt_be32(bytes + 20);
+    u32 last_comp = fdt_be32(bytes + 24);
+    u32 boot_cpu = fdt_be32(bytes + 28);
     u32 size_strings = fdt_be32(bytes + 32);
-    u32 size_struct  = fdt_be32(bytes + 36);
+    u32 size_struct = fdt_be32(bytes + 36);
 
     if (magic != FDT_MAGIC) {
         return CARA_EBADMAGIC;
@@ -142,8 +142,7 @@ struct FdtRawHeader {
         if (padded < len) {
             return CARA_EOVERFLOW;
         }
-        if (data_off > fdt->size_struct
-            || (fdt->size_struct - data_off) < padded) {
+        if (data_off > fdt->size_struct || (fdt->size_struct - data_off) < padded) {
             return CARA_ERANGE;
         }
         next = data_off + padded;
@@ -169,8 +168,7 @@ struct FdtRawHeader {
     return CARA_EOK;
 }
 
-[[nodiscard]] int fdt_skip_node(const struct Fdt *fdt, u32 node_off,
-                                u32 *after_end_off_out)
+[[nodiscard]] int fdt_skip_node(const struct Fdt *fdt, u32 node_off, u32 *after_end_off_out)
 {
     u32 token = 0;
     u32 next = 0;
@@ -254,8 +252,8 @@ struct FdtRawHeader {
     return (const char *)(fdt->blob + fdt->off_struct + payload);
 }
 
-[[nodiscard]] int Fdt_RsvIter(const struct Fdt *fdt, u32 *cursor_inout,
-                              u64 *base_out, u64 *size_out)
+[[nodiscard]] int Fdt_RsvIter(const struct Fdt *fdt, u32 *cursor_inout, u64 *base_out,
+                              u64 *size_out)
 {
     if (!cursor_inout) {
         return CARA_EINVAL;

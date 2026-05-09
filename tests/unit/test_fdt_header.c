@@ -26,9 +26,9 @@ static void be32_put(u8 *p, u32 v)
 
 // Build a minimal-but-syntactically-correct DTB header in `out`.
 // Returns the totalsize written.
-static u32 build_min_header(u8 *out, u32 magic, u32 version, u32 last_comp,
-                            u32 totalsize, u32 off_struct, u32 size_struct,
-                            u32 off_strings, u32 size_strings, u32 off_rsvmap)
+static u32 build_min_header(u8 *out, u32 magic, u32 version, u32 last_comp, u32 totalsize,
+                            u32 off_struct, u32 size_struct, u32 off_strings, u32 size_strings,
+                            u32 off_rsvmap)
 {
     be32_put(out + 0, magic);
     be32_put(out + 4, totalsize);
@@ -37,7 +37,7 @@ static u32 build_min_header(u8 *out, u32 magic, u32 version, u32 last_comp,
     be32_put(out + 16, off_rsvmap);
     be32_put(out + 20, version);
     be32_put(out + 24, last_comp);
-    be32_put(out + 28, 0);              // boot_cpuid_phys
+    be32_put(out + 28, 0); // boot_cpuid_phys
     be32_put(out + 32, size_strings);
     be32_put(out + 36, size_struct);
     return totalsize;

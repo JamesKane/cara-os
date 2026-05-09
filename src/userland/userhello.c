@@ -5,12 +5,12 @@
 // into a fresh user PT, and sret'd into. Compiled freestanding — only
 // the syscall ABI is available.
 
-typedef long          long_t;
+typedef long long_t;
 typedef unsigned long usize_t;
 
 #define SYS_LOG_WRITE 1
-#define SYS_EXIT      2
-#define LOG_LV_INFO   2
+#define SYS_EXIT 2
+#define LOG_LV_INFO 2
 
 static long_t syscall(long_t n, long_t a0, long_t a1, long_t a2, long_t a3)
 {
@@ -19,10 +19,7 @@ static long_t syscall(long_t n, long_t a0, long_t a1, long_t a2, long_t a3)
     register long_t r2 __asm__("a2") = a2;
     register long_t r3 __asm__("a3") = a3;
     register long_t r7 __asm__("a7") = n;
-    __asm__ volatile("ecall"
-                     : "+r"(r0)
-                     : "r"(r1), "r"(r2), "r"(r3), "r"(r7)
-                     : "memory");
+    __asm__ volatile("ecall" : "+r"(r0) : "r"(r1), "r"(r2), "r"(r3), "r"(r7) : "memory");
     return r0;
 }
 
@@ -41,8 +38,7 @@ static usize_t my_strlen(const char *s)
 {
     static const char tag[] = "uelf";
     static const char msg[] = "hello from a real ELF in U-mode";
-    syscall(SYS_LOG_WRITE, LOG_LV_INFO, (long_t)tag, (long_t)msg,
-            (long_t)my_strlen(msg));
+    syscall(SYS_LOG_WRITE, LOG_LV_INFO, (long_t)tag, (long_t)msg, (long_t)my_strlen(msg));
     syscall(SYS_EXIT, 1234, 0, 0, 0);
     for (;;) {
     }

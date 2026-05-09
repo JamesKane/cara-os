@@ -24,17 +24,16 @@
 
 // Re-export inlines as local short names so the existing code below
 // keeps reading the way it did pre-refactor.
-#define cap_read8(c, off)   xhci_cap_read8((c), (off))
-#define cap_read16(c, off)  xhci_cap_read16((c), (off))
-#define cap_read32(c, off)  xhci_cap_read32((c), (off))
-#define op_read32(c, off)   xhci_op_read32((c), (off))
+#define cap_read8(c, off) xhci_cap_read8((c), (off))
+#define cap_read16(c, off) xhci_cap_read16((c), (off))
+#define cap_read32(c, off) xhci_cap_read32((c), (off))
+#define op_read32(c, off) xhci_op_read32((c), (off))
 #define op_write32(c, o, v) xhci_op_write32((c), (o), (v))
 #define spin_for_mask(r, m, e) xhci_spin_for_mask((r), (m), (e))
 
 // ---- Probe -----------------------------------------------------------------
 
-[[nodiscard]] int Croi_Xhci_Probe(struct XhciController *out,
-                                  struct PciInventory *inv,
+[[nodiscard]] int Croi_Xhci_Probe(struct XhciController *out, struct PciInventory *inv,
                                   u32 func_index)
 {
     if (!out || !inv || func_index >= inv->n_funcs) {
@@ -43,23 +42,20 @@
     *out = (struct XhciController){ 0 };
 
     struct PciFunction *fn = &inv->func[func_index];
-    if (fn->base_class != PCI_CLASS_USB_XHCI_BASE
-        || fn->subclass != PCI_CLASS_USB_XHCI_SUB
-        || fn->prog_if  != PCI_CLASS_USB_XHCI_PROGIF) {
-        LOG_ERROR("xhci",
-                  "function %x is not class 0x0c/0x03/0x30 (got %02x.%02x.%02x)",
+    if (fn->base_class != PCI_CLASS_USB_XHCI_BASE || fn->subclass != PCI_CLASS_USB_XHCI_SUB ||
+        fn->prog_if != PCI_CLASS_USB_XHCI_PROGIF) {
+        LOG_ERROR("xhci", "function %x is not class 0x0c/0x03/0x30 (got %02x.%02x.%02x)",
                   ((u32)fn->bus << 16) | ((u32)fn->device << 8) | fn->function,
-                  (unsigned)fn->base_class, (unsigned)fn->subclass,
-                  (unsigned)fn->prog_if);
+                  (unsigned)fn->base_class, (unsigned)fn->subclass, (unsigned)fn->prog_if);
         return CARA_EINVAL;
     }
 
     // Stash PCI identity for later log output.
-    out->pci_bus      = fn->bus;
-    out->pci_device   = fn->device;
+    out->pci_bus = fn->bus;
+    out->pci_device = fn->device;
     out->pci_function = fn->function;
-    out->vendor_id    = fn->vendor_id;
-    out->device_id    = fn->device_id;
+    out->vendor_id = fn->vendor_id;
+    out->device_id = fn->device_id;
 
     // Allocate + program BAR0.
     int rc = Croi_Pci_AllocateBar(inv, func_index, 0);
@@ -78,23 +74,19 @@
     // Capability registers: parse CAPLENGTH + HCIVERSION first to
     // anchor every other offset.
     u8 caplen = cap_read8(out, XHCI_CAP_CAPLENGTH);
-    u16 ver   = cap_read16(out, XHCI_CAP_HCIVERSION);
+    u16 ver = cap_read16(out, XHCI_CAP_HCIVERSION);
     out->hci_version = ver;
     if (ver < 0x0100) {
-        LOG_ERROR("xhci", "HCIVERSION 0x%x < 0x100 (pre-xHCI 1.0); refusing",
-                  (unsigned)ver);
+        LOG_ERROR("xhci", "HCIVERSION 0x%x < 0x100 (pre-xHCI 1.0); refusing", (unsigned)ver);
         return CARA_EBADVERSION;
     }
 
     out->op_regs = out->cap_regs + caplen;
 
     u32 hcsp1 = cap_read32(out, XHCI_CAP_HCSPARAMS1);
-    out->max_slots = (hcsp1 >> XHCI_HCSP1_MAX_SLOTS_SHIFT)
-                     & XHCI_HCSP1_MAX_SLOTS_MASK;
-    out->max_intrs = (hcsp1 >> XHCI_HCSP1_MAX_INTRS_SHIFT)
-                     & XHCI_HCSP1_MAX_INTRS_MASK;
-    out->max_ports = (hcsp1 >> XHCI_HCSP1_MAX_PORTS_SHIFT)
-                     & XHCI_HCSP1_MAX_PORTS_MASK;
+    out->max_slots = (hcsp1 >> XHCI_HCSP1_MAX_SLOTS_SHIFT) & XHCI_HCSP1_MAX_SLOTS_MASK;
+    out->max_intrs = (hcsp1 >> XHCI_HCSP1_MAX_INTRS_SHIFT) & XHCI_HCSP1_MAX_INTRS_MASK;
+    out->max_ports = (hcsp1 >> XHCI_HCSP1_MAX_PORTS_SHIFT) & XHCI_HCSP1_MAX_PORTS_MASK;
 
     u32 hcsp2 = cap_read32(out, XHCI_CAP_HCSPARAMS2);
     u32 scr_hi = (hcsp2 >> XHCI_HCSP2_SCR_HI_SHIFT) & XHCI_HCSP2_SCR_HI_MASK;
@@ -102,29 +94,22 @@
     out->max_scratchpad_buffers = (scr_hi << 5) | scr_lo;
 
     u32 hccp1 = cap_read32(out, XHCI_CAP_HCCPARAMS1);
-    out->ac64    = (hccp1 & XHCI_HCCP1_AC64) != 0;
-    out->csz_64  = (hccp1 & XHCI_HCCP1_CSZ)  != 0;
+    out->ac64 = (hccp1 & XHCI_HCCP1_AC64) != 0;
+    out->csz_64 = (hccp1 & XHCI_HCCP1_CSZ) != 0;
 
-    u32 dboff  = cap_read32(out, XHCI_CAP_DBOFF)  & ~0x3u;
+    u32 dboff = cap_read32(out, XHCI_CAP_DBOFF) & ~0x3u;
     u32 rtsoff = cap_read32(out, XHCI_CAP_RTSOFF) & ~0x1Fu;
-    out->doorbells    = (volatile u32 *)(out->cap_regs + dboff);
+    out->doorbells = (volatile u32 *)(out->cap_regs + dboff);
     out->runtime_regs = out->cap_regs + rtsoff;
 
     out->page_size_bytes = op_read32(out, XHCI_OP_PAGESIZE) << 12;
 
-    LOG_INFO("xhci",
-             "v%x.%x bar0=0x%llx (%llu KiB) caplen=%u slots=%u intrs=%u ports=%u",
-             (unsigned)((ver >> 8) & 0xFF), (unsigned)(ver & 0xFF),
-             (u64)out->bar0_phys, (u64)(out->bar0_size >> 10),
-             (unsigned)caplen,
-             (unsigned)out->max_slots,
-             (unsigned)out->max_intrs,
-             (unsigned)out->max_ports);
-    LOG_INFO("xhci",
-             "scratchpad-bufs=%u page-size=%u %s%s",
-             (unsigned)out->max_scratchpad_buffers,
-             (unsigned)out->page_size_bytes,
-             out->ac64   ? "AC64 " : "",
+    LOG_INFO("xhci", "v%x.%x bar0=0x%llx (%llu KiB) caplen=%u slots=%u intrs=%u ports=%u",
+             (unsigned)((ver >> 8) & 0xFF), (unsigned)(ver & 0xFF), (u64)out->bar0_phys,
+             (u64)(out->bar0_size >> 10), (unsigned)caplen, (unsigned)out->max_slots,
+             (unsigned)out->max_intrs, (unsigned)out->max_ports);
+    LOG_INFO("xhci", "scratchpad-bufs=%u page-size=%u %s%s", (unsigned)out->max_scratchpad_buffers,
+             (unsigned)out->page_size_bytes, out->ac64 ? "AC64 " : "",
              out->csz_64 ? "CSZ64" : "CSZ32");
 
     // ---- Reset (xHCI 1.2 §4.2) ---------------------------------------------
@@ -142,21 +127,19 @@
         cmd &= ~XHCI_USBCMD_RUN;
         op_write32(out, XHCI_OP_USBCMD, cmd);
     }
-    if (!spin_for_mask((volatile u32 *)(out->op_regs + XHCI_OP_USBSTS),
-                       XHCI_USBSTS_HCH, XHCI_USBSTS_HCH)) {
+    if (!spin_for_mask((volatile u32 *)(out->op_regs + XHCI_OP_USBSTS), XHCI_USBSTS_HCH,
+                       XHCI_USBSTS_HCH)) {
         LOG_ERROR("xhci", "controller did not halt (USBSTS.HCH never set)");
         return CARA_EAGAIN;
     }
 
     cmd = op_read32(out, XHCI_OP_USBCMD);
     op_write32(out, XHCI_OP_USBCMD, cmd | XHCI_USBCMD_HCRST);
-    if (!spin_for_mask((volatile u32 *)(out->op_regs + XHCI_OP_USBCMD),
-                       XHCI_USBCMD_HCRST, 0)) {
+    if (!spin_for_mask((volatile u32 *)(out->op_regs + XHCI_OP_USBCMD), XHCI_USBCMD_HCRST, 0)) {
         LOG_ERROR("xhci", "HCRST did not self-clear");
         return CARA_EAGAIN;
     }
-    if (!spin_for_mask((volatile u32 *)(out->op_regs + XHCI_OP_USBSTS),
-                       XHCI_USBSTS_CNR, 0)) {
+    if (!spin_for_mask((volatile u32 *)(out->op_regs + XHCI_OP_USBSTS), XHCI_USBSTS_CNR, 0)) {
         LOG_ERROR("xhci", "USBSTS.CNR did not clear after reset");
         return CARA_EAGAIN;
     }

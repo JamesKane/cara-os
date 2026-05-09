@@ -62,7 +62,7 @@ int main(void)
         return fail("could not load qemu-virt.dtb", 1);
     }
 
-    (void)size;     // Fdt_Open trusts the FDT_BEGIN_NODE header
+    (void)size; // Fdt_Open trusts the FDT_BEGIN_NODE header
     struct Fdt fdt;
     int rc = Fdt_Open(&fdt, blob);
     if (rc != CARA_EOK) {
@@ -95,23 +95,20 @@ int main(void)
     }
 
     // ranges[0] — I/O at CPU 0x03000000, 64 KiB.
-    if (bridge.range[0].kind != PCI_RANGE_IO
-        || bridge.range[0].cpu_addr != 0x03000000ull
-        || bridge.range[0].size     != 0x00010000ull) {
+    if (bridge.range[0].kind != PCI_RANGE_IO || bridge.range[0].cpu_addr != 0x03000000ull ||
+        bridge.range[0].size != 0x00010000ull) {
         free(blob);
         return fail("ranges[0] != I/O 64 KiB @ 0x03000000", 8);
     }
     // ranges[1] — MEM32 at CPU 0x40000000, 1 GiB.
-    if (bridge.range[1].kind != PCI_RANGE_MEM32
-        || bridge.range[1].cpu_addr != 0x40000000ull
-        || bridge.range[1].size     != 0x40000000ull) {
+    if (bridge.range[1].kind != PCI_RANGE_MEM32 || bridge.range[1].cpu_addr != 0x40000000ull ||
+        bridge.range[1].size != 0x40000000ull) {
         free(blob);
         return fail("ranges[1] != MEM32 1 GiB @ 0x40000000", 9);
     }
     // ranges[2] — MEM64 at CPU 0x400000000, 16 GiB.
-    if (bridge.range[2].kind != PCI_RANGE_MEM64
-        || bridge.range[2].cpu_addr != 0x400000000ull
-        || bridge.range[2].size     != 0x400000000ull) {
+    if (bridge.range[2].kind != PCI_RANGE_MEM64 || bridge.range[2].cpu_addr != 0x400000000ull ||
+        bridge.range[2].size != 0x400000000ull) {
         free(blob);
         return fail("ranges[2] != MEM64 16 GiB @ 0x400000000", 10);
     }

@@ -17,12 +17,11 @@
 
 #include "msgport_impl.h"
 
-#include <stddef.h>     // offsetof
+#include <stddef.h> // offsetof
 
 static struct CroiMsgPort *kobj_to_port(struct Kobj *k)
 {
-    return (struct CroiMsgPort *)((char *)k
-                                  - offsetof(struct CroiMsgPort, hdr));
+    return (struct CroiMsgPort *)((char *)k - offsetof(struct CroiMsgPort, hdr));
 }
 
 static void msgport_destroy(struct Kobj *k)
@@ -34,8 +33,7 @@ static void msgport_destroy(struct Kobj *k)
     Croi_Free(p);
 }
 
-[[nodiscard]] struct CroiMsgPort *Croi_CreateMsgPort(struct Task *owner,
-                                                     u32 signal_bit,
+[[nodiscard]] struct CroiMsgPort *Croi_CreateMsgPort(struct Task *owner, u32 signal_bit,
                                                      u32 capacity)
 {
     if (!owner || signal_bit >= 32 || capacity == 0) {
@@ -45,16 +43,14 @@ static void msgport_destroy(struct Kobj *k)
         return nullptr;
     }
 
-    struct CroiMsgPort *p =
-        (struct CroiMsgPort *)Croi_Alloc(sizeof(struct CroiMsgPort));
+    struct CroiMsgPort *p = (struct CroiMsgPort *)Croi_Alloc(sizeof(struct CroiMsgPort));
     if (!p) {
         return nullptr;
     }
     *p = (struct CroiMsgPort){ 0 };
     Kobj_Init(&p->hdr, KOBJ_MSGPORT, msgport_destroy);
 
-    usize ring_bytes = sizeof(struct RingHeader)
-                       + (usize)capacity * sizeof(struct RingSlot);
+    usize ring_bytes = sizeof(struct RingHeader) + (usize)capacity * sizeof(struct RingSlot);
     void *block = Croi_Alloc(ring_bytes);
     if (!block) {
         Croi_Free(p);

@@ -21,14 +21,14 @@
 
 // ---- USB HID Boot-protocol report layouts ---------------------------------
 
-#define HID_BOOT_REPORT_BYTES        8
+constexpr u32 HID_BOOT_REPORT_BYTES = 8;
 
 // Boot keyboard report (USB HID 1.11 §B.1):
 //   byte 0       — modifier bitmap
 //   byte 1       — reserved (0)
 //   bytes 2..7   — up to 6 simultaneously-pressed key Usage IDs;
 //                  zero-padded.
-#define HID_BOOT_KBD_MAX_KEYS        6
+constexpr u32 HID_BOOT_KBD_MAX_KEYS = 6;
 
 // Boot mouse report (USB HID 1.11 §B.2):
 //   byte 0       — buttons[0..7]; bit 0 = left, 1 = right, 2 = middle
@@ -40,19 +40,23 @@
 //                                    report including wheel)
 
 // Modifier byte bits (USB HID Usage Table §10).
-#define HID_MOD_LCTRL                (1u << 0)
-#define HID_MOD_LSHIFT               (1u << 1)
-#define HID_MOD_LALT                 (1u << 2)
-#define HID_MOD_LGUI                 (1u << 3)
-#define HID_MOD_RCTRL                (1u << 4)
-#define HID_MOD_RSHIFT               (1u << 5)
-#define HID_MOD_RALT                 (1u << 6)
-#define HID_MOD_RGUI                 (1u << 7)
+enum {
+    HID_MOD_LCTRL = (1u << 0),
+    HID_MOD_LSHIFT = (1u << 1),
+    HID_MOD_LALT = (1u << 2),
+    HID_MOD_LGUI = (1u << 3),
+    HID_MOD_RCTRL = (1u << 4),
+    HID_MOD_RSHIFT = (1u << 5),
+    HID_MOD_RALT = (1u << 6),
+    HID_MOD_RGUI = (1u << 7),
+};
 
 // Mouse button bits.
-#define HID_MOUSE_BTN_LEFT           (1u << 0)
-#define HID_MOUSE_BTN_RIGHT          (1u << 1)
-#define HID_MOUSE_BTN_MIDDLE         (1u << 2)
+enum {
+    HID_MOUSE_BTN_LEFT = (1u << 0),
+    HID_MOUSE_BTN_RIGHT = (1u << 1),
+    HID_MOUSE_BTN_MIDDLE = (1u << 2),
+};
 
 // ---- V36+ IECLASS_RAW* surface --------------------------------------------
 //
@@ -62,49 +66,52 @@
 // here; for now the decoders just produce the field values.
 //
 // IEQUALIFIER bits (kept as canonical Amiga values).
-
-#define IEQUALIFIER_LSHIFT           0x0001
-#define IEQUALIFIER_RSHIFT           0x0002
-#define IEQUALIFIER_CAPSLOCK         0x0004
-#define IEQUALIFIER_CONTROL          0x0008
-#define IEQUALIFIER_LALT             0x0010
-#define IEQUALIFIER_RALT             0x0020
-#define IEQUALIFIER_LCOMMAND         0x0040     // left Amiga / Win
-#define IEQUALIFIER_RCOMMAND         0x0080     // right Amiga / Win
-#define IEQUALIFIER_NUMERICPAD       0x0100
-#define IEQUALIFIER_REPEAT           0x0200
-#define IEQUALIFIER_INTERRUPT        0x0400
-#define IEQUALIFIER_MULTIBROADCAST   0x0800
-#define IEQUALIFIER_MIDBUTTON        0x1000
-#define IEQUALIFIER_RBUTTON          0x2000
-#define IEQUALIFIER_LEFTBUTTON       0x4000
-#define IEQUALIFIER_RELATIVEMOUSE    0x8000
+enum {
+    IEQUALIFIER_LSHIFT = 0x0001,
+    IEQUALIFIER_RSHIFT = 0x0002,
+    IEQUALIFIER_CAPSLOCK = 0x0004,
+    IEQUALIFIER_CONTROL = 0x0008,
+    IEQUALIFIER_LALT = 0x0010,
+    IEQUALIFIER_RALT = 0x0020,
+    IEQUALIFIER_LCOMMAND = 0x0040, // left Amiga / Win
+    IEQUALIFIER_RCOMMAND = 0x0080, // right Amiga / Win
+    IEQUALIFIER_NUMERICPAD = 0x0100,
+    IEQUALIFIER_REPEAT = 0x0200,
+    IEQUALIFIER_INTERRUPT = 0x0400,
+    IEQUALIFIER_MULTIBROADCAST = 0x0800,
+    IEQUALIFIER_MIDBUTTON = 0x1000,
+    IEQUALIFIER_RBUTTON = 0x2000,
+    IEQUALIFIER_LEFTBUTTON = 0x4000,
+    IEQUALIFIER_RELATIVEMOUSE = 0x8000,
+};
 
 // IECLASS_RAWKEY: ie_Code carries the V36+ rawkey number, with bit 7
 // indicating up-stroke (key release). RAWKEY codes < 0x80 are the
 // hardware-set; bit 7 is the up-stroke flag.
-#define IECODE_UP_PREFIX             0x80
+constexpr u8 IECODE_UP_PREFIX = 0x80;
 
 // IECLASS_RAWMOUSE: ie_Code carries one of these subtypes for button
 // transitions; mouse-move events use IECODE_NOBUTTON and rely on
 // ie_X / ie_Y deltas. (Values match V36+ <devices/inputevent.h>.)
-#define IECODE_NOBUTTON              0xFF
-#define IECODE_LBUTTON               0x68
-#define IECODE_RBUTTON               0x69
-#define IECODE_MBUTTON               0x6A
+enum {
+    IECODE_NOBUTTON = 0xFF,
+    IECODE_LBUTTON = 0x68,
+    IECODE_RBUTTON = 0x69,
+    IECODE_MBUTTON = 0x6A,
+};
 
 // V36+ rawkey value returned from Croi_Hid_UsageToRawKey when a USB
 // HID Usage ID has no Amiga equivalent (e.g. PrintScreen). Callers
 // drop these events.
-#define CARA_RAWKEY_NONE             0xFFu
+constexpr u8 CARA_RAWKEY_NONE = 0xFFu;
 
 // ---- Decoded report structs ----------------------------------------------
 
 struct CaraHidMouseReport {
-    u8  buttons;                       // HID_MOUSE_BTN_* bitmap
-    i8  dx;                            // X delta (8-bit signed)
-    i8  dy;                            // Y delta (8-bit signed)
-    i8  wheel;                         // wheel delta (0 if not present)
+    u8 buttons; // HID_MOUSE_BTN_* bitmap
+    i8 dx;      // X delta (8-bit signed)
+    i8 dy;      // Y delta (8-bit signed)
+    i8 wheel;   // wheel delta (0 if not present)
     // V36+ IEQUALIFIER bits derived from `buttons` (LEFTBUTTON /
     // RBUTTON / MIDBUTTON ORed in for currently-held buttons,
     // plus IEQUALIFIER_RELATIVEMOUSE always since boot reports are
@@ -113,8 +120,8 @@ struct CaraHidMouseReport {
 };
 
 struct CaraHidKeyboardReport {
-    u8  modifiers;                     // HID_MOD_* bitmap (raw byte 0)
-    u8  keys[HID_BOOT_KBD_MAX_KEYS];   // up to 6 Usage IDs (raw bytes 2..7)
+    u8 modifiers;                   // HID_MOD_* bitmap (raw byte 0)
+    u8 keys[HID_BOOT_KBD_MAX_KEYS]; // up to 6 Usage IDs (raw bytes 2..7)
     // V36+ IEQUALIFIER bits derived from `modifiers`.
     u16 ie_qualifier;
 };

@@ -20,7 +20,7 @@ static u64 *alloc_pt_page(void)
     if (phys == 0) {
         return nullptr;
     }
-    return (u64 *)Mm_PhysToVirt(phys);   // Page_Alloc already zeroed it
+    return (u64 *)Mm_PhysToVirt(phys); // Page_Alloc already zeroed it
 }
 
 static void free_pt_page(u64 *page)
@@ -40,7 +40,7 @@ static inline u64 make_leaf(u64 pa, u64 flags)
 
 static inline u64 make_intermediate(u64 child_pa)
 {
-    return ((child_pa >> 12) << 10) | PTE_V;     // V only; no R/W/X => non-leaf
+    return ((child_pa >> 12) << 10) | PTE_V; // V only; no R/W/X => non-leaf
 }
 
 static inline u64 *pte_child(u64 pte)
@@ -93,7 +93,7 @@ static u16 g_next_asid = 1;
 static void free_subtable(u64 *table, int level)
 {
     if (level == 0) {
-        return;     // L0 leaves are 4 KiB pages; not separately tracked
+        return; // L0 leaves are 4 KiB pages; not separately tracked
     }
     for (u32 i = 0; i < ENTRIES_PER_TABLE; i++) {
         u64 pte = table[i];
@@ -145,7 +145,7 @@ void Croi_DestroyPT(struct PageTable *pt)
 
     // Walk L2 → L1 → L0, allocating intermediate tables on the way.
     u64 *l2 = pt->root;
-    u64  l2_pte = l2[i2];
+    u64 l2_pte = l2[i2];
 
     u64 *l1 = nullptr;
     if (!pte_present(l2_pte)) {
@@ -161,7 +161,7 @@ void Croi_DestroyPT(struct PageTable *pt)
         l1 = pte_child(l2_pte);
     }
 
-    u64  l1_pte = l1[i1];
+    u64 l1_pte = l1[i1];
     u64 *l0 = nullptr;
     if (!pte_present(l1_pte)) {
         l0 = alloc_pt_page();
@@ -170,13 +170,13 @@ void Croi_DestroyPT(struct PageTable *pt)
         }
         l1[i1] = make_intermediate(Mm_VirtToPhys(l0));
     } else if (pte_is_leaf(l1_pte)) {
-        return CARA_EINVAL;     // 2 MiB leaf — refuse overwrite
+        return CARA_EINVAL; // 2 MiB leaf — refuse overwrite
     } else {
         l0 = pte_child(l1_pte);
     }
 
     if (pte_present(l0[i0])) {
-        return CARA_EINVAL;     // already mapped
+        return CARA_EINVAL; // already mapped
     }
     l0[i0] = make_leaf(pa, prot);
     return CARA_EOK;
@@ -202,7 +202,7 @@ void Croi_DestroyPT(struct PageTable *pt)
 
     u32 i2 = (u32)((va >> 30) & 0x1FFu);
     if (pte_present(root[i2])) {
-        return CARA_EINVAL;     // L2 slot already populated
+        return CARA_EINVAL; // L2 slot already populated
     }
     root[i2] = make_leaf(phys, prot);
 
@@ -217,7 +217,9 @@ void Croi_DestroyPT(struct PageTable *pt)
 // kernel-only so it's gated out for non-RISC-V targets.
 [[nodiscard]] int Croi_Mm_InstallBootPT_1GiBLeaf(u64 va, u64 phys, u64 prot)
 {
-    (void)va; (void)phys; (void)prot;
+    (void)va;
+    (void)phys;
+    (void)prot;
     return CARA_EINVAL;
 }
 #endif

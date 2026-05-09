@@ -38,15 +38,14 @@
 
 struct Library *Croi_MakeLibrary(const struct TagItem *tags)
 {
-    const char *name =
-        (const char *)Croi_GetTagData(tags, MKL_NAME, 0);
-    UWORD version    = (UWORD)Croi_GetTagData(tags, MKL_VERSION, 0);
-    UWORD revision   = (UWORD)Croi_GetTagData(tags, MKL_REVISION, 0);
-    void **vec       = (void **)Croi_GetTagData(tags, MKL_VEC_TABLE, 0);
-    ULONG  vec_count = (ULONG)Croi_GetTagData(tags, MKL_VEC_COUNT, 0);
-    ULONG  priv_size = (ULONG)Croi_GetTagData(tags, MKL_PRIVATE_SIZE, 0);
-    void (*init_fn)(struct Library *) =
-        (void (*)(struct Library *))Croi_GetTagData(tags, MKL_INIT_FN, 0);
+    const char *name = (const char *)Croi_GetTagData(tags, MKL_NAME, 0);
+    UWORD version = (UWORD)Croi_GetTagData(tags, MKL_VERSION, 0);
+    UWORD revision = (UWORD)Croi_GetTagData(tags, MKL_REVISION, 0);
+    void **vec = (void **)Croi_GetTagData(tags, MKL_VEC_TABLE, 0);
+    ULONG vec_count = (ULONG)Croi_GetTagData(tags, MKL_VEC_COUNT, 0);
+    ULONG priv_size = (ULONG)Croi_GetTagData(tags, MKL_PRIVATE_SIZE, 0);
+    void (*init_fn)(struct Library *) = (void (*)(struct Library *))Croi_GetTagData(tags,
+                                                                                    MKL_INIT_FN, 0);
     // MKL_BASE is the user-view (what user code sees and what we
     // store in the registry). MKL_BASE_KERNEL_WRITE is the
     // kernel-view used for construction-time writes (since the
@@ -54,10 +53,8 @@ struct Library *Croi_MakeLibrary(const struct TagItem *tags)
     // libraries). When MKL_BASE_KERNEL_WRITE is absent we write
     // through MKL_BASE (the heap-allocated case where the views
     // coincide).
-    struct Library *base =
-        (struct Library *)Croi_GetTagData(tags, MKL_BASE, 0);
-    struct Library *kwrite =
-        (struct Library *)Croi_GetTagData(tags, MKL_BASE_KERNEL_WRITE, 0);
+    struct Library *base = (struct Library *)Croi_GetTagData(tags, MKL_BASE, 0);
+    struct Library *kwrite = (struct Library *)Croi_GetTagData(tags, MKL_BASE_KERNEL_WRITE, 0);
 
     if (!name) {
         LOG_FATAL("mklib", "Croi_MakeLibrary: missing MKL_NAME");
@@ -84,8 +81,8 @@ struct Library *Croi_MakeLibrary(const struct TagItem *tags)
         // and user-view coincide here.
         u8 *block = (u8 *)Croi_Alloc((usize)neg_size + (usize)pos_size);
         if (!block) {
-            LOG_FATAL("mklib", "%s: heap alloc failed (%u + %u bytes)",
-                      name, (unsigned)neg_size, (unsigned)pos_size);
+            LOG_FATAL("mklib", "%s: heap alloc failed (%u + %u bytes)", name, (unsigned)neg_size,
+                      (unsigned)pos_size);
             return nullptr;
         }
         base = (struct Library *)(block + neg_size);
@@ -107,19 +104,19 @@ struct Library *Croi_MakeLibrary(const struct TagItem *tags)
     // per the public ABI; the cast through (uintptr_t) makes the
     // const-strip from `const char *name` explicit.
     kwrite->lib_Node.ln_Type = NT_LIBRARY;
-    kwrite->lib_Node.ln_Pri  = 0;
+    kwrite->lib_Node.ln_Pri = 0;
     kwrite->lib_Node.ln_Name = (char *)(uintptr_t)name;
-    kwrite->lib_Node.ln_Succ = nullptr;          // set by Croi_RegisterLibrary
+    kwrite->lib_Node.ln_Succ = nullptr; // set by Croi_RegisterLibrary
     kwrite->lib_Node.ln_Pred = nullptr;
-    kwrite->lib_Flags        = 0;
-    kwrite->lib_pad          = 0;
-    kwrite->lib_NegSize      = neg_size;
-    kwrite->lib_PosSize      = pos_size;
-    kwrite->lib_Version      = version;
-    kwrite->lib_Revision     = revision;
-    kwrite->lib_IdString     = (APTR)(uintptr_t)name;
-    kwrite->lib_Sum          = 0;
-    kwrite->lib_OpenCnt      = 0;
+    kwrite->lib_Flags = 0;
+    kwrite->lib_pad = 0;
+    kwrite->lib_NegSize = neg_size;
+    kwrite->lib_PosSize = pos_size;
+    kwrite->lib_Version = version;
+    kwrite->lib_Revision = revision;
+    kwrite->lib_IdString = (APTR)(uintptr_t)name;
+    kwrite->lib_Sum = 0;
+    kwrite->lib_OpenCnt = 0;
 
     // Zero the private state past the public prefix so the library's
     // own init_fn sees a clean slate.
@@ -142,11 +139,8 @@ struct Library *Croi_MakeLibrary(const struct TagItem *tags)
         init_fn(base);
     }
 
-    LOG_INFO("mklib",
-             "registered '%s' V%u.%u (neg=%u, pos=%u, user=0x%llx, kw=0x%llx)",
-             name, (unsigned)version, (unsigned)revision,
-             (unsigned)neg_size, (unsigned)pos_size,
+    LOG_INFO("mklib", "registered '%s' V%u.%u (neg=%u, pos=%u, user=0x%llx, kw=0x%llx)", name,
+             (unsigned)version, (unsigned)revision, (unsigned)neg_size, (unsigned)pos_size,
              (u64)(uptr)base, (u64)(uptr)kwrite);
     return base;
 }
-

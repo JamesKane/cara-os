@@ -32,10 +32,8 @@
 KERNEL_TEST(exec_lib_smoke)
 {
     // ---- 1. registry lookup --------------------------------------------
-    struct Library *base =
-        Croi_OpenLibrary_Impl((STRPTR)(uintptr_t)"exec.library", 36);
-    TEST_ASSERT(ctx, base != nullptr,
-                "OpenLibrary('exec.library', 36) returned null");
+    struct Library *base = Croi_OpenLibrary_Impl((STRPTR)(uintptr_t)"exec.library", 36);
+    TEST_ASSERT(ctx, base != nullptr, "OpenLibrary('exec.library', 36) returned null");
 
     // OpenLibrary returns the user-view base (0x4000_0800) so it
     // matches what user-mode code sees through SysBase. The kernel
@@ -50,8 +48,7 @@ KERNEL_TEST(exec_lib_smoke)
 
     // ---- 3. OpenCnt bumps via OpenLibrary, decrements via Close --------
     UWORD cnt_after_open = base->lib_OpenCnt;
-    TEST_ASSERT(ctx, cnt_after_open >= 1,
-                "lib_OpenCnt did not increment on OpenLibrary");
+    TEST_ASSERT(ctx, cnt_after_open >= 1, "lib_OpenCnt did not increment on OpenLibrary");
 
     Croi_CloseLibrary_Impl(base);
     TEST_ASSERT(ctx, base->lib_OpenCnt == cnt_after_open - 1,
@@ -63,16 +60,14 @@ KERNEL_TEST(exec_lib_smoke)
     // .lib_text.exec section of the .exec_lib region, mapped at
     // user VA 0x4000_0000+).
     void **vec = (void **)base;
-    void  *open_lib_target = vec[-1 - 91];
+    void *open_lib_target = vec[-1 - 91];
     TEST_ASSERT(ctx,
-                ((u64)(uptr)open_lib_target & ~0xFFFFull) ==
-                (CARA_EXEC_LIB_USER_VA & ~0xFFFFull),
+                ((u64)(uptr)open_lib_target & ~0xFFFFull) == (CARA_EXEC_LIB_USER_VA & ~0xFFFFull),
                 "vec[OpenLibrary] does not point into 0x4000_0000+");
 
     // ---- 5. AllocMem with MEMF_CLEAR returns zeroed memory ------------
     APTR mem = Croi_AllocMem_Impl(64, MEMF_CLEAR);
-    TEST_ASSERT(ctx, mem != nullptr,
-                "AllocMem(64, MEMF_CLEAR) returned null");
+    TEST_ASSERT(ctx, mem != nullptr, "AllocMem(64, MEMF_CLEAR) returned null");
 
     u8 *bytes = (u8 *)mem;
     for (int i = 0; i < 64; i++) {

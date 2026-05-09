@@ -26,8 +26,7 @@
 #include <cara/pci.h>
 #include <cara/types.h>
 
-static volatile u8 *
-ecam_addr(const struct PciHostBridge *b, u8 bus, u8 dev, u8 fn, u16 off)
+static volatile u8 *ecam_addr(const struct PciHostBridge *b, u8 bus, u8 dev, u8 fn, u16 off)
 {
     if (!b || b->ecam_base == 0) {
         return nullptr;
@@ -38,11 +37,7 @@ ecam_addr(const struct PciHostBridge *b, u8 bus, u8 dev, u8 fn, u16 off)
     if (dev > 31 || fn > 7 || off >= 4096) {
         return nullptr;
     }
-    u64 phys = b->ecam_base
-             + ((u64)bus << 20)
-             + ((u64)dev << 15)
-             + ((u64)fn  << 12)
-             + (u64)off;
+    u64 phys = b->ecam_base + ((u64)bus << 20) + ((u64)dev << 15) + ((u64)fn << 12) + (u64)off;
     return (volatile u8 *)Mm_PhysToVirt(phys);
 }
 
@@ -72,8 +67,7 @@ u32 Croi_Pci_Read32(const struct PciHostBridge *b, u8 bus, u8 dev, u8 fn, u16 of
     return *(volatile u32 *)p;
 }
 
-void Croi_Pci_Write8(const struct PciHostBridge *b, u8 bus, u8 dev, u8 fn,
-                     u16 off, u8 v)
+void Croi_Pci_Write8(const struct PciHostBridge *b, u8 bus, u8 dev, u8 fn, u16 off, u8 v)
 {
     volatile u8 *p = ecam_addr(b, bus, dev, fn, off);
     if (p) {
@@ -81,8 +75,7 @@ void Croi_Pci_Write8(const struct PciHostBridge *b, u8 bus, u8 dev, u8 fn,
     }
 }
 
-void Croi_Pci_Write16(const struct PciHostBridge *b, u8 bus, u8 dev, u8 fn,
-                      u16 off, u16 v)
+void Croi_Pci_Write16(const struct PciHostBridge *b, u8 bus, u8 dev, u8 fn, u16 off, u16 v)
 {
     volatile u8 *p = ecam_addr(b, bus, dev, fn, off);
     if (p) {
@@ -90,8 +83,7 @@ void Croi_Pci_Write16(const struct PciHostBridge *b, u8 bus, u8 dev, u8 fn,
     }
 }
 
-void Croi_Pci_Write32(const struct PciHostBridge *b, u8 bus, u8 dev, u8 fn,
-                      u16 off, u32 v)
+void Croi_Pci_Write32(const struct PciHostBridge *b, u8 bus, u8 dev, u8 fn, u16 off, u32 v)
 {
     volatile u8 *p = ecam_addr(b, bus, dev, fn, off);
     if (p) {

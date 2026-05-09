@@ -21,27 +21,26 @@
 #include <stdatomic.h>
 
 struct CARA_ALIGNED(CARA_CACHELINE) RingHeader {
-    _Atomic u32 head;                      // producer writes
-    char       _pad0[CARA_CACHELINE - sizeof(_Atomic u32)];
-    _Atomic u32 tail;                      // consumer writes
-    char       _pad1[CARA_CACHELINE - sizeof(_Atomic u32)];
-    u32        capacity;                   // power of 2
-    u32        mask;                       // capacity - 1
-    u64        signal_kobj;                // SIGNAL kobj id for wake; 0 if none
+    _Atomic u32 head; // producer writes
+    char _pad0[CARA_CACHELINE - sizeof(_Atomic u32)];
+    _Atomic u32 tail; // consumer writes
+    char _pad1[CARA_CACHELINE - sizeof(_Atomic u32)];
+    u32 capacity;    // power of 2
+    u32 mask;        // capacity - 1
+    u64 signal_kobj; // SIGNAL kobj id for wake; 0 if none
 };
 
 struct RingSlot {
-    u32   kind;
-    u32   length;
-    uptr  payload;
-    u64   reserved;
+    u32 kind;
+    u32 length;
+    uptr payload;
+    u64 reserved;
 };
 
 // Initialise an empty ring. capacity must be a non-zero power of two.
 // signal_kobj is opaque to ring.h; the kernel uses it to identify the
 // SIGNAL Kobj on which a sleeping peer is parked.
-[[nodiscard]] static inline int
-Ring_Init(struct RingHeader *r, u32 capacity, u64 signal_kobj)
+[[nodiscard]] static inline int Ring_Init(struct RingHeader *r, u32 capacity, u64 signal_kobj)
 {
     if (capacity == 0 || (capacity & (capacity - 1)) != 0) {
         return CARA_EINVAL;
@@ -58,9 +57,8 @@ Ring_Init(struct RingHeader *r, u32 capacity, u64 signal_kobj)
 // is set to true exactly when the enqueue moved the queue from empty to
 // non-empty — i.e. when the consumer side may need a wake-up. May be
 // nullptr if the caller doesn't care.
-[[nodiscard]] static inline bool
-Ring_Enqueue(struct RingHeader *r, struct RingSlot *slots,
-             struct RingSlot v, bool *signal_needed_out)
+[[nodiscard]] static inline bool Ring_Enqueue(struct RingHeader *r, struct RingSlot *slots,
+                                              struct RingSlot v, bool *signal_needed_out)
 {
     u32 head = atomic_load_explicit(&r->head, memory_order_relaxed);
     u32 tail = atomic_load_explicit(&r->tail, memory_order_acquire);
@@ -82,9 +80,8 @@ Ring_Enqueue(struct RingHeader *r, struct RingSlot *slots,
 }
 
 // Consumer side. Returns true on success; false if empty.
-[[nodiscard]] static inline bool
-Ring_Dequeue(struct RingHeader *r, const struct RingSlot *slots,
-             struct RingSlot *out)
+[[nodiscard]] static inline bool Ring_Dequeue(struct RingHeader *r, const struct RingSlot *slots,
+                                              struct RingSlot *out)
 {
     u32 tail = atomic_load_explicit(&r->tail, memory_order_relaxed);
     u32 head = atomic_load_explicit(&r->head, memory_order_acquire);
@@ -98,22 +95,19 @@ Ring_Dequeue(struct RingHeader *r, const struct RingSlot *slots,
     return true;
 }
 
-[[nodiscard]] static inline u32
-Ring_Count(const struct RingHeader *r)
+[[nodiscard]] static inline u32 Ring_Count(const struct RingHeader *r)
 {
     u32 head = atomic_load_explicit(&r->head, memory_order_acquire);
     u32 tail = atomic_load_explicit(&r->tail, memory_order_acquire);
     return head - tail;
 }
 
-[[nodiscard]] static inline bool
-Ring_IsEmpty(const struct RingHeader *r)
+[[nodiscard]] static inline bool Ring_IsEmpty(const struct RingHeader *r)
 {
     return Ring_Count(r) == 0;
 }
 
-[[nodiscard]] static inline bool
-Ring_IsFull(const struct RingHeader *r)
+[[nodiscard]] static inline bool Ring_IsFull(const struct RingHeader *r)
 {
     return Ring_Count(r) >= r->capacity;
 }

@@ -14,26 +14,26 @@ extern struct PageAllocator g_page_alloc;
 
 // ---- ELF64 layout (System V ABI) ------------------------------------------
 
-#define EI_MAG0      0
-#define EI_MAG1      1
-#define EI_MAG2      2
-#define EI_MAG3      3
-#define EI_CLASS     4
-#define EI_DATA      5
+#define EI_MAG0 0
+#define EI_MAG1 1
+#define EI_MAG2 2
+#define EI_MAG3 3
+#define EI_CLASS 4
+#define EI_DATA 5
 
-#define ELFCLASS64   2
-#define ELFDATA2LSB  1
-#define ET_EXEC      2
-#define EM_RISCV     243
+#define ELFCLASS64 2
+#define ELFDATA2LSB 1
+#define ET_EXEC 2
+#define EM_RISCV 243
 
-#define PT_LOAD      1
+#define PT_LOAD 1
 
-#define PF_X         0x1
-#define PF_W         0x2
-#define PF_R         0x4
+#define PF_X 0x1
+#define PF_W 0x2
+#define PF_R 0x4
 
 struct Elf64Header {
-    u8  e_ident[16];
+    u8 e_ident[16];
     u16 e_type;
     u16 e_machine;
     u32 e_version;
@@ -92,8 +92,8 @@ static int validate_header(const struct Elf64Header *h, usize size)
     if (size < sizeof(struct Elf64Header)) {
         return CARA_EINVAL;
     }
-    if (h->e_ident[EI_MAG0] != 0x7F || h->e_ident[EI_MAG1] != 'E'
-        || h->e_ident[EI_MAG2] != 'L' || h->e_ident[EI_MAG3] != 'F') {
+    if (h->e_ident[EI_MAG0] != 0x7F || h->e_ident[EI_MAG1] != 'E' || h->e_ident[EI_MAG2] != 'L' ||
+        h->e_ident[EI_MAG3] != 'F') {
         return CARA_EBADMAGIC;
     }
     if (h->e_ident[EI_CLASS] != ELFCLASS64) {
@@ -119,12 +119,10 @@ static int validate_header(const struct Elf64Header *h, usize size)
 }
 
 // Lay one PT_LOAD segment down into the user PT.
-[[nodiscard]] static int load_segment(const u8 *blob, usize blob_size,
-                                      const struct Elf64Phdr *p,
+[[nodiscard]] static int load_segment(const u8 *blob, usize blob_size, const struct Elf64Phdr *p,
                                       struct PageTable *pt)
 {
-    if (p->p_offset + p->p_filesz > blob_size
-        || p->p_offset + p->p_filesz < p->p_offset) {
+    if (p->p_offset + p->p_filesz > blob_size || p->p_offset + p->p_filesz < p->p_offset) {
         return CARA_ERANGE;
     }
     if (p->p_memsz < p->p_filesz) {
@@ -136,11 +134,11 @@ static int validate_header(const struct Elf64Header *h, usize size)
     u32 n_pages = (u32)((va_hi - va_lo) / CARA_PAGE_SIZE);
     u64 prot = prot_from_flags(p->p_flags);
 
-    LOG_DEBUG("elf ", "PT_LOAD vaddr=0x%llx filesz=%llu memsz=%llu flags=0x%x pages=%u",
-              p->p_vaddr, p->p_filesz, p->p_memsz, p->p_flags, n_pages);
+    LOG_DEBUG("elf ", "PT_LOAD vaddr=0x%llx filesz=%llu memsz=%llu flags=0x%x pages=%u", p->p_vaddr,
+              p->p_filesz, p->p_memsz, p->p_flags, n_pages);
 
     u64 seg_first = p->p_vaddr;
-    u64 seg_file_last = p->p_vaddr + p->p_filesz;       // exclusive
+    u64 seg_file_last = p->p_vaddr + p->p_filesz; // exclusive
 
     for (u32 j = 0; j < n_pages; j++) {
         u64 phys = Page_Alloc(&g_page_alloc, 1);
@@ -177,8 +175,8 @@ static int validate_header(const struct Elf64Header *h, usize size)
     return CARA_EOK;
 }
 
-[[nodiscard]] int Croi_LoadElf(const void *blob, usize size,
-                               struct PageTable *pt, u64 *entry_va_out)
+[[nodiscard]] int Croi_LoadElf(const void *blob, usize size, struct PageTable *pt,
+                               u64 *entry_va_out)
 {
     if (!blob || !pt || !entry_va_out) {
         return CARA_EINVAL;
@@ -190,13 +188,11 @@ static int validate_header(const struct Elf64Header *h, usize size)
     if (rc != CARA_EOK) {
         return rc;
     }
-    LOG_DEBUG("elf ", "ET_EXEC RISCV entry=0x%llx phnum=%u", h->e_entry,
-              h->e_phnum);
+    LOG_DEBUG("elf ", "ET_EXEC RISCV entry=0x%llx phnum=%u", h->e_entry, h->e_phnum);
 
     for (u32 i = 0; i < h->e_phnum; i++) {
-        const struct Elf64Phdr *p = (const struct Elf64Phdr *)(bytes + h->e_phoff
-                                                               + (u64)i
-                                                                   * h->e_phentsize);
+        const struct Elf64Phdr *p =
+            (const struct Elf64Phdr *)(bytes + h->e_phoff + (u64)i * h->e_phentsize);
         if (p->p_type != PT_LOAD) {
             continue;
         }

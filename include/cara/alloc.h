@@ -12,13 +12,13 @@
 #include <cara/mm.h>
 #include <cara/types.h>
 
-#define CARA_HEAP_NUM_CLASSES 8     // 16, 32, 64, 128, 256, 512, 1024, 2048
+constexpr u32 CARA_HEAP_NUM_CLASSES = 8; // 16, 32, 64, 128, 256, 512, 1024, 2048
 
 struct HeapClass {
-    u32 obj_size;          // bytes per object in this class
-    u32 in_flight;         // currently allocated objects
+    u32 obj_size;  // bytes per object in this class
+    u32 in_flight; // currently allocated objects
     u32 peak_in_flight;
-    void *free_head;       // singly-linked free objects (next ptr at object[0..7])
+    void *free_head; // singly-linked free objects (next ptr at object[0..7])
     struct MinList slab_pages;
 };
 

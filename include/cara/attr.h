@@ -8,16 +8,16 @@
 #ifndef CARA_ATTR_H
 #define CARA_ATTR_H
 
-#define CARA_NORETURN  [[noreturn]]
-#define CARA_UNUSED    [[maybe_unused]]
+#define CARA_NORETURN [[noreturn]]
+#define CARA_UNUSED [[maybe_unused]]
 #define CARA_NODISCARD [[nodiscard]]
 
-#define CARA_PACKED      [[gnu::packed]]
-#define CARA_ALIGNED(N)  [[gnu::aligned(N)]]
-#define CARA_USED        [[gnu::used]]
-#define CARA_NAKED       [[gnu::naked]]
-#define CARA_SECTION(S)  [[gnu::section(S)]]
+#define CARA_PACKED [[gnu::packed]]
+#define CARA_ALIGNED(N) [[gnu::aligned(N)]]
+#define CARA_USED [[gnu::used]]
+#define CARA_NAKED [[gnu::naked]]
+#define CARA_SECTION(S) [[gnu::section(S)]]
 
-#define CARA_CACHELINE 64
+constexpr unsigned int CARA_CACHELINE = 64;
 
 #endif

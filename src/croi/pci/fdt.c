@@ -16,9 +16,10 @@
 //       reg             = <0x00 0x30000000 0x00 0x10000000>;     // 256 MiB ECAM
 //       bus-range       = <0x00 0xff>;
 //       ranges          = <
-//           0x01000000 0x00 0x00000000  0x00 0x03000000  0x00 0x00010000  // I/O 64 KiB @ CPU 0x03000000
-//           0x02000000 0x00 0x40000000  0x00 0x40000000  0x00 0x40000000  // MEM32 1 GiB @ CPU 0x40000000
-//           0x03000000 0x04 0x00000000  0x04 0x00000000  0x04 0x00000000  // MEM64 16 GiB @ CPU 0x400000000
+//           0x01000000 0x00 0x00000000  0x00 0x03000000  0x00 0x00010000  // I/O 64 KiB @ CPU
+//           0x03000000 0x02000000 0x00 0x40000000  0x00 0x40000000  0x00 0x40000000  // MEM32 1 GiB
+//           @ CPU 0x40000000 0x03000000 0x04 0x00000000  0x04 0x00000000  0x04 0x00000000  // MEM64
+//           16 GiB @ CPU 0x400000000
 //       >;
 //       #address-cells  = <0x03>;
 //       #size-cells     = <0x02>;
@@ -48,12 +49,10 @@
 static u32 be32_load(const void *p)
 {
     const u8 *b = (const u8 *)p;
-    return ((u32)b[0] << 24) | ((u32)b[1] << 16)
-         | ((u32)b[2] <<  8) | ((u32)b[3]      );
+    return ((u32)b[0] << 24) | ((u32)b[1] << 16) | ((u32)b[2] << 8) | ((u32)b[3]);
 }
 
-[[nodiscard]] int Croi_Pci_HostBridgeFromFdt(struct PciHostBridge *out,
-                                             const struct Fdt *fdt)
+[[nodiscard]] int Croi_Pci_HostBridgeFromFdt(struct PciHostBridge *out, const struct Fdt *fdt)
 {
     if (!out || !fdt) {
         return CARA_EINVAL;
@@ -83,12 +82,12 @@ static u32 be32_load(const void *p)
         return CARA_EINVAL;
     }
     u32 b_first = be32_load((const u8 *)bytes);
-    u32 b_last  = be32_load((const u8 *)bytes + 4);
+    u32 b_last = be32_load((const u8 *)bytes + 4);
     if (b_first > 0xFF || b_last > 0xFF || b_first > b_last) {
         return CARA_EINVAL;
     }
     out->bus_first = (u8)b_first;
-    out->bus_last  = (u8)b_last;
+    out->bus_last = (u8)b_last;
 
     // ranges — sequence of 7-cell entries.
     rc = Fdt_PropRaw(fdt, node, "ranges", &bytes, &len);
@@ -104,11 +103,11 @@ static u32 be32_load(const void *p)
     }
     const u8 *p = (const u8 *)bytes;
     for (u32 i = 0; i < n_entries; i++) {
-        u32 phys_hi = be32_load(p +  0);
-        u32 phys_mi = be32_load(p +  4);
-        u32 phys_lo = be32_load(p +  8);
-        u32 cpu_hi  = be32_load(p + 12);
-        u32 cpu_lo  = be32_load(p + 16);
+        u32 phys_hi = be32_load(p + 0);
+        u32 phys_mi = be32_load(p + 4);
+        u32 phys_lo = be32_load(p + 8);
+        u32 cpu_hi = be32_load(p + 12);
+        u32 cpu_lo = be32_load(p + 16);
         u32 size_hi = be32_load(p + 20);
         u32 size_lo = be32_load(p + 24);
 
@@ -119,18 +118,24 @@ static u32 be32_load(const void *p)
         case 0: /* config space — not in our table */
             p += 28;
             continue;
-        case 1: kind = PCI_RANGE_IO;    break;
-        case 2: kind = PCI_RANGE_MEM32; break;
-        case 3: kind = PCI_RANGE_MEM64; break;
+        case 1:
+            kind = PCI_RANGE_IO;
+            break;
+        case 2:
+            kind = PCI_RANGE_MEM32;
+            break;
+        case 3:
+            kind = PCI_RANGE_MEM64;
+            break;
         default:
             return CARA_EINVAL;
         }
         out->range[out->n_ranges++] = (struct PciRange){
-            .kind         = kind,
+            .kind = kind,
             .prefetchable = prefetchable,
-            .pci_addr     = ((u64)phys_mi << 32) | (u64)phys_lo,
-            .cpu_addr     = ((u64)cpu_hi  << 32) | (u64)cpu_lo,
-            .size         = ((u64)size_hi << 32) | (u64)size_lo,
+            .pci_addr = ((u64)phys_mi << 32) | (u64)phys_lo,
+            .cpu_addr = ((u64)cpu_hi << 32) | (u64)cpu_lo,
+            .size = ((u64)size_hi << 32) | (u64)size_lo,
         };
         p += 28;
     }

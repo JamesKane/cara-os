@@ -46,8 +46,8 @@ static inline void xhci_op_write32(const struct XhciController *c, u32 off, u32 
     *(volatile u32 *)(c->op_regs + off) = v;
 }
 
-static inline void xhci_op_write64_pair(const struct XhciController *c,
-                                        u32 off_lo, u32 off_hi, u64 v)
+static inline void xhci_op_write64_pair(const struct XhciController *c, u32 off_lo, u32 off_hi,
+                                        u64 v)
 {
     xhci_op_write32(c, off_lo, (u32)(v & 0xFFFFFFFFu));
     xhci_op_write32(c, off_hi, (u32)(v >> 32));
@@ -63,8 +63,8 @@ static inline void xhci_rt_write32(const struct XhciController *c, u32 off, u32 
     *(volatile u32 *)(c->runtime_regs + off) = v;
 }
 
-static inline void xhci_rt_write64_pair(const struct XhciController *c,
-                                        u32 off_lo, u32 off_hi, u64 v)
+static inline void xhci_rt_write64_pair(const struct XhciController *c, u32 off_lo, u32 off_hi,
+                                        u64 v)
 {
     xhci_rt_write32(c, off_lo, (u32)(v & 0xFFFFFFFFu));
     xhci_rt_write32(c, off_hi, (u32)(v >> 32));
@@ -74,8 +74,7 @@ static inline void xhci_rt_write64_pair(const struct XhciController *c,
 // Returns false on timeout. Each iteration reads MMIO; with the
 // inner nop pad this is a few ms of real time on the daily-driver
 // targets — long enough for HCRST + the Run/Stop transition.
-[[nodiscard]] static inline bool
-xhci_spin_for_mask(volatile u32 *reg, u32 mask, u32 expect)
+[[nodiscard]] static inline bool xhci_spin_for_mask(volatile u32 *reg, u32 mask, u32 expect)
 {
     for (u32 i = 0; i < 1000000u; i++) {
         if ((*reg & mask) == expect) {
@@ -91,8 +90,7 @@ xhci_spin_for_mask(volatile u32 *reg, u32 mask, u32 expect)
 // Doorbell write (xHCI 1.2 §5.6). doorbells[0] is the Command
 // Doorbell (write 0); doorbells[slot_id] is the Slot Doorbell
 // (target = endpoint DCI: 1 for EP0, 2*ep+dir for the rest).
-static inline void xhci_doorbell_ring(const struct XhciController *c,
-                                      u32 slot_id, u32 target)
+static inline void xhci_doorbell_ring(const struct XhciController *c, u32 slot_id, u32 target)
 {
     c->doorbells[slot_id] = target;
 }
@@ -100,9 +98,8 @@ static inline void xhci_doorbell_ring(const struct XhciController *c,
 // Write a TRB into a transfer/command ring at index `idx`. The TRB
 // is 4 × u32; bit 0 of the *control* word is the Cycle bit, set per
 // the caller-supplied PCS via OR'ing XHCI_TRB_CYCLE in.
-static inline void xhci_trb_write(volatile u32 *ring, u32 idx,
-                                  u32 p_lo, u32 p_hi,
-                                  u32 status, u32 control)
+static inline void xhci_trb_write(volatile u32 *ring, u32 idx, u32 p_lo, u32 p_hi, u32 status,
+                                  u32 control)
 {
     volatile u32 *trb = &ring[idx * 4];
     trb[0] = p_lo;
@@ -116,14 +113,13 @@ static inline void xhci_trb_write(volatile u32 *ring, u32 idx,
 
 // Read a TRB out of the event ring. Returns the four u32 lanes
 // through *p_lo/*p_hi/*status/*control.
-static inline void xhci_trb_read(const volatile u32 *ring, u32 idx,
-                                 u32 *p_lo, u32 *p_hi,
+static inline void xhci_trb_read(const volatile u32 *ring, u32 idx, u32 *p_lo, u32 *p_hi,
                                  u32 *status, u32 *control)
 {
     const volatile u32 *trb = &ring[idx * 4];
-    *p_lo    = trb[0];
-    *p_hi    = trb[1];
-    *status  = trb[2];
+    *p_lo = trb[0];
+    *p_hi = trb[1];
+    *status = trb[2];
     *control = trb[3];
 }
 

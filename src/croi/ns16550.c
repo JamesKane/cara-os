@@ -5,21 +5,21 @@
 #include <cara/types.h>
 
 enum {
-    NS_THR  = 0, // Transmit Holding (DLAB=0)
-    NS_RBR  = 0, // Receive Buffer (DLAB=0)
-    NS_IER  = 1, // Interrupt Enable (DLAB=0)
-    NS_DLL  = 0, // Divisor Latch Low (DLAB=1)
-    NS_DLM  = 1, // Divisor Latch High (DLAB=1)
-    NS_FCR  = 2, // FIFO Control (write)
-    NS_LCR  = 3, // Line Control
-    NS_MCR  = 4, // Modem Control
-    NS_LSR  = 5, // Line Status (read-only)
+    NS_THR = 0, // Transmit Holding (DLAB=0)
+    NS_RBR = 0, // Receive Buffer (DLAB=0)
+    NS_IER = 1, // Interrupt Enable (DLAB=0)
+    NS_DLL = 0, // Divisor Latch Low (DLAB=1)
+    NS_DLM = 1, // Divisor Latch High (DLAB=1)
+    NS_FCR = 2, // FIFO Control (write)
+    NS_LCR = 3, // Line Control
+    NS_MCR = 4, // Modem Control
+    NS_LSR = 5, // Line Status (read-only)
 };
 
-#define LCR_DLAB     0x80
-#define LCR_8N1      0x03
-#define FCR_FIFO_EN  0x07     // enable FIFO + clear RX/TX
-#define LSR_THRE     0x20     // transmit holding register empty
+#define LCR_DLAB 0x80
+#define LCR_8N1 0x03
+#define FCR_FIFO_EN 0x07 // enable FIFO + clear RX/TX
+#define LSR_THRE 0x20    // transmit holding register empty
 
 static u8 ns_read(const struct Ns16550 *u, u32 reg)
 {
@@ -56,9 +56,9 @@ void ns16550_init(struct Ns16550 *u, u32 clock_hz, u32 baud)
         ns_write(u, NS_DLM, (u8)((div >> 8) & 0xFFu));
     }
     ns_write(u, NS_LCR, LCR_8N1);
-    ns_write(u, NS_IER, 0x00);                        // polled mode
+    ns_write(u, NS_IER, 0x00); // polled mode
     ns_write(u, NS_FCR, FCR_FIFO_EN);
-    ns_write(u, NS_MCR, 0x03);                        // DTR + RTS
+    ns_write(u, NS_MCR, 0x03); // DTR + RTS
 }
 
 void ns16550_putc(struct Ns16550 *u, char c)

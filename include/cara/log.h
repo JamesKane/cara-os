@@ -14,25 +14,25 @@
 
 #include <cara/types.h>
 
-#define CARA_LOG_TAG_LEN 4
-#define CARA_LOG_MSG_LEN 112
-#define CARA_LOG_RECORD_BYTES 128       // 8+1+1+2+4+112 = 128, no padding
-#define CARA_LOG_RING_BYTES (64 * 1024) // 64 KiB → 512 records
+constexpr u32 CARA_LOG_TAG_LEN = 4;
+constexpr u32 CARA_LOG_MSG_LEN = 112;
+constexpr u32 CARA_LOG_RECORD_BYTES = 128;       // 8+1+1+2+4+112 = 128, no padding
+constexpr u32 CARA_LOG_RING_BYTES = (64 * 1024); // 64 KiB → 512 records
 
 typedef enum : u8 {
     LOG_LV_TRACE = 0,
     LOG_LV_DEBUG = 1,
-    LOG_LV_INFO  = 2,
-    LOG_LV_WARN  = 3,
+    LOG_LV_INFO = 2,
+    LOG_LV_WARN = 3,
     LOG_LV_ERROR = 4,
     LOG_LV_FATAL = 5,
 } LogLevel;
 
 struct LogRecord {
-    u64  ts_ns;
-    u8   level;
-    u8   hartid;
-    u16  msg_len;                       // strlen(msg) at write time
+    u64 ts_ns;
+    u8 level;
+    u8 hartid;
+    u16 msg_len; // strlen(msg) at write time
     char tag[CARA_LOG_TAG_LEN];
     char msg[CARA_LOG_MSG_LEN];
 };
@@ -42,10 +42,10 @@ static_assert(sizeof(struct LogRecord) == CARA_LOG_RECORD_BYTES,
 typedef void (*LogEmitFn)(const struct LogRecord *r, void *ctx);
 
 struct LogSink {
-    LogEmitFn  emit;
-    void      *ctx;
-    bool       ansi_capable;
-    u8         min_level;
+    LogEmitFn emit;
+    void *ctx;
+    bool ansi_capable;
+    u8 min_level;
 };
 
 // Initialise the log subsystem. Allocates the ring from the kernel
@@ -67,8 +67,8 @@ void Croi_Log(LogLevel level, const char *tag, const char *fmt, ...);
 
 #define LOG_TRACE(tag, ...) Croi_Log(LOG_LV_TRACE, (tag), __VA_ARGS__)
 #define LOG_DEBUG(tag, ...) Croi_Log(LOG_LV_DEBUG, (tag), __VA_ARGS__)
-#define LOG_INFO(tag, ...)  Croi_Log(LOG_LV_INFO,  (tag), __VA_ARGS__)
-#define LOG_WARN(tag, ...)  Croi_Log(LOG_LV_WARN,  (tag), __VA_ARGS__)
+#define LOG_INFO(tag, ...) Croi_Log(LOG_LV_INFO, (tag), __VA_ARGS__)
+#define LOG_WARN(tag, ...) Croi_Log(LOG_LV_WARN, (tag), __VA_ARGS__)
 #define LOG_ERROR(tag, ...) Croi_Log(LOG_LV_ERROR, (tag), __VA_ARGS__)
 #define LOG_FATAL(tag, ...) Croi_Log(LOG_LV_FATAL, (tag), __VA_ARGS__)
 
@@ -90,14 +90,14 @@ usize Log_FormatHuman(char *out, usize len, const struct LogRecord *r, bool ansi
 // strings or other terminal output. Sinks that aren't ansi_capable
 // pass these through verbatim — wrap them in a runtime check if you
 // need cross-sink uniformity.
-#define LOG_C_RESET   "\x1b[0m"
-#define LOG_C_BOLD    "\x1b[1m"
-#define LOG_C_RED     "\x1b[31m"
-#define LOG_C_GREEN   "\x1b[32m"
-#define LOG_C_YELLOW  "\x1b[33m"
-#define LOG_C_BLUE    "\x1b[34m"
+#define LOG_C_RESET "\x1b[0m"
+#define LOG_C_BOLD "\x1b[1m"
+#define LOG_C_RED "\x1b[31m"
+#define LOG_C_GREEN "\x1b[32m"
+#define LOG_C_YELLOW "\x1b[33m"
+#define LOG_C_BLUE "\x1b[34m"
 #define LOG_C_MAGENTA "\x1b[35m"
-#define LOG_C_CYAN    "\x1b[36m"
+#define LOG_C_CYAN "\x1b[36m"
 
 // Built-in sinks. Pass the corresponding pointer as LogSink.ctx.
 struct Ns16550;

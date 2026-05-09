@@ -22,13 +22,13 @@
 struct Task;
 
 struct CroiMsgPort {
-    struct MsgPort     pub;          // V36+ public part — first field
-    struct Kobj        hdr;          // KOBJ_MSGPORT
+    struct MsgPort pub; // V36+ public part — first field
+    struct Kobj hdr;    // KOBJ_MSGPORT
     struct RingHeader *ring;
-    struct RingSlot   *slots;
-    u32                capacity;
-    struct Task       *owner;
-    u32                signal_bit;
+    struct RingSlot *slots;
+    u32 capacity;
+    struct Task *owner;
+    u32 signal_bit;
 };
 
 #endif

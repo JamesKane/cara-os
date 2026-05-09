@@ -19,8 +19,7 @@
 struct CroiMsgPort;
 struct Task;
 
-[[nodiscard]] struct CroiMsgPort *Croi_CreateMsgPort(struct Task *owner,
-                                                     u32 signal_bit,
+[[nodiscard]] struct CroiMsgPort *Croi_CreateMsgPort(struct Task *owner, u32 signal_bit,
                                                      u32 capacity);
 
 void Croi_DestroyMsgPort(struct CroiMsgPort *p);

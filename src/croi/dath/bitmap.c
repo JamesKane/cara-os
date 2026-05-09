@@ -23,8 +23,8 @@ static u32 bpp_of(DathFormat fmt)
     }
 }
 
-[[nodiscard]] int Dath_AllocBitmap(struct DathFramebuffer *out, u32 width,
-                                   u32 height, DathFormat format)
+[[nodiscard]] int Dath_AllocBitmap(struct DathFramebuffer *out, u32 width, u32 height,
+                                   DathFormat format)
 {
     if (!out || width == 0 || height == 0) {
         return CARA_EINVAL;

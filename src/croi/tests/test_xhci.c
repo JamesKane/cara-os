@@ -17,28 +17,21 @@
 #include <cara/xhci.h>
 
 extern struct XhciController g_xhci;
-extern bool                  g_xhci_probed;
+extern bool g_xhci_probed;
 
 KERNEL_TEST(xhci_smoke)
 {
-    TEST_ASSERT(ctx, g_xhci_probed,
-                "Croi_Xhci_Probe did not run successfully at boot");
+    TEST_ASSERT(ctx, g_xhci_probed, "Croi_Xhci_Probe did not run successfully at boot");
 
     // QEMU's qemu-xhci is xHCI 1.0; HCIVERSION encodes that as
     // 0x0100 (BCD-style major.minor in the high two bytes).
-    TEST_ASSERT(ctx, g_xhci.hci_version >= 0x0100,
-                "HCIVERSION < 0x100 (pre-xHCI 1.0)");
+    TEST_ASSERT(ctx, g_xhci.hci_version >= 0x0100, "HCIVERSION < 0x100 (pre-xHCI 1.0)");
 
-    TEST_ASSERT(ctx, g_xhci.max_slots > 0,
-                "HCSPARAMS1.MaxSlots == 0");
-    TEST_ASSERT(ctx, g_xhci.max_ports > 0,
-                "HCSPARAMS1.MaxPorts == 0");
-    TEST_ASSERT(ctx, g_xhci.bar0_phys != 0,
-                "BAR0 not allocated");
-    TEST_ASSERT(ctx, g_xhci.cap_regs != nullptr,
-                "cap_regs not mapped");
-    TEST_ASSERT(ctx, g_xhci.op_regs > g_xhci.cap_regs,
-                "op_regs offset (CAPLENGTH) zero");
+    TEST_ASSERT(ctx, g_xhci.max_slots > 0, "HCSPARAMS1.MaxSlots == 0");
+    TEST_ASSERT(ctx, g_xhci.max_ports > 0, "HCSPARAMS1.MaxPorts == 0");
+    TEST_ASSERT(ctx, g_xhci.bar0_phys != 0, "BAR0 not allocated");
+    TEST_ASSERT(ctx, g_xhci.cap_regs != nullptr, "cap_regs not mapped");
+    TEST_ASSERT(ctx, g_xhci.op_regs > g_xhci.cap_regs, "op_regs offset (CAPLENGTH) zero");
 
     // Setup-stage assertions: Croi_Xhci_Setup ran in entry.c after
     // Probe, allocated DCBAA / Command Ring / Event Ring / ERST,
@@ -67,17 +60,14 @@ KERNEL_TEST(xhci_smoke)
         if (!g_xhci.slots[sid].in_use) {
             continue;
         }
-        TEST_ASSERT(ctx,
-                    g_xhci.slots[sid].slot_state >= XHCI_SLOT_STATE_ADDRESSED,
+        TEST_ASSERT(ctx, g_xhci.slots[sid].slot_state >= XHCI_SLOT_STATE_ADDRESSED,
                     "slot did not transition to Addressed");
         TEST_ASSERT(ctx, g_xhci.slots[sid].usb_address != 0,
                     "Slot Context USB Device Address still zero");
-        TEST_ASSERT(ctx, g_xhci.dcbaa[sid] != 0,
-                    "DCBAA entry not installed for in-use slot");
+        TEST_ASSERT(ctx, g_xhci.dcbaa[sid] != 0, "DCBAA entry not installed for in-use slot");
         found_addressed = true;
     }
-    TEST_ASSERT(ctx, found_addressed,
-                "no slot reached Addressed state");
+    TEST_ASSERT(ctx, found_addressed, "no slot reached Addressed state");
 
     // UC.1 assertions: each in-use slot has a valid 18-byte USB Device
     // Descriptor read back over EP0. Structural sanity only — VID/PID
@@ -93,17 +83,15 @@ KERNEL_TEST(xhci_smoke)
         TEST_ASSERT(ctx, g_xhci.slots[sid].device_descriptor.valid,
                     "in-use slot missing device descriptor");
         const struct UsbDeviceDescriptor *d =
-            (const struct UsbDeviceDescriptor *)
-                g_xhci.slots[sid].device_descriptor.raw;
+            (const struct UsbDeviceDescriptor *)g_xhci.slots[sid].device_descriptor.raw;
         TEST_ASSERT(ctx, d->bLength == USB_DEVICE_DESCRIPTOR_BYTES,
                     "device descriptor bLength != 18");
         TEST_ASSERT(ctx, d->bDescriptorType == USB_DT_DEVICE,
                     "device descriptor bDescriptorType != DEVICE");
-        TEST_ASSERT(ctx, d->bNumConfigurations >= 1,
-                    "device reports zero configurations");
+        TEST_ASSERT(ctx, d->bNumConfigurations >= 1, "device reports zero configurations");
         TEST_ASSERT(ctx,
-                    d->bMaxPacketSize0 == 8 || d->bMaxPacketSize0 == 16
-                        || d->bMaxPacketSize0 == 32 || d->bMaxPacketSize0 == 64,
+                    d->bMaxPacketSize0 == 8 || d->bMaxPacketSize0 == 16 ||
+                        d->bMaxPacketSize0 == 32 || d->bMaxPacketSize0 == 64,
                     "device EP0 bMaxPacketSize0 not in {8,16,32,64}");
     }
 
@@ -121,9 +109,7 @@ KERNEL_TEST(xhci_smoke)
         }
         TEST_ASSERT(ctx, g_xhci.slots[sid].configuration_descriptor.valid,
                     "in-use slot missing configuration descriptor");
-        TEST_ASSERT(ctx,
-                    g_xhci.slots[sid].configuration_descriptor.bConfigurationValue
-                        != 0,
+        TEST_ASSERT(ctx, g_xhci.slots[sid].configuration_descriptor.bConfigurationValue != 0,
                     "configuration value not parsed");
         TEST_ASSERT(ctx, g_xhci.slots[sid].n_interfaces >= 1,
                     "no interfaces parsed for in-use slot");
@@ -135,10 +121,8 @@ KERNEL_TEST(xhci_smoke)
             if (iface->bInterfaceSubClass != USB_HID_SUBCLASS_BOOT) {
                 continue;
             }
-            TEST_ASSERT(ctx, iface->ep_present,
-                        "HID interface has no interrupt-IN endpoint");
-            TEST_ASSERT(ctx,
-                        (iface->ep_address & USB_EP_DIR_IN) != 0,
+            TEST_ASSERT(ctx, iface->ep_present, "HID interface has no interrupt-IN endpoint");
+            TEST_ASSERT(ctx, (iface->ep_address & USB_EP_DIR_IN) != 0,
                         "HID interrupt endpoint not IN-direction");
             if (iface->bInterfaceProtocol == USB_HID_PROTOCOL_KEYBOARD) {
                 seen_kbd = true;
@@ -147,10 +131,8 @@ KERNEL_TEST(xhci_smoke)
             }
         }
     }
-    TEST_ASSERT(ctx, seen_kbd,
-                "no HID/Boot/Keyboard interface found across all slots");
-    TEST_ASSERT(ctx, seen_mouse,
-                "no HID/Boot/Mouse interface found across all slots");
+    TEST_ASSERT(ctx, seen_kbd, "no HID/Boot/Keyboard interface found across all slots");
+    TEST_ASSERT(ctx, seen_mouse, "no HID/Boot/Mouse interface found across all slots");
 
     // UC.3 assertions: every parsed-config slot has been driven through
     // SET_CONFIGURATION over EP0 and reports usb_configured = true.
@@ -172,10 +154,8 @@ KERNEL_TEST(xhci_smoke)
     // boot keyboard and one boot mouse (matching the QEMU usb-kbd /
     // usb-mouse pair). Every interface should have its dispatch field
     // resolved away from XHCI_HID_NONE.
-    TEST_ASSERT(ctx, g_xhci.n_hid_keyboards >= 1,
-                "expected >= 1 dispatched HID/Boot/Keyboard");
-    TEST_ASSERT(ctx, g_xhci.n_hid_mice >= 1,
-                "expected >= 1 dispatched HID/Boot/Mouse");
+    TEST_ASSERT(ctx, g_xhci.n_hid_keyboards >= 1, "expected >= 1 dispatched HID/Boot/Keyboard");
+    TEST_ASSERT(ctx, g_xhci.n_hid_mice >= 1, "expected >= 1 dispatched HID/Boot/Mouse");
     for (u32 sid = 1; sid <= CARA_XHCI_MAX_SLOTS; sid++) {
         if (!g_xhci.slots[sid].in_use) {
             continue;
@@ -202,8 +182,7 @@ KERNEL_TEST(xhci_smoke)
         bool any_hid = false;
         for (u32 j = 0; j < g_xhci.slots[sid].n_interfaces; j++) {
             const auto iface = &g_xhci.slots[sid].interfaces[j];
-            if (iface->dispatch != XHCI_HID_KEYBOARD
-                && iface->dispatch != XHCI_HID_MOUSE) {
+            if (iface->dispatch != XHCI_HID_KEYBOARD && iface->dispatch != XHCI_HID_MOUSE) {
                 continue;
             }
             any_hid = true;
@@ -211,19 +190,15 @@ KERNEL_TEST(xhci_smoke)
                         "HID interface failed Configure Endpoint Command");
             TEST_ASSERT(ctx, iface->int_ep_dci >= 2,
                         "HID interface DCI < 2 (collides with EP0/Slot)");
-            TEST_ASSERT(ctx, iface->int_ring_phys != 0,
-                        "HID interface int-IN ring not allocated");
-            TEST_ASSERT(ctx, iface->int_ring != nullptr,
-                        "HID interface int-IN ring kva null");
+            TEST_ASSERT(ctx, iface->int_ring_phys != 0, "HID interface int-IN ring not allocated");
+            TEST_ASSERT(ctx, iface->int_ring != nullptr, "HID interface int-IN ring kva null");
             TEST_ASSERT(ctx, iface->int_buf_phys != 0,
                         "HID interface int-IN scratch buffer not allocated");
             TEST_ASSERT(ctx, iface->int_buf != nullptr,
                         "HID interface int-IN scratch buffer kva null");
         }
         if (any_hid) {
-            TEST_ASSERT(ctx,
-                        g_xhci.slots[sid].slot_state
-                            == XHCI_SLOT_STATE_CONFIGURED,
+            TEST_ASSERT(ctx, g_xhci.slots[sid].slot_state == XHCI_SLOT_STATE_CONFIGURED,
                         "HID slot did not transition to Configured");
         }
     }
@@ -237,8 +212,7 @@ KERNEL_TEST(xhci_smoke)
         }
         for (u32 j = 0; j < g_xhci.slots[sid].n_interfaces; j++) {
             const auto iface = &g_xhci.slots[sid].interfaces[j];
-            if (iface->dispatch != XHCI_HID_KEYBOARD
-                && iface->dispatch != XHCI_HID_MOUSE) {
+            if (iface->dispatch != XHCI_HID_KEYBOARD && iface->dispatch != XHCI_HID_MOUSE) {
                 continue;
             }
             TEST_ASSERT(ctx, iface->boot_protocol_set,
@@ -247,15 +221,11 @@ KERNEL_TEST(xhci_smoke)
     }
 
     LOG_INFO("xhcsm",
-             "qemu-xhci at %x: v0x%x slots=%u ports=%u connected=%u addressed=%u described=%u configured=%u usbcfg=%u",
-             ((u32)g_xhci.pci_bus << 16) | ((u32)g_xhci.pci_device << 8)
-                 | g_xhci.pci_function,
-             (unsigned)g_xhci.hci_version,
-             (unsigned)g_xhci.max_slots,
-             (unsigned)g_xhci.max_ports,
-             (unsigned)g_xhci.n_connected_ports,
-             (unsigned)g_xhci.n_addressed_slots,
-             (unsigned)g_xhci.n_described_slots,
-             (unsigned)g_xhci.n_configured_slots,
+             "qemu-xhci at %x: v0x%x slots=%u ports=%u connected=%u addressed=%u described=%u "
+             "configured=%u usbcfg=%u",
+             ((u32)g_xhci.pci_bus << 16) | ((u32)g_xhci.pci_device << 8) | g_xhci.pci_function,
+             (unsigned)g_xhci.hci_version, (unsigned)g_xhci.max_slots, (unsigned)g_xhci.max_ports,
+             (unsigned)g_xhci.n_connected_ports, (unsigned)g_xhci.n_addressed_slots,
+             (unsigned)g_xhci.n_described_slots, (unsigned)g_xhci.n_configured_slots,
              (unsigned)g_xhci.n_usb_configured_slots);
 }

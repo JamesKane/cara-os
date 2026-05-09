@@ -41,8 +41,7 @@ static int parse_format(const char *s, DathFormat *out)
     return CARA_EINVAL;
 }
 
-[[nodiscard]] int Dath_Framebuffer_FromFdt(struct DathFbDescriptor *out,
-                                           const struct Fdt *fdt)
+[[nodiscard]] int Dath_Framebuffer_FromFdt(struct DathFbDescriptor *out, const struct Fdt *fdt)
 {
     if (!out || !fdt) {
         return CARA_EINVAL;

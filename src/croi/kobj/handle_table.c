@@ -11,7 +11,7 @@
 #include <cara/types.h>
 
 #define SLOT_INDEX_MASK 0xFFFFu
-#define GEN_SHIFT       16u
+#define GEN_SHIFT 16u
 
 [[nodiscard]] int HandleTable_Init(struct HandleTable *ht, u32 cap)
 {
@@ -55,14 +55,13 @@ void HandleTable_Destroy(struct HandleTable *ht)
     ht->free_head = HANDLE_INVALID;
 }
 
-[[nodiscard]] int HandleTable_Open(struct HandleTable *ht, struct Kobj *target,
-                                   Handle *out)
+[[nodiscard]] int HandleTable_Open(struct HandleTable *ht, struct Kobj *target, Handle *out)
 {
     if (!ht || !target || !out) {
         return CARA_EINVAL;
     }
     if (ht->free_head == HANDLE_INVALID) {
-        return CARA_ENOMEM;     // exhausted
+        return CARA_ENOMEM; // exhausted
     }
     u32 idx = ht->free_head;
     ht->free_head = ht->slots[idx].next_free;
@@ -72,8 +71,8 @@ void HandleTable_Destroy(struct HandleTable *ht)
     return CARA_EOK;
 }
 
-[[nodiscard]] int HandleTable_Lookup(const struct HandleTable *ht, Handle h,
-                                     KobjType expected, struct Kobj **out)
+[[nodiscard]] int HandleTable_Lookup(const struct HandleTable *ht, Handle h, KobjType expected,
+                                     struct Kobj **out)
 {
     if (!ht || !out) {
         return CARA_EINVAL;
@@ -113,9 +112,9 @@ void HandleTable_Destroy(struct HandleTable *ht)
     }
     struct Kobj *target = s->target;
     s->target = nullptr;
-    s->generation++;            // 16-bit wrap is fine; collision is a
-                                // 1-in-65536 false-EBADF chance and we
-                                // never silently use a stale handle
+    s->generation++; // 16-bit wrap is fine; collision is a
+                     // 1-in-65536 false-EBADF chance and we
+                     // never silently use a stale handle
     s->next_free = ht->free_head;
     ht->free_head = idx;
     Kobj_Release(target);

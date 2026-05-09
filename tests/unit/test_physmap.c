@@ -86,21 +86,17 @@ int main(void)
     }
 
     // 2. Kernel range carve-out: kernel @ 0x80200000 size 0x10000.
-    if (Mm_PhysMapFromFdt(&pm, &fdt,
-                          0x80200000ull, 0x80210000ull,
-                          0, 0) != CARA_EOK) {
+    if (Mm_PhysMapFromFdt(&pm, &fdt, 0x80200000ull, 0x80210000ull, 0, 0) != CARA_EOK) {
         return fail("PhysMap with kernel carve-out failed", 8);
     }
     // Now we expect TWO usable runs: 0x80000000..0x80200000 and 0x80210000..0x88000000.
     if (pm.n_usable != 2) {
         return fail("expected 2 usable runs around kernel carve-out", 9);
     }
-    if (pm.usable[0].base != 0x80000000ull
-        || pm.usable[0].size != 0x00200000ull) {
+    if (pm.usable[0].base != 0x80000000ull || pm.usable[0].size != 0x00200000ull) {
         return fail("low usable run wrong after kernel carve-out", 10);
     }
-    if (pm.usable[1].base != 0x80210000ull
-        || pm.usable[1].size != 0x07DF0000ull) {
+    if (pm.usable[1].base != 0x80210000ull || pm.usable[1].size != 0x07DF0000ull) {
         return fail("high usable run wrong after kernel carve-out", 11);
     }
     if (pm.usable_bytes != 0x00200000ull + 0x07DF0000ull) {
@@ -108,14 +104,12 @@ int main(void)
     }
 
     // 3. Misaligned carve-out: still produces page-aligned usable runs.
-    if (Mm_PhysMapFromFdt(&pm, &fdt,
-                          0x80200123ull, 0x80210FFFull,  // misaligned ends
+    if (Mm_PhysMapFromFdt(&pm, &fdt, 0x80200123ull, 0x80210FFFull, // misaligned ends
                           0, 0) != CARA_EOK) {
         return fail("PhysMap with misaligned carve-out failed", 13);
     }
     for (u32 i = 0; i < pm.n_usable; i++) {
-        if ((pm.usable[i].base & 0xFFFull) != 0
-            || (pm.usable[i].size & 0xFFFull) != 0) {
+        if ((pm.usable[i].base & 0xFFFull) != 0 || (pm.usable[i].size & 0xFFFull) != 0) {
             return fail("usable run not page-aligned after misaligned carve", 14);
         }
     }

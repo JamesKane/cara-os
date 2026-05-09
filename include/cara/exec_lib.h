@@ -26,14 +26,14 @@ void Croi_FreeMem_Impl(APTR addr, ULONG size);
 // ---- Signals --------------------------------------------------------
 
 ULONG Croi_Wait_Impl(ULONG mask);
-void  Croi_Signal_Impl(struct Task *target, ULONG mask);
-LONG  Croi_AllocSignal_Impl(LONG sig_num);
-void  Croi_FreeSignal_Impl(LONG sig_num);
+void Croi_Signal_Impl(struct Task *target, ULONG mask);
+LONG Croi_AllocSignal_Impl(LONG sig_num);
+void Croi_FreeSignal_Impl(LONG sig_num);
 ULONG Croi_SetSignal_Impl(ULONG new_signals, ULONG mask);
 
 // ---- IPC ------------------------------------------------------------
 
-void            Croi_PutMsg_Impl(struct MsgPort *port, struct Message *msg);
+void Croi_PutMsg_Impl(struct MsgPort *port, struct Message *msg);
 struct Message *Croi_GetMsg_Impl(struct MsgPort *port);
 struct Message *Croi_WaitPort_Impl(struct MsgPort *port);
 
@@ -51,6 +51,6 @@ struct Library *Croi_MakeLibrary(const struct TagItem *tags);
 // V36+ OpenLibrary / OldOpenLibrary / CloseLibrary syscall impls.
 struct Library *Croi_OpenLibrary_Impl(STRPTR name, ULONG version);
 struct Library *Croi_OldOpenLibrary_Impl(STRPTR name);
-void            Croi_CloseLibrary_Impl(struct Library *lib);
+void Croi_CloseLibrary_Impl(struct Library *lib);
 
 #endif

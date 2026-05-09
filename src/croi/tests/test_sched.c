@@ -59,18 +59,12 @@ KERNEL_TEST(sched_smoke)
     g_args[2] = (struct WorkerArg){ .idx = 2, .low_pri = true };
     g_args[3] = (struct WorkerArg){ .idx = 3, .low_pri = true };
 
-    TEST_ASSERT(ctx,
-                Croi_SpawnKernelTask("A", 10, worker, &g_args[0]) != nullptr,
+    TEST_ASSERT(ctx, Croi_SpawnKernelTask("A", 10, worker, &g_args[0]) != nullptr,
                 "spawn A failed");
-    TEST_ASSERT(ctx,
-                Croi_SpawnKernelTask("B", 10, worker, &g_args[1]) != nullptr,
+    TEST_ASSERT(ctx, Croi_SpawnKernelTask("B", 10, worker, &g_args[1]) != nullptr,
                 "spawn B failed");
-    TEST_ASSERT(ctx,
-                Croi_SpawnKernelTask("C", 5,  worker, &g_args[2]) != nullptr,
-                "spawn C failed");
-    TEST_ASSERT(ctx,
-                Croi_SpawnKernelTask("D", 5,  worker, &g_args[3]) != nullptr,
-                "spawn D failed");
+    TEST_ASSERT(ctx, Croi_SpawnKernelTask("C", 5, worker, &g_args[2]) != nullptr, "spawn C failed");
+    TEST_ASSERT(ctx, Croi_SpawnKernelTask("D", 5, worker, &g_args[3]) != nullptr, "spawn D failed");
 
     // Drop kmain below all workers so they get to run.
     Croi_TaskSetSelfPriority(-1);
@@ -86,6 +80,5 @@ KERNEL_TEST(sched_smoke)
     // The first iteration of any low-pri worker must happen only
     // *after* both high-pri workers have completed all ITERS rounds
     // and exited (g_done was 2 at that moment).
-    TEST_ASSERT(ctx, g_first_low_iter_at_done_high == 2,
-                "low-pri ran before high-pri finished");
+    TEST_ASSERT(ctx, g_first_low_iter_at_done_high == 2, "low-pri ran before high-pri finished");
 }

@@ -15,27 +15,50 @@
 #ifndef CARA_SYSNO_H
 #define CARA_SYSNO_H
 
+#ifndef __ASSEMBLER__
+enum {
+    // Phase 1 — kernel smoke / log surface.
+    SYS_LOG_WRITE = 1,
+    SYS_EXIT = 2,
+
+    // Phase 3 — exec.library.
+    //
+    // OpenLibrary and OldOpenLibrary have separate numbers so the
+    // dispatcher can route OldOpenLibrary directly through the same impl
+    // with version forced to 0, without needing a custom trampoline.
+    SYS_OpenLibrary = 3,
+    SYS_CloseLibrary = 4,
+    SYS_OldOpenLibrary = 5,
+    SYS_AllocMem = 6,
+    SYS_FreeMem = 7,
+    SYS_Wait = 8,
+    SYS_Signal = 9,
+    SYS_AllocSignal = 10,
+    SYS_FreeSignal = 11,
+    SYS_SetSignal = 12,
+    SYS_PutMsg = 13,
+    SYS_GetMsg = 14,
+    SYS_WaitPort = 15,
+};
+#else
 // Phase 1 — kernel smoke / log surface.
-#define SYS_LOG_WRITE     1
-#define SYS_EXIT          2
+#define SYS_LOG_WRITE 1
+#define SYS_EXIT 2
 
 // Phase 3 — exec.library.
-//
-// OpenLibrary and OldOpenLibrary have separate numbers so the
-// dispatcher can route OldOpenLibrary directly through the same impl
-// with version forced to 0, without needing a custom trampoline.
-#define SYS_OpenLibrary    3
-#define SYS_CloseLibrary   4
+#define SYS_OpenLibrary 3
+#define SYS_CloseLibrary 4
 #define SYS_OldOpenLibrary 5
-#define SYS_AllocMem       6
-#define SYS_FreeMem        7
-#define SYS_Wait           8
-#define SYS_Signal         9
-#define SYS_AllocSignal   10
-#define SYS_FreeSignal    11
-#define SYS_SetSignal     12
-#define SYS_PutMsg        13
-#define SYS_GetMsg        14
-#define SYS_WaitPort      15
+#define SYS_AllocMem 6
+#define SYS_FreeMem 7
+#define SYS_Wait 8
+#define SYS_Signal 9
+#define SYS_AllocSignal 10
+#define SYS_FreeSignal 11
+#define SYS_SetSignal 12
+#define SYS_PutMsg 13
+#define SYS_GetMsg 14
+#define SYS_WaitPort 15
+#endif
 
 #endif

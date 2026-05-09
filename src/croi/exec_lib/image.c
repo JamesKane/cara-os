@@ -22,8 +22,7 @@
 
 struct Library *Croi_ExecLib_KernelView(void)
 {
-    u64 lma_base = _exec_lib_image_lma_start
-                   + CARA_EXEC_LIB_USER_BASE_OFFSET;
+    u64 lma_base = _exec_lib_image_lma_start + CARA_EXEC_LIB_USER_BASE_OFFSET;
     return (struct Library *)Mm_PhysToVirt(lma_base);
 }
 
@@ -47,12 +46,12 @@ usize Croi_ExecLib_PrivateSize(void)
         return CARA_EINVAL;
     }
     u64 lma_start = _exec_lib_image_lma_start;
-    u64 size      = _exec_lib_image_lma_size;
+    u64 size = _exec_lib_image_lma_size;
 
-    if ((lma_start & (CARA_PAGE_SIZE - 1)) != 0
-        || (size & (CARA_PAGE_SIZE - 1)) != 0) {
-        LOG_FATAL("execli", "exec.library LMA range not page-aligned "
-                            "(start=0x%llx size=0x%llx)",
+    if ((lma_start & (CARA_PAGE_SIZE - 1)) != 0 || (size & (CARA_PAGE_SIZE - 1)) != 0) {
+        LOG_FATAL("execli",
+                  "exec.library LMA range not page-aligned "
+                  "(start=0x%llx size=0x%llx)",
                   lma_start, size);
         return CARA_EINVAL;
     }
@@ -72,9 +71,8 @@ usize Croi_ExecLib_PrivateSize(void)
     for (u64 off = 0; off < size; off += CARA_PAGE_SIZE) {
         int rc = Page_Map(pt, va + off, lma_start + off, PTE_USER_RWX);
         if (rc != CARA_EOK) {
-            LOG_FATAL("execli",
-                      "Page_Map(0x%llx -> 0x%llx) failed: %d",
-                      va + off, lma_start + off, rc);
+            LOG_FATAL("execli", "Page_Map(0x%llx -> 0x%llx) failed: %d", va + off, lma_start + off,
+                      rc);
             return rc;
         }
     }

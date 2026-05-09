@@ -29,12 +29,12 @@
 #include <exec/types.h>
 #include <proto/exec.h>
 
-#define USEREXEC_EXIT_OK              0xCA1A
-#define USEREXEC_EXIT_BAD_VERSION    0xBAD1
-#define USEREXEC_EXIT_OPEN_FAILED    0xBAD2
-#define USEREXEC_EXIT_BASE_MISMATCH  0xBAD3
-#define USEREXEC_EXIT_ALLOC_FAILED   0xBAD4
-#define USEREXEC_EXIT_NOT_ZEROED     0xBAD5
+#define USEREXEC_EXIT_OK 0xCA1A
+#define USEREXEC_EXIT_BAD_VERSION 0xBAD1
+#define USEREXEC_EXIT_OPEN_FAILED 0xBAD2
+#define USEREXEC_EXIT_BASE_MISMATCH 0xBAD3
+#define USEREXEC_EXIT_ALLOC_FAILED 0xBAD4
+#define USEREXEC_EXIT_NOT_ZEROED 0xBAD5
 
 // Inline ecall for SYS_LOG_WRITE — used to surface progress markers
 // in the kernel log alongside the existing kernel-side messages so
@@ -51,9 +51,7 @@ static void log_msg(int level, const char *tag, const char *msg)
     register long a2 __asm__("a2") = (long)msg;
     register long a3 __asm__("a3") = len;
     register long a7 __asm__("a7") = SYS_LOG_WRITE;
-    __asm__ volatile("ecall"
-                     :: "r"(a0), "r"(a1), "r"(a2), "r"(a3), "r"(a7)
-                     : "memory");
+    __asm__ volatile("ecall" ::"r"(a0), "r"(a1), "r"(a2), "r"(a3), "r"(a7) : "memory");
 }
 
 int main(void);
@@ -77,7 +75,7 @@ int main(void)
     //    stub dereferences SysBase to load vec[CARA_IDX_OpenLibrary]
     //    and JALRs through it; that target is Cara_Trampoline_OpenLibrary
     //    in the same .exec_lib RX page, which ecalls into the kernel.
-    struct Library *lib = OpenLibrary((STRPTR)"exec.library", 0);
+    struct Library *lib = OpenLibrary((STRPTR) "exec.library", 0);
     if (!lib) {
         return (int)USEREXEC_EXIT_OPEN_FAILED;
     }

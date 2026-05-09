@@ -27,14 +27,13 @@
 // Linker-emitted literal pool of LMA values (in .kernel_extents,
 // upper-half rodata — PC-relative reachable from kernel C code).
 // Pattern matches _kernel_image_phys_start / _kernel_image_phys_end.
-extern u64 _exec_lib_image_lma_start;   // physical address of section start
-extern u64 _exec_lib_image_lma_size;    // bytes
+extern u64 _exec_lib_image_lma_start; // physical address of section start
+extern u64 _exec_lib_image_lma_size;  // bytes
 
 // User-VA constants — must match the linker layout in src/croi/croi.lds.
-#define CARA_EXEC_LIB_USER_VA           0x0000000040000000ull
-#define CARA_EXEC_LIB_USER_BASE_OFFSET  0x800ull
-#define CARA_EXEC_LIB_USER_BASE \
-    (CARA_EXEC_LIB_USER_VA + CARA_EXEC_LIB_USER_BASE_OFFSET)
+constexpr u64 CARA_EXEC_LIB_USER_VA = 0x0000000040000000ull;
+constexpr u64 CARA_EXEC_LIB_USER_BASE_OFFSET = 0x800ull;
+constexpr u64 CARA_EXEC_LIB_USER_BASE = (CARA_EXEC_LIB_USER_VA + CARA_EXEC_LIB_USER_BASE_OFFSET);
 
 struct Library;
 struct PageTable;

@@ -18,11 +18,11 @@ extern void task_trampoline(void);
 extern void user_task_trampoline(void);
 void Sched_Trampoline(void);
 
-static struct Task    *g_current = nullptr;
-static struct MinList  g_runq;
-static struct MinList  g_sleepers;          // tasks blocked in Croi_Wait
-static struct MinList  g_dead;
-static bool            g_inited = false;
+static struct Task *g_current = nullptr;
+static struct MinList g_runq;
+static struct MinList g_sleepers; // tasks blocked in Croi_Wait
+static struct MinList g_dead;
+static bool g_inited = false;
 
 static struct Task *node_to_task(struct MinNode *n)
 {
@@ -46,22 +46,24 @@ static void task_set_name(struct Task *t, const char *src)
 static void task_init_node(struct Task *t, const char *name, BYTE pri)
 {
     t->tc_Node.ln_Type = NT_TASK;
-    t->tc_Node.ln_Pri  = pri;
+    t->tc_Node.ln_Pri = pri;
     task_set_name(t, name);
     t->tc_IDNestCnt = -1;
     t->tc_TDNestCnt = -1;
     // V36+ NewList semantics for the per-task tracked-allocations list.
-    t->tc_MemEntry.lh_Head     = (struct Node *)&t->tc_MemEntry.lh_Tail;
-    t->tc_MemEntry.lh_Tail     = nullptr;
+    t->tc_MemEntry.lh_Head = (struct Node *)&t->tc_MemEntry.lh_Tail;
+    t->tc_MemEntry.lh_Tail = nullptr;
     t->tc_MemEntry.lh_TailPred = (struct Node *)&t->tc_MemEntry;
-    t->tc_MemEntry.lh_Type     = NT_MEMORY;
+    t->tc_MemEntry.lh_Type = NT_MEMORY;
 }
 
 // Clamp an i32 priority caller-spec to BYTE (V36+ ln_Pri width).
 static BYTE clamp_pri(i32 pri)
 {
-    if (pri < -128) return -128;
-    if (pri >  127) return  127;
+    if (pri < -128)
+        return -128;
+    if (pri > 127)
+        return 127;
     return (BYTE)pri;
 }
 
@@ -100,8 +102,7 @@ void Sched_Init(void)
     *boot = (struct Task){ 0 };
     task_init_node(boot, "kmain", 100);
     boot->tc_State = TS_RUN;
-    if (HandleTable_Init(&boot->handles, CARA_TASK_HANDLE_TABLE_CAP)
-        != CARA_EOK) {
+    if (HandleTable_Init(&boot->handles, CARA_TASK_HANDLE_TABLE_CAP) != CARA_EOK) {
         LOG_FATAL("schd", "Sched_Init: HandleTable_Init failed");
         return;
     }
@@ -115,8 +116,8 @@ struct Task *Sched_Current(void)
     return g_current;
 }
 
-[[nodiscard]] struct Task *Croi_SpawnKernelTask(const char *name, i32 pri,
-                                                KernelTaskFn entry, void *arg)
+[[nodiscard]] struct Task *Croi_SpawnKernelTask(const char *name, i32 pri, KernelTaskFn entry,
+                                                void *arg)
 {
     if (!g_inited || !entry) {
         return nullptr;
@@ -147,14 +148,14 @@ struct Task *Sched_Current(void)
 
     // saved_regs layout: [0]=ra, [1]=sp, [2]=gp, [3]=tp, [4..15]=s0..s11
     u64 sp_top = (u64)(uptr)t->kstack + CARA_TASK_KSTACK_SIZE;
-    sp_top &= ~15ull;                       // 16-byte aligned
+    sp_top &= ~15ull; // 16-byte aligned
     t->saved_regs[0] = (u64)(uptr)task_trampoline;
     t->saved_regs[1] = sp_top;
     // gp/tp left zero; s-regs left zero.
 
     runq_add(t);
-    LOG_DEBUG("schd", "spawn '%s' pri=%d kstack=0x%llx",
-              t->tc_Node.ln_Name, (int)t->tc_Node.ln_Pri, (u64)(uptr)t->kstack);
+    LOG_DEBUG("schd", "spawn '%s' pri=%d kstack=0x%llx", t->tc_Node.ln_Name, (int)t->tc_Node.ln_Pri,
+              (u64)(uptr)t->kstack);
     return t;
 }
 
@@ -165,7 +166,7 @@ void Croi_Yield(void)
     }
     struct Task *old = g_current;
     if (MinList_IsEmpty(&g_runq)) {
-        return;     // No-one else ready; current keeps running.
+        return; // No-one else ready; current keeps running.
     }
     // Peek at head: if its priority is below the current's, no switch.
     struct Task *head = node_to_task(g_runq.mlh_Head);
@@ -221,10 +222,8 @@ void Croi_TaskSetSelfPriority(i32 pri)
     }
 }
 
-[[nodiscard]] struct Task *Croi_SpawnUserTask(const char *name, i32 pri,
-                                              const void *user_text_kva,
-                                              usize user_text_size,
-                                              u64 user_entry_va)
+[[nodiscard]] struct Task *Croi_SpawnUserTask(const char *name, i32 pri, const void *user_text_kva,
+                                              usize user_text_size, u64 user_entry_va)
 {
     if (!g_inited || !user_text_kva || user_text_size == 0) {
         return nullptr;
@@ -276,19 +275,16 @@ void Croi_TaskSetSelfPriority(i32 pri)
     // rodata) at the user-VA entry as PTE_USER_RX, page by page.
     u64 base_kva = (u64)(uptr)user_text_kva;
     if (base_kva & (CARA_PAGE_SIZE - 1)) {
-        base_kva &= ~(CARA_PAGE_SIZE - 1);     // drop into containing page
+        base_kva &= ~(CARA_PAGE_SIZE - 1); // drop into containing page
     }
     u64 last_byte_kva = (u64)(uptr)user_text_kva + user_text_size - 1;
-    u32 n_text_pages = (u32)(((last_byte_kva | (CARA_PAGE_SIZE - 1)) + 1
-                              - base_kva)
-                             / CARA_PAGE_SIZE);
+    u32 n_text_pages =
+        (u32)(((last_byte_kva | (CARA_PAGE_SIZE - 1)) + 1 - base_kva) / CARA_PAGE_SIZE);
     for (u32 i = 0; i < n_text_pages; i++) {
-        u64 src_pa = Mm_VirtToPhys((const void *)(uptr)(base_kva
-                                                        + (u64)i * CARA_PAGE_SIZE));
+        u64 src_pa = Mm_VirtToPhys((const void *)(uptr)(base_kva + (u64)i * CARA_PAGE_SIZE));
         u64 dst_va = CARA_USER_TEXT_BASE + (u64)i * CARA_PAGE_SIZE;
-        if (Page_Map(t->user_pt, dst_va, src_pa,
-                     PTE_V | PTE_R | PTE_X | PTE_U | PTE_A | PTE_D)
-            != CARA_EOK) {
+        if (Page_Map(t->user_pt, dst_va, src_pa, PTE_V | PTE_R | PTE_X | PTE_U | PTE_A | PTE_D) !=
+            CARA_EOK) {
             // Failed mid-mapping; leak the partially-built PT for now.
             return nullptr;
         }
@@ -318,18 +314,16 @@ void Croi_TaskSetSelfPriority(i32 pri)
     sp_top &= ~15ull;
     t->saved_regs[0] = (u64)(uptr)user_task_trampoline;
     t->saved_regs[1] = sp_top;
-    t->saved_regs[16] = sp_top;     // sscratch
+    t->saved_regs[16] = sp_top; // sscratch
 
     runq_add(t);
-    LOG_DEBUG("schd", "spawn user '%s' pri=%d entry=0x%llx sp_top=0x%llx",
-              t->tc_Node.ln_Name, (int)t->tc_Node.ln_Pri,
-              t->user_entry, t->user_sp_top);
+    LOG_DEBUG("schd", "spawn user '%s' pri=%d entry=0x%llx sp_top=0x%llx", t->tc_Node.ln_Name,
+              (int)t->tc_Node.ln_Pri, t->user_entry, t->user_sp_top);
     return t;
 }
 
 [[nodiscard]] struct Task *Croi_SpawnUserTaskFromElf(const char *name, i32 pri,
-                                                     const void *elf_blob,
-                                                     usize elf_size)
+                                                     const void *elf_blob, usize elf_size)
 {
     if (!g_inited || !elf_blob || elf_size == 0) {
         return nullptr;
@@ -390,7 +384,7 @@ void Croi_TaskSetSelfPriority(i32 pri)
     for (u32 i = 0; i < stack_pages; i++) {
         u64 phys = Page_Alloc(&g_page_alloc, 1);
         if (phys == 0) {
-            return nullptr;     // partial state leaks; OK for tests
+            return nullptr; // partial state leaks; OK for tests
         }
         u64 dst_va = CARA_USER_STACK_BASE + (u64)i * CARA_PAGE_SIZE;
         if (Page_Map(t->user_pt, dst_va, phys, PTE_USER_RW) != CARA_EOK) {
@@ -405,12 +399,11 @@ void Croi_TaskSetSelfPriority(i32 pri)
     sp_top &= ~15ull;
     t->saved_regs[0] = (u64)(uptr)user_task_trampoline;
     t->saved_regs[1] = sp_top;
-    t->saved_regs[16] = sp_top;     // sscratch
+    t->saved_regs[16] = sp_top; // sscratch
 
     runq_add(t);
-    LOG_DEBUG("schd", "spawn user-elf '%s' pri=%d entry=0x%llx sp_top=0x%llx",
-              t->tc_Node.ln_Name, (int)t->tc_Node.ln_Pri,
-              t->user_entry, t->user_sp_top);
+    LOG_DEBUG("schd", "spawn user-elf '%s' pri=%d entry=0x%llx sp_top=0x%llx", t->tc_Node.ln_Name,
+              (int)t->tc_Node.ln_Pri, t->user_entry, t->user_sp_top);
     return t;
 }
 
@@ -449,7 +442,7 @@ void Sched_ReapDead(void)
         u32 mask = 1u << b;
         if (!(g_current->tc_SigAlloc & mask)) {
             g_current->tc_SigAlloc |= mask;
-            g_current->tc_SigRecvd &= ~mask;     // start clean
+            g_current->tc_SigRecvd &= ~mask; // start clean
             return (i32)b;
         }
     }
@@ -472,8 +465,7 @@ void Croi_Signal(struct Task *target, u32 mask)
         return;
     }
     target->tc_SigRecvd |= mask;
-    if (target->tc_State == TS_WAIT
-        && (target->tc_SigRecvd & target->tc_SigWait) != 0) {
+    if (target->tc_State == TS_WAIT && (target->tc_SigRecvd & target->tc_SigWait) != 0) {
         // Move from sleepers to runq.
         MinList_Remove(&target->sched_node);
         target->tc_State = TS_READY;
@@ -516,8 +508,7 @@ u32 Croi_Wait(u32 mask)
             // we tolerate it by spinning in WFI; an external interrupt
             // (timer) will eventually wake us via the trap path once
             // those land. For now, panic.
-            LOG_FATAL("schd",
-                      "Croi_Wait by '%s' with empty runq (deadlock)",
+            LOG_FATAL("schd", "Croi_Wait by '%s' with empty runq (deadlock)",
                       g_current->tc_Node.ln_Name);
             for (;;) {
                 __asm__ volatile("wfi");

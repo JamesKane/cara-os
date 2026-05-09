@@ -24,10 +24,16 @@
 #include <exec/types.h>
 
 static volatile bool g_user_exited = false;
-static volatile i64  g_user_exit_status = 0;
+static volatile i64 g_user_exit_status = 0;
 
-bool Croi_Syscall_UserExited(void)         { return g_user_exited; }
-i64  Croi_Syscall_UserExitStatus(void)     { return g_user_exit_status; }
+bool Croi_Syscall_UserExited(void)
+{
+    return g_user_exited;
+}
+i64 Croi_Syscall_UserExitStatus(void)
+{
+    return g_user_exit_status;
+}
 void Croi_Syscall_ResetUserExit(void)
 {
     g_user_exited = false;
@@ -36,8 +42,7 @@ void Croi_Syscall_ResetUserExit(void)
 
 // Bounded copy from user-VA to a kernel buffer. Caller passes max so
 // we never run forever on a malformed pointer.
-static u32 copy_user_str(char *dst, u32 dst_cap, const char *user_src,
-                         u32 user_max)
+static u32 copy_user_str(char *dst, u32 dst_cap, const char *user_src, u32 user_max)
 {
     if (dst_cap == 0) {
         return 0;
@@ -52,8 +57,7 @@ static u32 copy_user_str(char *dst, u32 dst_cap, const char *user_src,
     return i;
 }
 
-static i64 sys_log_write(i64 level, const char *user_tag, const char *user_msg,
-                         i64 msg_len)
+static i64 sys_log_write(i64 level, const char *user_tag, const char *user_msg, i64 msg_len)
 {
     if (msg_len < 0 || msg_len > (i64)CARA_LOG_MSG_LEN) {
         return -CARA_EINVAL;
@@ -62,8 +66,7 @@ static i64 sys_log_write(i64 level, const char *user_tag, const char *user_msg,
     (void)copy_user_str(tag, sizeof(tag), user_tag, CARA_LOG_TAG_LEN);
 
     char msg[CARA_LOG_MSG_LEN];
-    u32 n = (u32)msg_len < CARA_LOG_MSG_LEN - 1 ? (u32)msg_len
-                                                : CARA_LOG_MSG_LEN - 1;
+    u32 n = (u32)msg_len < CARA_LOG_MSG_LEN - 1 ? (u32)msg_len : CARA_LOG_MSG_LEN - 1;
     for (u32 i = 0; i < n; i++) {
         msg[i] = user_msg[i];
     }
@@ -83,7 +86,7 @@ static i64 sys_log_write(i64 level, const char *user_tag, const char *user_msg,
 
 i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
 {
-    i64 num = (i64)frame->x[17];        // a7
+    i64 num = (i64)frame->x[17]; // a7
     i64 a0 = (i64)frame->x[10];
     i64 a1 = (i64)frame->x[11];
     i64 a2 = (i64)frame->x[12];
@@ -91,16 +94,14 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
 
     switch (num) {
     case SYS_LOG_WRITE:
-        return sys_log_write(a0, (const char *)(uptr)a1,
-                             (const char *)(uptr)a2, a3);
+        return sys_log_write(a0, (const char *)(uptr)a1, (const char *)(uptr)a2, a3);
     case SYS_EXIT:
         sys_exit(a0);
         // unreachable
 
     // ---- exec.library library lifecycle ----
     case SYS_OpenLibrary:
-        return (i64)(uptr)Croi_OpenLibrary_Impl(
-            (STRPTR)(uptr)a0, (ULONG)a1);
+        return (i64)(uptr)Croi_OpenLibrary_Impl((STRPTR)(uptr)a0, (ULONG)a1);
     case SYS_OldOpenLibrary:
         return (i64)(uptr)Croi_OldOpenLibrary_Impl((STRPTR)(uptr)a0);
     case SYS_CloseLibrary:
@@ -130,8 +131,7 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
 
     // ---- exec.library IPC ----
     case SYS_PutMsg:
-        Croi_PutMsg_Impl((struct MsgPort *)(uptr)a0,
-                         (struct Message *)(uptr)a1);
+        Croi_PutMsg_Impl((struct MsgPort *)(uptr)a0, (struct Message *)(uptr)a1);
         return 0;
     case SYS_GetMsg:
         return (i64)(uptr)Croi_GetMsg_Impl((struct MsgPort *)(uptr)a0);

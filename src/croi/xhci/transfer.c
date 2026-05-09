@@ -22,15 +22,13 @@
 // per-slot enqueue index and PCS, handling Link TRB wrap. Returns the
 // physical address of the TRB just written (callers use it to match
 // the corresponding Transfer Event).
-static u64 ep0_ring_enqueue(struct XhciController *c, u8 slot_id,
-                            u32 p_lo, u32 p_hi, u32 status,
+static u64 ep0_ring_enqueue(struct XhciController *c, u8 slot_id, u32 p_lo, u32 p_hi, u32 status,
                             u32 control_no_cycle)
 {
     auto slot = &c->slots[slot_id];
 
-    u32 enq  = slot->ep0_ring_enqueue_idx;
-    u32 ctrl = control_no_cycle
-             | (slot->ep0_ring_cycle ? XHCI_TRB_CYCLE : 0);
+    u32 enq = slot->ep0_ring_enqueue_idx;
+    u32 ctrl = control_no_cycle | (slot->ep0_ring_cycle ? XHCI_TRB_CYCLE : 0);
     u64 trb_phys = slot->ep0_ring_phys + (u64)enq * XHCI_TRB_BYTES;
 
     xhci_trb_write(slot->ep0_ring, enq, p_lo, p_hi, status, ctrl);
@@ -41,13 +39,10 @@ static u64 ep0_ring_enqueue(struct XhciController *c, u8 slot_id,
         // then toggle PCS (xHCI 1.2 §4.9.2). The Link TRB itself was
         // installed at slot allocation; we only update its cycle here.
         u32 last = slot->ep0_ring_size_trbs - 1u;
-        xhci_trb_write(slot->ep0_ring, last,
-                       (u32)(slot->ep0_ring_phys & 0xFFFFFFFFu),
-                       (u32)(slot->ep0_ring_phys >> 32),
-                       0,
-                       XHCI_TRB_TYPE(XHCI_TRB_LINK)
-                           | XHCI_TRB_LINK_TC
-                           | (slot->ep0_ring_cycle ? XHCI_TRB_CYCLE : 0));
+        xhci_trb_write(slot->ep0_ring, last, (u32)(slot->ep0_ring_phys & 0xFFFFFFFFu),
+                       (u32)(slot->ep0_ring_phys >> 32), 0,
+                       XHCI_TRB_TYPE(XHCI_TRB_LINK) | XHCI_TRB_LINK_TC |
+                           (slot->ep0_ring_cycle ? XHCI_TRB_CYCLE : 0));
         enq = 0;
         slot->ep0_ring_cycle = !slot->ep0_ring_cycle;
     }
@@ -59,9 +54,7 @@ static u64 ep0_ring_enqueue(struct XhciController *c, u8 slot_id,
 // physical address is `expected_trb_phys`. Returns the Completion Code
 // (XHCI_CC_*); 0 on timeout. `*residue_out` receives the residue
 // length (Transfer Event status[23:0]).
-static u8 wait_transfer_event(struct XhciController *c,
-                              u64 expected_trb_phys,
-                              u32 *residue_out)
+static u8 wait_transfer_event(struct XhciController *c, u64 expected_trb_phys, u32 *residue_out)
 {
     if (residue_out) {
         *residue_out = 0;
@@ -86,15 +79,11 @@ static u8 wait_transfer_event(struct XhciController *c,
         }
         c->event_ring_dequeue_idx = next;
 
-        u64 erdp = c->event_ring_phys
-                 + (u64)c->event_ring_dequeue_idx * XHCI_TRB_BYTES;
-        xhci_rt_write64_pair(c,
-                             XHCI_RT_INTR0_BASE + XHCI_RT_INTR_ERDP_LO,
-                             XHCI_RT_INTR0_BASE + XHCI_RT_INTR_ERDP_HI,
-                             erdp | (1ull << 3));
+        u64 erdp = c->event_ring_phys + (u64)c->event_ring_dequeue_idx * XHCI_TRB_BYTES;
+        xhci_rt_write64_pair(c, XHCI_RT_INTR0_BASE + XHCI_RT_INTR_ERDP_LO,
+                             XHCI_RT_INTR0_BASE + XHCI_RT_INTR_ERDP_HI, erdp | (1ull << 3));
 
-        u32 trb_type = (e_control >> XHCI_TRB_TYPE_SHIFT)
-                       & XHCI_TRB_TYPE_MASK;
+        u32 trb_type = (e_control >> XHCI_TRB_TYPE_SHIFT) & XHCI_TRB_TYPE_MASK;
         if (trb_type == XHCI_TRB_TRANSFER_EVENT) {
             u64 ev_trb_ptr = (u64)e_lo | ((u64)e_hi << 32);
             if (ev_trb_ptr != expected_trb_phys) {
@@ -111,14 +100,11 @@ static u8 wait_transfer_event(struct XhciController *c,
     return 0;
 }
 
-[[nodiscard]] int Croi_Xhci_ControlTransfer(struct XhciController *c,
-                                            u8 slot_id,
-                                            const struct UsbSetupPacket *setup,
-                                            void *buf, u32 buf_len,
-                                            u32 *residue_out)
+[[nodiscard]] int Croi_Xhci_ControlTransfer(struct XhciController *c, u8 slot_id,
+                                            const struct UsbSetupPacket *setup, void *buf,
+                                            u32 buf_len, u32 *residue_out)
 {
-    if (!c || !c->running || !setup
-        || slot_id == 0 || slot_id > CARA_XHCI_MAX_SLOTS) {
+    if (!c || !c->running || !setup || slot_id == 0 || slot_id > CARA_XHCI_MAX_SLOTS) {
         return CARA_EINVAL;
     }
     if (!c->slots[slot_id].in_use) {
@@ -128,9 +114,9 @@ static u8 wait_transfer_event(struct XhciController *c,
         return CARA_EINVAL;
     }
 
-    bool dir_in   = (setup->bmRequestType & USB_DIR_DEVICE_TO_HOST) != 0;
+    bool dir_in = (setup->bmRequestType & USB_DIR_DEVICE_TO_HOST) != 0;
     bool has_data = buf_len > 0;
-    u32  trt;
+    u32 trt;
     if (!has_data) {
         trt = XHCI_TRB_TRT_NO_DATA;
     } else if (dir_in) {
@@ -141,16 +127,12 @@ static u8 wait_transfer_event(struct XhciController *c,
 
     // 1. Setup Stage TRB. The 8-byte SETUP packet rides in DW0/DW1 of
     //    the TRB itself (IDT = 1).
-    u32 setup_lo = (u32)setup->bmRequestType
-                 | ((u32)setup->bRequest << 8)
-                 | ((u32)setup->wValue   << 16);
-    u32 setup_hi = (u32)setup->wIndex
-                 | ((u32)setup->wLength  << 16);
+    u32 setup_lo = (u32)setup->bmRequestType | ((u32)setup->bRequest << 8) |
+                   ((u32)setup->wValue << 16);
+    u32 setup_hi = (u32)setup->wIndex | ((u32)setup->wLength << 16);
     (void)ep0_ring_enqueue(c, slot_id, setup_lo, setup_hi,
-                           8u,                              // TRB Transfer Length
-                           XHCI_TRB_TYPE(XHCI_TRB_SETUP_STAGE)
-                               | XHCI_TRB_IDT
-                               | trt);
+                           8u, // TRB Transfer Length
+                           XHCI_TRB_TYPE(XHCI_TRB_SETUP_STAGE) | XHCI_TRB_IDT | trt);
 
     // 2. Data Stage TRB (only if there's a buffer). For multi-packet
     //    transfers, a single TRB suffices when buf_len fits in one TD;
@@ -158,12 +140,9 @@ static u8 wait_transfer_event(struct XhciController *c,
     //    don't split.
     if (has_data) {
         u64 buf_phys = Mm_VirtToPhys(buf);
-        (void)ep0_ring_enqueue(c, slot_id,
-                               (u32)(buf_phys & 0xFFFFFFFFu),
-                               (u32)(buf_phys >> 32),
+        (void)ep0_ring_enqueue(c, slot_id, (u32)(buf_phys & 0xFFFFFFFFu), (u32)(buf_phys >> 32),
                                buf_len,
-                               XHCI_TRB_TYPE(XHCI_TRB_DATA_STAGE)
-                                   | (dir_in ? XHCI_TRB_DIR_IN : 0));
+                               XHCI_TRB_TYPE(XHCI_TRB_DATA_STAGE) | (dir_in ? XHCI_TRB_DIR_IN : 0));
     }
 
     // 3. Status Stage TRB. Direction is the opposite of the Data Stage:
@@ -172,11 +151,9 @@ static u8 wait_transfer_event(struct XhciController *c,
     //    the controller posts a Transfer Event when the whole TD is
     //    done. xHCI 1.2 §4.11.2.2 / §6.4.1.2.3.
     bool status_dir_in = !dir_in || !has_data;
-    u64 status_trb_phys = ep0_ring_enqueue(
-        c, slot_id, 0, 0, 0,
-        XHCI_TRB_TYPE(XHCI_TRB_STATUS_STAGE)
-            | XHCI_TRB_IOC
-            | (status_dir_in ? XHCI_TRB_DIR_IN : 0));
+    u64 status_trb_phys = ep0_ring_enqueue(c, slot_id, 0, 0, 0,
+                                           XHCI_TRB_TYPE(XHCI_TRB_STATUS_STAGE) | XHCI_TRB_IOC |
+                                               (status_dir_in ? XHCI_TRB_DIR_IN : 0));
 
     // 4. Make the TD globally visible before ringing the slot doorbell
     //    with target = 1 (DCI for EP0).
@@ -185,23 +162,19 @@ static u8 wait_transfer_event(struct XhciController *c,
 
     // 5. Wait for the Transfer Event matching the Status TRB.
     u32 residue = 0;
-    u8  cc      = wait_transfer_event(c, status_trb_phys, &residue);
+    u8 cc = wait_transfer_event(c, status_trb_phys, &residue);
     if (residue_out) {
         *residue_out = residue;
     }
     if (cc != XHCI_CC_SUCCESS) {
-        LOG_ERROR("xhci",
-                  "control xfer slot=%u request=0x%x CC=%u residue=%u",
-                  (unsigned)slot_id,
-                  (unsigned)setup->bRequest,
-                  (unsigned)cc, (unsigned)residue);
+        LOG_ERROR("xhci", "control xfer slot=%u request=0x%x CC=%u residue=%u", (unsigned)slot_id,
+                  (unsigned)setup->bRequest, (unsigned)cc, (unsigned)residue);
         return CARA_EAGAIN;
     }
     return CARA_EOK;
 }
 
-[[nodiscard]] int Croi_Xhci_GetDeviceDescriptor(struct XhciController *c,
-                                                u8 slot_id,
+[[nodiscard]] int Croi_Xhci_GetDeviceDescriptor(struct XhciController *c, u8 slot_id,
                                                 struct UsbDeviceDescriptor *out)
 {
     if (!c || slot_id == 0 || slot_id > CARA_XHCI_MAX_SLOTS) {
@@ -220,12 +193,11 @@ static u8 wait_transfer_event(struct XhciController *c,
     }
 
     struct UsbSetupPacket setup = {
-        .bmRequestType = USB_DIR_DEVICE_TO_HOST | USB_TYPE_STANDARD
-                       | USB_RECIP_DEVICE,
-        .bRequest      = USB_REQ_GET_DESCRIPTOR,
-        .wValue        = (u16)((USB_DT_DEVICE << 8) | 0),
-        .wIndex        = 0,
-        .wLength       = USB_DEVICE_DESCRIPTOR_BYTES,
+        .bmRequestType = USB_DIR_DEVICE_TO_HOST | USB_TYPE_STANDARD | USB_RECIP_DEVICE,
+        .bRequest = USB_REQ_GET_DESCRIPTOR,
+        .wValue = (u16)((USB_DT_DEVICE << 8) | 0),
+        .wIndex = 0,
+        .wLength = USB_DEVICE_DESCRIPTOR_BYTES,
     };
 
     u32 residue = 0;
@@ -233,19 +205,15 @@ static u8 wait_transfer_event(struct XhciController *c,
     // to derive the physical address via Mm_VirtToPhys. The DMA writes
     // happen behind our back; we read back through slot->dma_buf which
     // keeps the volatile qualifier.
-    int rc = Croi_Xhci_ControlTransfer(c, slot_id, &setup,
-                                       (void *)(uptr)slot->dma_buf,
-                                       USB_DEVICE_DESCRIPTOR_BYTES,
-                                       &residue);
+    int rc = Croi_Xhci_ControlTransfer(c, slot_id, &setup, (void *)(uptr)slot->dma_buf,
+                                       USB_DEVICE_DESCRIPTOR_BYTES, &residue);
     if (rc != CARA_EOK) {
         return rc;
     }
     u32 received = USB_DEVICE_DESCRIPTOR_BYTES - residue;
     if (received < USB_DEVICE_DESCRIPTOR_BYTES) {
-        LOG_ERROR("xhci",
-                  "slot=%u short device descriptor: got %u of %u bytes",
-                  (unsigned)slot_id, (unsigned)received,
-                  (unsigned)USB_DEVICE_DESCRIPTOR_BYTES);
+        LOG_ERROR("xhci", "slot=%u short device descriptor: got %u of %u bytes", (unsigned)slot_id,
+                  (unsigned)received, (unsigned)USB_DEVICE_DESCRIPTOR_BYTES);
         return CARA_EAGAIN;
     }
 
@@ -276,8 +244,7 @@ static u8 wait_transfer_event(struct XhciController *c,
 // anything we don't recognise, and route Interface / Endpoint records
 // into the per-slot interface table.
 
-static int do_get_descriptor(struct XhciController *c, u8 slot_id,
-                             u8 desc_type, u8 desc_index,
+static int do_get_descriptor(struct XhciController *c, u8 slot_id, u8 desc_type, u8 desc_index,
                              u32 length, u32 *received_out)
 {
     auto slot = &c->slots[slot_id];
@@ -289,18 +256,16 @@ static int do_get_descriptor(struct XhciController *c, u8 slot_id,
     }
 
     struct UsbSetupPacket setup = {
-        .bmRequestType = USB_DIR_DEVICE_TO_HOST | USB_TYPE_STANDARD
-                       | USB_RECIP_DEVICE,
-        .bRequest      = USB_REQ_GET_DESCRIPTOR,
-        .wValue        = (u16)(((u16)desc_type << 8) | desc_index),
-        .wIndex        = 0,
-        .wLength       = (u16)length,
+        .bmRequestType = USB_DIR_DEVICE_TO_HOST | USB_TYPE_STANDARD | USB_RECIP_DEVICE,
+        .bRequest = USB_REQ_GET_DESCRIPTOR,
+        .wValue = (u16)(((u16)desc_type << 8) | desc_index),
+        .wIndex = 0,
+        .wLength = (u16)length,
     };
 
     u32 residue = 0;
-    int rc = Croi_Xhci_ControlTransfer(c, slot_id, &setup,
-                                       (void *)(uptr)slot->dma_buf,
-                                       length, &residue);
+    int rc = Croi_Xhci_ControlTransfer(c, slot_id, &setup, (void *)(uptr)slot->dma_buf, length,
+                                       &residue);
     if (rc != CARA_EOK) {
         return rc;
     }
@@ -313,10 +278,10 @@ static int do_get_descriptor(struct XhciController *c, u8 slot_id,
 static void parse_config_tree(struct XhciController *c, u8 slot_id)
 {
     auto slot = &c->slots[slot_id];
-    const u8 *p   = slot->configuration_descriptor.raw;
-    u32       n   = slot->configuration_descriptor.length;
-    u32       cur = 0;
-    int       cur_iface = -1;       // index into slot->interfaces[]
+    const u8 *p = slot->configuration_descriptor.raw;
+    u32 n = slot->configuration_descriptor.length;
+    u32 cur = 0;
+    int cur_iface = -1; // index into slot->interfaces[]
 
     slot->n_interfaces = 0;
     for (u32 i = 0; i < CARA_XHCI_MAX_INTERFACES_PER_SLOT; i++) {
@@ -324,7 +289,7 @@ static void parse_config_tree(struct XhciController *c, u8 slot_id)
     }
 
     while (cur + 2u <= n) {
-        u8 b_length         = p[cur + 0];
+        u8 b_length = p[cur + 0];
         u8 b_descriptor_type = p[cur + 1];
 
         // bLength == 0 would loop forever; bLength < 2 can't even hold
@@ -336,23 +301,21 @@ static void parse_config_tree(struct XhciController *c, u8 slot_id)
         switch (b_descriptor_type) {
         case USB_DT_CONFIGURATION:
             if (b_length >= 9) {
-                slot->configuration_descriptor.bConfigurationValue =
-                    p[cur + 5];
+                slot->configuration_descriptor.bConfigurationValue = p[cur + 5];
             }
             break;
 
         case USB_DT_INTERFACE:
-            if (b_length >= 9
-                && slot->n_interfaces < CARA_XHCI_MAX_INTERFACES_PER_SLOT) {
+            if (b_length >= 9 && slot->n_interfaces < CARA_XHCI_MAX_INTERFACES_PER_SLOT) {
                 cur_iface = slot->n_interfaces;
                 auto iface = &slot->interfaces[cur_iface];
-                iface->valid              = true;
-                iface->bInterfaceNumber   = p[cur + 2];
-                iface->bAlternateSetting  = p[cur + 3];
-                iface->bInterfaceClass    = p[cur + 5];
+                iface->valid = true;
+                iface->bInterfaceNumber = p[cur + 2];
+                iface->bAlternateSetting = p[cur + 3];
+                iface->bInterfaceClass = p[cur + 5];
                 iface->bInterfaceSubClass = p[cur + 6];
                 iface->bInterfaceProtocol = p[cur + 7];
-                iface->ep_present         = false;
+                iface->ep_present = false;
                 slot->n_interfaces++;
             } else {
                 cur_iface = -1;
@@ -363,17 +326,16 @@ static void parse_config_tree(struct XhciController *c, u8 slot_id)
             if (cur_iface >= 0 && b_length >= 7) {
                 auto iface = &slot->interfaces[cur_iface];
                 if (iface->ep_present) {
-                    break;        // Phase 1 keeps only the first int-IN
+                    break; // Phase 1 keeps only the first int-IN
                 }
-                u8 ep_addr  = p[cur + 2];
+                u8 ep_addr = p[cur + 2];
                 u8 ep_attrs = p[cur + 3];
-                if ((ep_attrs & USB_EP_TYPE_MASK) == USB_EP_TYPE_INTERRUPT
-                    && (ep_addr & USB_EP_DIR_IN) != 0) {
-                    iface->ep_present     = true;
-                    iface->ep_address     = ep_addr;
-                    iface->ep_max_packet  =
-                        (u16)(p[cur + 4] | ((u16)p[cur + 5] << 8));
-                    iface->ep_interval    = p[cur + 6];
+                if ((ep_attrs & USB_EP_TYPE_MASK) == USB_EP_TYPE_INTERRUPT &&
+                    (ep_addr & USB_EP_DIR_IN) != 0) {
+                    iface->ep_present = true;
+                    iface->ep_address = ep_addr;
+                    iface->ep_max_packet = (u16)(p[cur + 4] | ((u16)p[cur + 5] << 8));
+                    iface->ep_interval = p[cur + 6];
                 }
             }
             break;
@@ -389,11 +351,9 @@ static void parse_config_tree(struct XhciController *c, u8 slot_id)
     }
 }
 
-[[nodiscard]] int Croi_Xhci_GetConfigurationDescriptor(
-    struct XhciController *c, u8 slot_id)
+[[nodiscard]] int Croi_Xhci_GetConfigurationDescriptor(struct XhciController *c, u8 slot_id)
 {
-    if (!c || !c->running
-        || slot_id == 0 || slot_id > CARA_XHCI_MAX_SLOTS) {
+    if (!c || !c->running || slot_id == 0 || slot_id > CARA_XHCI_MAX_SLOTS) {
         return CARA_EINVAL;
     }
     if (!c->slots[slot_id].in_use || !c->slots[slot_id].dma_buf) {
@@ -402,46 +362,37 @@ static void parse_config_tree(struct XhciController *c, u8 slot_id)
 
     // 1. Short read: 9 bytes to extract wTotalLength.
     u32 received = 0;
-    int rc = do_get_descriptor(c, slot_id,
-                               USB_DT_CONFIGURATION, 0, 9, &received);
+    int rc = do_get_descriptor(c, slot_id, USB_DT_CONFIGURATION, 0, 9, &received);
     if (rc != CARA_EOK) {
         return rc;
     }
     if (received < 9) {
-        LOG_ERROR("xhci",
-                  "slot=%u short cfg descriptor: got %u of 9 bytes",
-                  (unsigned)slot_id, (unsigned)received);
+        LOG_ERROR("xhci", "slot=%u short cfg descriptor: got %u of 9 bytes", (unsigned)slot_id,
+                  (unsigned)received);
         return CARA_EAGAIN;
     }
     auto slot = &c->slots[slot_id];
-    u16 total_length = (u16)(slot->dma_buf[2]
-                          | ((u16)slot->dma_buf[3] << 8));
+    u16 total_length = (u16)(slot->dma_buf[2] | ((u16)slot->dma_buf[3] << 8));
     if (total_length < 9) {
-        LOG_ERROR("xhci",
-                  "slot=%u cfg wTotalLength=%u < 9 (malformed)",
-                  (unsigned)slot_id, (unsigned)total_length);
+        LOG_ERROR("xhci", "slot=%u cfg wTotalLength=%u < 9 (malformed)", (unsigned)slot_id,
+                  (unsigned)total_length);
         return CARA_EAGAIN;
     }
     if (total_length > CARA_XHCI_MAX_CONFIG_BYTES) {
-        LOG_WARN("xhci",
-                 "slot=%u cfg wTotalLength=%u > %u (truncating)",
-                 (unsigned)slot_id, (unsigned)total_length,
-                 (unsigned)CARA_XHCI_MAX_CONFIG_BYTES);
+        LOG_WARN("xhci", "slot=%u cfg wTotalLength=%u > %u (truncating)", (unsigned)slot_id,
+                 (unsigned)total_length, (unsigned)CARA_XHCI_MAX_CONFIG_BYTES);
         total_length = CARA_XHCI_MAX_CONFIG_BYTES;
     }
 
     // 2. Full read of the configuration tree. The controller / device
     //    can return less than asked-for if the device descriptor lies;
     //    we cache exactly what came back.
-    rc = do_get_descriptor(c, slot_id,
-                           USB_DT_CONFIGURATION, 0, total_length, &received);
+    rc = do_get_descriptor(c, slot_id, USB_DT_CONFIGURATION, 0, total_length, &received);
     if (rc != CARA_EOK) {
         return rc;
     }
     if (received < 9) {
-        LOG_ERROR("xhci",
-                  "slot=%u short full cfg read: got %u of %u",
-                  (unsigned)slot_id,
+        LOG_ERROR("xhci", "slot=%u short full cfg read: got %u of %u", (unsigned)slot_id,
                   (unsigned)received, (unsigned)total_length);
         return CARA_EAGAIN;
     }
@@ -476,41 +427,28 @@ static void parse_config_tree(struct XhciController *c, u8 slot_id)
         }
         int rc = Croi_Xhci_GetConfigurationDescriptor(c, sid);
         if (rc != CARA_EOK) {
-            LOG_WARN("xhci",
-                     "slot=%u GetConfigurationDescriptor failed: %d", sid, rc);
+            LOG_WARN("xhci", "slot=%u GetConfigurationDescriptor failed: %d", sid, rc);
             continue;
         }
 
         const auto cfg = &c->slots[sid].configuration_descriptor;
-        LOG_INFO("xhci",
-                 "slot=%u config: cfgValue=%u total=%u interfaces=%u",
-                 (unsigned)sid,
-                 (unsigned)cfg->bConfigurationValue,
-                 (unsigned)cfg->length,
+        LOG_INFO("xhci", "slot=%u config: cfgValue=%u total=%u interfaces=%u", (unsigned)sid,
+                 (unsigned)cfg->bConfigurationValue, (unsigned)cfg->length,
                  (unsigned)c->slots[sid].n_interfaces);
         for (u32 j = 0; j < c->slots[sid].n_interfaces; j++) {
             const auto iface = &c->slots[sid].interfaces[j];
-            LOG_INFO("xhci",
-                     "  iface[%u] num=%u alt=%u class=%u/%u/%u%s",
-                     (unsigned)j,
-                     (unsigned)iface->bInterfaceNumber,
-                     (unsigned)iface->bAlternateSetting,
-                     (unsigned)iface->bInterfaceClass,
-                     (unsigned)iface->bInterfaceSubClass,
-                     (unsigned)iface->bInterfaceProtocol,
-                     iface->ep_present ? " int-IN" : "");
+            LOG_INFO("xhci", "  iface[%u] num=%u alt=%u class=%u/%u/%u%s", (unsigned)j,
+                     (unsigned)iface->bInterfaceNumber, (unsigned)iface->bAlternateSetting,
+                     (unsigned)iface->bInterfaceClass, (unsigned)iface->bInterfaceSubClass,
+                     (unsigned)iface->bInterfaceProtocol, iface->ep_present ? " int-IN" : "");
             if (iface->ep_present) {
-                LOG_INFO("xhci",
-                         "    ep addr=0x%x mps=%u interval=%u",
-                         (unsigned)iface->ep_address,
-                         (unsigned)iface->ep_max_packet,
-                         (unsigned)iface->ep_interval);
+                LOG_INFO("xhci", "    ep addr=0x%x mps=%u interval=%u", (unsigned)iface->ep_address,
+                         (unsigned)iface->ep_max_packet, (unsigned)iface->ep_interval);
             }
         }
         c->n_configured_slots++;
     }
-    LOG_INFO("xhci", "%u of %u described slots configured",
-             (unsigned)c->n_configured_slots,
+    LOG_INFO("xhci", "%u of %u described slots configured", (unsigned)c->n_configured_slots,
              (unsigned)c->n_described_slots);
     return CARA_EOK;
 }
@@ -524,12 +462,10 @@ static void parse_config_tree(struct XhciController *c, u8 slot_id)
 // for transfers. The xHCI Slot State doesn't change yet; that's UC.5
 // (Configure Endpoint Command).
 
-[[nodiscard]] int Croi_Xhci_SetConfiguration(struct XhciController *c,
-                                             u8 slot_id,
+[[nodiscard]] int Croi_Xhci_SetConfiguration(struct XhciController *c, u8 slot_id,
                                              u8 configuration_value)
 {
-    if (!c || !c->running
-        || slot_id == 0 || slot_id > CARA_XHCI_MAX_SLOTS) {
+    if (!c || !c->running || slot_id == 0 || slot_id > CARA_XHCI_MAX_SLOTS) {
         return CARA_EINVAL;
     }
     if (!c->slots[slot_id].in_use) {
@@ -537,15 +473,13 @@ static void parse_config_tree(struct XhciController *c, u8 slot_id)
     }
 
     struct UsbSetupPacket setup = {
-        .bmRequestType = USB_DIR_HOST_TO_DEVICE | USB_TYPE_STANDARD
-                       | USB_RECIP_DEVICE,
-        .bRequest      = USB_REQ_SET_CONFIGURATION,
-        .wValue        = (u16)configuration_value,
-        .wIndex        = 0,
-        .wLength       = 0,
+        .bmRequestType = USB_DIR_HOST_TO_DEVICE | USB_TYPE_STANDARD | USB_RECIP_DEVICE,
+        .bRequest = USB_REQ_SET_CONFIGURATION,
+        .wValue = (u16)configuration_value,
+        .wIndex = 0,
+        .wLength = 0,
     };
-    int rc = Croi_Xhci_ControlTransfer(c, slot_id, &setup,
-                                       nullptr, 0, nullptr);
+    int rc = Croi_Xhci_ControlTransfer(c, slot_id, &setup, nullptr, 0, nullptr);
     if (rc != CARA_EOK) {
         return rc;
     }
@@ -573,25 +507,21 @@ static void parse_config_tree(struct XhciController *c, u8 slot_id)
         if (cfg_value == 0) {
             // bConfigurationValue=0 means "unconfigured". A real device
             // can't deliberately advertise that; treat as malformed.
-            LOG_WARN("xhci",
-                     "slot=%u configuration_value=0; skipping SET_CONFIGURATION",
+            LOG_WARN("xhci", "slot=%u configuration_value=0; skipping SET_CONFIGURATION",
                      (unsigned)sid);
             continue;
         }
         int rc = Croi_Xhci_SetConfiguration(c, sid, cfg_value);
         if (rc != CARA_EOK) {
-            LOG_WARN("xhci",
-                     "slot=%u SET_CONFIGURATION(%u) failed: %d",
-                     (unsigned)sid, (unsigned)cfg_value, rc);
+            LOG_WARN("xhci", "slot=%u SET_CONFIGURATION(%u) failed: %d", (unsigned)sid,
+                     (unsigned)cfg_value, rc);
             continue;
         }
-        LOG_INFO("xhci",
-                 "slot=%u USB configured (cfgValue=%u)",
-                 (unsigned)sid, (unsigned)cfg_value);
+        LOG_INFO("xhci", "slot=%u USB configured (cfgValue=%u)", (unsigned)sid,
+                 (unsigned)cfg_value);
         c->n_usb_configured_slots++;
     }
-    LOG_INFO("xhci", "%u of %u parsed slots USB-configured",
-             (unsigned)c->n_usb_configured_slots,
+    LOG_INFO("xhci", "%u of %u parsed slots USB-configured", (unsigned)c->n_usb_configured_slots,
              (unsigned)c->n_configured_slots);
     return CARA_EOK;
 }
@@ -605,13 +535,10 @@ static void parse_config_tree(struct XhciController *c, u8 slot_id)
 // interrupt-IN endpoint regardless of what its HID Report Descriptor
 // says, so Phase 1 doesn't need a Report Descriptor parser.
 
-[[nodiscard]] int Croi_Xhci_HidSetProtocol(struct XhciController *c,
-                                           u8 slot_id,
-                                           u8 interface_number,
-                                           u8 protocol)
+[[nodiscard]] int Croi_Xhci_HidSetProtocol(struct XhciController *c, u8 slot_id,
+                                           u8 interface_number, u8 protocol)
 {
-    if (!c || !c->running
-        || slot_id == 0 || slot_id > CARA_XHCI_MAX_SLOTS) {
+    if (!c || !c->running || slot_id == 0 || slot_id > CARA_XHCI_MAX_SLOTS) {
         return CARA_EINVAL;
     }
     if (!c->slots[slot_id].in_use) {
@@ -619,15 +546,13 @@ static void parse_config_tree(struct XhciController *c, u8 slot_id)
     }
 
     struct UsbSetupPacket setup = {
-        .bmRequestType = USB_DIR_HOST_TO_DEVICE | USB_TYPE_CLASS
-                       | USB_RECIP_INTERFACE,
-        .bRequest      = USB_HID_REQ_SET_PROTOCOL,
-        .wValue        = (u16)protocol,
-        .wIndex        = (u16)interface_number,
-        .wLength       = 0,
+        .bmRequestType = USB_DIR_HOST_TO_DEVICE | USB_TYPE_CLASS | USB_RECIP_INTERFACE,
+        .bRequest = USB_HID_REQ_SET_PROTOCOL,
+        .wValue = (u16)protocol,
+        .wIndex = (u16)interface_number,
+        .wLength = 0,
     };
-    return Croi_Xhci_ControlTransfer(c, slot_id, &setup,
-                                     nullptr, 0, nullptr);
+    return Croi_Xhci_ControlTransfer(c, slot_id, &setup, nullptr, 0, nullptr);
 }
 
 [[nodiscard]] int Croi_Xhci_HidSetBootProtocols(struct XhciController *c)
@@ -645,27 +570,22 @@ static void parse_config_tree(struct XhciController *c, u8 slot_id)
             if (!iface->valid) {
                 continue;
             }
-            if (iface->dispatch != XHCI_HID_KEYBOARD
-                && iface->dispatch != XHCI_HID_MOUSE) {
+            if (iface->dispatch != XHCI_HID_KEYBOARD && iface->dispatch != XHCI_HID_MOUSE) {
                 continue;
             }
             if (iface->boot_protocol_set) {
                 continue;
             }
-            int rc = Croi_Xhci_HidSetProtocol(c, sid,
-                                              iface->bInterfaceNumber,
+            int rc = Croi_Xhci_HidSetProtocol(c, sid, iface->bInterfaceNumber,
                                               USB_HID_PROTOCOL_BOOT);
             if (rc != CARA_EOK) {
-                LOG_WARN("xhci",
-                         "slot=%u iface[%u] SET_PROTOCOL(Boot) failed: %d",
-                         (unsigned)sid, (unsigned)j, rc);
+                LOG_WARN("xhci", "slot=%u iface[%u] SET_PROTOCOL(Boot) failed: %d", (unsigned)sid,
+                         (unsigned)j, rc);
                 continue;
             }
             iface->boot_protocol_set = true;
-            LOG_INFO("xhci",
-                     "slot=%u iface[%u] %s boot-protocol selected",
-                     (unsigned)sid, (unsigned)j,
-                     (iface->dispatch == XHCI_HID_KEYBOARD) ? "kbd" : "mouse");
+            LOG_INFO("xhci", "slot=%u iface[%u] %s boot-protocol selected", (unsigned)sid,
+                     (unsigned)j, (iface->dispatch == XHCI_HID_KEYBOARD) ? "kbd" : "mouse");
         }
     }
     return CARA_EOK;
@@ -688,27 +608,19 @@ static void parse_config_tree(struct XhciController *c, u8 slot_id)
         }
         int rc = Croi_Xhci_GetDeviceDescriptor(c, sid, nullptr);
         if (rc != CARA_EOK) {
-            LOG_WARN("xhci",
-                     "slot=%u GetDeviceDescriptor failed: %d", sid, rc);
+            LOG_WARN("xhci", "slot=%u GetDeviceDescriptor failed: %d", sid, rc);
             continue;
         }
         const struct UsbDeviceDescriptor *d =
-            (const struct UsbDeviceDescriptor *)
-                c->slots[sid].device_descriptor.raw;
+            (const struct UsbDeviceDescriptor *)c->slots[sid].device_descriptor.raw;
         LOG_INFO("xhci",
                  "slot=%u device-desc: bcdUSB=0x%x class=%u/%u/%u VID:PID=0x%x:0x%x cfgs=%u",
-                 (unsigned)sid,
-                 (unsigned)d->bcdUSB,
-                 (unsigned)d->bDeviceClass,
-                 (unsigned)d->bDeviceSubClass,
-                 (unsigned)d->bDeviceProtocol,
-                 (unsigned)d->idVendor,
-                 (unsigned)d->idProduct,
-                 (unsigned)d->bNumConfigurations);
+                 (unsigned)sid, (unsigned)d->bcdUSB, (unsigned)d->bDeviceClass,
+                 (unsigned)d->bDeviceSubClass, (unsigned)d->bDeviceProtocol, (unsigned)d->idVendor,
+                 (unsigned)d->idProduct, (unsigned)d->bNumConfigurations);
         c->n_described_slots++;
     }
-    LOG_INFO("xhci", "%u of %u addressed slots described",
-             (unsigned)c->n_described_slots,
+    LOG_INFO("xhci", "%u of %u addressed slots described", (unsigned)c->n_described_slots,
              (unsigned)c->n_addressed_slots);
     return CARA_EOK;
 }

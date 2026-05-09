@@ -54,12 +54,11 @@ static inline u32 ctx_bytes(const struct XhciController *c)
 // out_event[4] receives the four event-TRB lanes so callers can pull
 // Slot ID / CC out themselves.
 
-static int xhci_cmd_send(struct XhciController *c,
-                         u32 p_lo, u32 p_hi, u32 status, u32 control,
+static int xhci_cmd_send(struct XhciController *c, u32 p_lo, u32 p_hi, u32 status, u32 control,
                          u32 out_event[4])
 {
     // 1. Place the TRB on the Command Ring with the producer cycle.
-    u32 enq  = c->cmd_ring_enqueue_idx;
+    u32 enq = c->cmd_ring_enqueue_idx;
     u32 ctrl = control | (c->cmd_ring_cycle ? XHCI_TRB_CYCLE : 0);
 
     // The Command Ring's TRB at the controller's current dequeue
@@ -78,13 +77,10 @@ static int xhci_cmd_send(struct XhciController *c,
         // Update the Link TRB's cycle bit so the consumer accepts it,
         // then toggle PCS (the Link TRB has TC = 1; xHCI 1.2 §4.9.2).
         u32 link_idx = c->cmd_ring_size_trbs - 1u;
-        xhci_trb_write(c->cmd_ring, link_idx,
-                       (u32)(c->cmd_ring_phys & 0xFFFFFFFFu),
-                       (u32)(c->cmd_ring_phys >> 32),
-                       0,
-                       XHCI_TRB_TYPE(XHCI_TRB_LINK)
-                           | XHCI_TRB_LINK_TC
-                           | (c->cmd_ring_cycle ? XHCI_TRB_CYCLE : 0));
+        xhci_trb_write(c->cmd_ring, link_idx, (u32)(c->cmd_ring_phys & 0xFFFFFFFFu),
+                       (u32)(c->cmd_ring_phys >> 32), 0,
+                       XHCI_TRB_TYPE(XHCI_TRB_LINK) | XHCI_TRB_LINK_TC |
+                           (c->cmd_ring_cycle ? XHCI_TRB_CYCLE : 0));
         enq = 0;
         c->cmd_ring_cycle = !c->cmd_ring_cycle;
     }
@@ -124,12 +120,9 @@ static int xhci_cmd_send(struct XhciController *c,
 
         // Always update ERDP so the controller knows the consumer
         // moved on (bit 3 = Event Handler Busy, written-1-to-clear).
-        u64 erdp = c->event_ring_phys
-                 + (u64)c->event_ring_dequeue_idx * XHCI_TRB_BYTES;
-        xhci_rt_write64_pair(c,
-                             XHCI_RT_INTR0_BASE + XHCI_RT_INTR_ERDP_LO,
-                             XHCI_RT_INTR0_BASE + XHCI_RT_INTR_ERDP_HI,
-                             erdp | (1ull << 3));
+        u64 erdp = c->event_ring_phys + (u64)c->event_ring_dequeue_idx * XHCI_TRB_BYTES;
+        xhci_rt_write64_pair(c, XHCI_RT_INTR0_BASE + XHCI_RT_INTR_ERDP_LO,
+                             XHCI_RT_INTR0_BASE + XHCI_RT_INTR_ERDP_HI, erdp | (1ull << 3));
 
         u32 trb_type = (e_control >> XHCI_TRB_TYPE_SHIFT) & XHCI_TRB_TYPE_MASK;
         if (trb_type == XHCI_TRB_COMMAND_COMPLETION) {
@@ -161,7 +154,7 @@ static int xhci_cmd_send(struct XhciController *c,
 
 static int port_reset(struct XhciController *c, u32 port_idx)
 {
-    u32 off    = XHCI_OP_PORTSC_BASE + port_idx * XHCI_OP_PORTSC_STRIDE;
+    u32 off = XHCI_OP_PORTSC_BASE + port_idx * XHCI_OP_PORTSC_STRIDE;
     u32 portsc = xhci_op_read32(c, off);
 
     if ((portsc & XHCI_PORTSC_CCS) == 0) {
@@ -171,23 +164,19 @@ static int port_reset(struct XhciController *c, u32 port_idx)
         // USB3 path (or already-reset USB2). Just clear any latched
         // change bits so subsequent change-event polls don't misfire.
         xhci_op_write32(c, off,
-                        (portsc & ~XHCI_PORTSC_RW1C_MASK)
-                        | (portsc & XHCI_PORTSC_RW1C_MASK));
+                        (portsc & ~XHCI_PORTSC_RW1C_MASK) | (portsc & XHCI_PORTSC_RW1C_MASK));
         return CARA_EOK;
     }
 
     // Set PR while preserving non-RW1C bits and not re-asserting any
     // RW1C bits (those would clear-on-write).
-    xhci_op_write32(c, off,
-                    (portsc & ~XHCI_PORTSC_RW1C_MASK) | XHCI_PORTSC_PR);
+    xhci_op_write32(c, off, (portsc & ~XHCI_PORTSC_RW1C_MASK) | XHCI_PORTSC_PR);
 
     // Wait for Port Reset Change. xHCI 1.2 §4.19.5 says reset takes
     // up to 50ms for USB2; the spin helper's nop pad is conservatively
     // longer.
-    if (!xhci_spin_for_mask((volatile u32 *)(c->op_regs + off),
-                            XHCI_PORTSC_PRC, XHCI_PORTSC_PRC)) {
-        LOG_ERROR("xhci", "port %u: reset did not complete (PORTSC=0x%x)",
-                  (unsigned)(port_idx + 1),
+    if (!xhci_spin_for_mask((volatile u32 *)(c->op_regs + off), XHCI_PORTSC_PRC, XHCI_PORTSC_PRC)) {
+        LOG_ERROR("xhci", "port %u: reset did not complete (PORTSC=0x%x)", (unsigned)(port_idx + 1),
                   xhci_op_read32(c, off));
         return CARA_EAGAIN;
     }
@@ -201,9 +190,7 @@ static int port_reset(struct XhciController *c, u32 port_idx)
 
     // Clear PRC + CSC. xhci_op_write32 with the matching RW1C bits set
     // writes 1 to clear; the rest of the register is preserved.
-    xhci_op_write32(c, off,
-                    (portsc & ~XHCI_PORTSC_RW1C_MASK)
-                    | XHCI_PORTSC_PRC | XHCI_PORTSC_CSC);
+    xhci_op_write32(c, off, (portsc & ~XHCI_PORTSC_RW1C_MASK) | XHCI_PORTSC_PRC | XHCI_PORTSC_CSC);
     return CARA_EOK;
 }
 
@@ -222,10 +209,8 @@ static int enable_slot(struct XhciController *c, u8 *slot_id_out)
         return rc;
     }
     u8 slot_id = (u8)(ev[3] >> XHCI_TRB_SLOT_ID_SHIFT);
-    if (slot_id == 0 || slot_id > c->max_slots
-                     || slot_id > CARA_XHCI_MAX_SLOTS) {
-        LOG_ERROR("xhci", "Enable Slot returned out-of-range Slot ID %u",
-                  (unsigned)slot_id);
+    if (slot_id == 0 || slot_id > c->max_slots || slot_id > CARA_XHCI_MAX_SLOTS) {
+        LOG_ERROR("xhci", "Enable Slot returned out-of-range Slot ID %u", (unsigned)slot_id);
         return CARA_ERANGE;
     }
     *slot_id_out = slot_id;
@@ -237,12 +222,18 @@ static int enable_slot(struct XhciController *c, u8 *slot_id_out)
 static u32 ep0_max_packet_size(u8 speed)
 {
     switch (speed) {
-    case XHCI_SPEED_LOW:        return XHCI_EP0_MAXPKT_LOW;
-    case XHCI_SPEED_FULL:       return XHCI_EP0_MAXPKT_FULL;
-    case XHCI_SPEED_HIGH:       return XHCI_EP0_MAXPKT_HIGH;
-    case XHCI_SPEED_SUPER:      return XHCI_EP0_MAXPKT_SUPER;
-    case XHCI_SPEED_SUPER_PLUS: return XHCI_EP0_MAXPKT_SUPER;
-    default:                    return XHCI_EP0_MAXPKT_FULL;
+    case XHCI_SPEED_LOW:
+        return XHCI_EP0_MAXPKT_LOW;
+    case XHCI_SPEED_FULL:
+        return XHCI_EP0_MAXPKT_FULL;
+    case XHCI_SPEED_HIGH:
+        return XHCI_EP0_MAXPKT_HIGH;
+    case XHCI_SPEED_SUPER:
+        return XHCI_EP0_MAXPKT_SUPER;
+    case XHCI_SPEED_SUPER_PLUS:
+        return XHCI_EP0_MAXPKT_SUPER;
+    default:
+        return XHCI_EP0_MAXPKT_FULL;
     }
 }
 
@@ -260,8 +251,7 @@ static u32 ep0_max_packet_size(u8 speed)
 // 8. Send the Address Device command (BSR=0).
 // 9. Read back the assigned address from output Slot Context DW3.
 
-static int address_device(struct XhciController *c, u8 slot_id,
-                          u8 root_port, u8 speed)
+static int address_device(struct XhciController *c, u8 slot_id, u8 root_port, u8 speed)
 {
     if (slot_id == 0 || slot_id > CARA_XHCI_MAX_SLOTS) {
         return CARA_ERANGE;
@@ -275,7 +265,7 @@ static int address_device(struct XhciController *c, u8 slot_id,
         return CARA_ENOMEM;
     }
     slot->output_ctx_phys = out_phys;
-    slot->output_ctx      = (volatile u8 *)out_kva;
+    slot->output_ctx = (volatile u8 *)out_kva;
 
     // 2. Input Context — one page.
     void *in_kva = nullptr;
@@ -284,7 +274,7 @@ static int address_device(struct XhciController *c, u8 slot_id,
         return CARA_ENOMEM;
     }
     slot->input_ctx_phys = in_phys;
-    slot->input_ctx      = (volatile u8 *)in_kva;
+    slot->input_ctx = (volatile u8 *)in_kva;
 
     // 3. EP0 Transfer Ring — one page = 256 TRBs. Cycle bit (DCS) = 1
     //    initial, matching the producer's PCS.
@@ -293,19 +283,16 @@ static int address_device(struct XhciController *c, u8 slot_id,
     if (!ep0_phys) {
         return CARA_ENOMEM;
     }
-    slot->ep0_ring_phys        = ep0_phys;
-    slot->ep0_ring             = (volatile u32 *)ep0_kva;
-    slot->ep0_ring_size_trbs   = 4096u / 16u;
+    slot->ep0_ring_phys = ep0_phys;
+    slot->ep0_ring = (volatile u32 *)ep0_kva;
+    slot->ep0_ring_size_trbs = 4096u / 16u;
     slot->ep0_ring_enqueue_idx = 0;
-    slot->ep0_ring_cycle       = true;
+    slot->ep0_ring_cycle = true;
     // Link TRB at last slot for wrap, same pattern as the Command Ring.
     {
         u32 last = slot->ep0_ring_size_trbs - 1u;
-        xhci_trb_write(slot->ep0_ring, last,
-                       (u32)(ep0_phys & 0xFFFFFFFFu),
-                       (u32)(ep0_phys >> 32),
-                       0,
-                       XHCI_TRB_TYPE(XHCI_TRB_LINK) | XHCI_TRB_LINK_TC);
+        xhci_trb_write(slot->ep0_ring, last, (u32)(ep0_phys & 0xFFFFFFFFu), (u32)(ep0_phys >> 32),
+                       0, XHCI_TRB_TYPE(XHCI_TRB_LINK) | XHCI_TRB_LINK_TC);
     }
 
     // 3b. Per-slot DMA scratch buffer for descriptor reads (UC.*). One
@@ -317,16 +304,16 @@ static int address_device(struct XhciController *c, u8 slot_id,
         return CARA_ENOMEM;
     }
     slot->dma_buf_phys = dma_phys;
-    slot->dma_buf      = (volatile u8 *)dma_kva;
+    slot->dma_buf = (volatile u8 *)dma_kva;
 
     // 4. + 5. + 6. Build the Input Context. We treat each context block
     //    as a u32[8] array regardless of CSZ; the upper 32 bytes when
     //    CSZ=1 are reserved padding, already zero from Page_Alloc.
     u32 cb = ctx_bytes(c);
 
-    volatile u32 *icc       = (volatile u32 *)(slot->input_ctx + 0);
-    volatile u32 *slot_ctx  = (volatile u32 *)(slot->input_ctx + cb);
-    volatile u32 *ep0_ctx   = (volatile u32 *)(slot->input_ctx + 2u * cb);
+    volatile u32 *icc = (volatile u32 *)(slot->input_ctx + 0);
+    volatile u32 *slot_ctx = (volatile u32 *)(slot->input_ctx + cb);
+    volatile u32 *ep0_ctx = (volatile u32 *)(slot->input_ctx + 2u * cb);
 
     // Input Control Context: Add = Slot|EP0, Drop = 0.
     icc[0] = 0;
@@ -335,8 +322,8 @@ static int address_device(struct XhciController *c, u8 slot_id,
 
     // Slot Context. Speed in DW0[23:20]; Context Entries in DW0[31:27]
     // (set to 1 = EP0 only). DW1 carries Root Hub Port Number in [23:16].
-    slot_ctx[0] = ((u32)speed << XHCI_SLOT_CTX_DW0_SPEED_SHIFT)
-                | ((u32)1u   << XHCI_SLOT_CTX_DW0_CTXENTRIES_SHIFT);
+    slot_ctx[0] = ((u32)speed << XHCI_SLOT_CTX_DW0_SPEED_SHIFT) |
+                  ((u32)1u << XHCI_SLOT_CTX_DW0_CTXENTRIES_SHIFT);
     slot_ctx[1] = ((u32)root_port << XHCI_SLOT_CTX_DW1_RHPORT_SHIFT);
     slot_ctx[2] = 0;
     slot_ctx[3] = 0;
@@ -345,12 +332,12 @@ static int address_device(struct XhciController *c, u8 slot_id,
     // speed; TR Dequeue Pointer = ep0_phys | DCS=1; AvgTRBLen = 8.
     u32 mps = ep0_max_packet_size(speed);
     ep0_ctx[0] = 0;
-    ep0_ctx[1] = ((u32)3u << XHCI_EP_CTX_DW1_CERR_SHIFT)
-               | ((u32)XHCI_EP_TYPE_CONTROL << XHCI_EP_CTX_DW1_EPTYPE_SHIFT)
-               | (mps << XHCI_EP_CTX_DW1_MAXPKT_SHIFT);
+    ep0_ctx[1] = ((u32)3u << XHCI_EP_CTX_DW1_CERR_SHIFT) |
+                 ((u32)XHCI_EP_TYPE_CONTROL << XHCI_EP_CTX_DW1_EPTYPE_SHIFT) |
+                 (mps << XHCI_EP_CTX_DW1_MAXPKT_SHIFT);
     ep0_ctx[2] = (u32)(ep0_phys & 0xFFFFFFF0u) | XHCI_EP_CTX_DW2_DCS;
     ep0_ctx[3] = (u32)(ep0_phys >> 32);
-    ep0_ctx[4] = 8u;       // Average TRB Length
+    ep0_ctx[4] = 8u; // Average TRB Length
 
     // 7. Install Output Device Context in DCBAA.
     c->dcbaa[slot_id] = slot->output_ctx_phys;
@@ -363,18 +350,12 @@ static int address_device(struct XhciController *c, u8 slot_id,
     //    device (full transition to Addressed state).
     u32 ev[4];
     int rc = xhci_cmd_send(
-        c,
-        (u32)(slot->input_ctx_phys & 0xFFFFFFFFu),
-        (u32)(slot->input_ctx_phys >> 32),
-        0,
-        XHCI_TRB_TYPE(XHCI_TRB_ADDRESS_DEVICE)
-            | ((u32)slot_id << XHCI_TRB_SLOT_ID_SHIFT),
-        ev);
+        c, (u32)(slot->input_ctx_phys & 0xFFFFFFFFu), (u32)(slot->input_ctx_phys >> 32), 0,
+        XHCI_TRB_TYPE(XHCI_TRB_ADDRESS_DEVICE) | ((u32)slot_id << XHCI_TRB_SLOT_ID_SHIFT), ev);
     if (rc != CARA_EOK) {
         u8 cc = (u8)((ev[2] >> XHCI_CC_SHIFT) & XHCI_CC_MASK);
-        LOG_ERROR("xhci",
-                  "Address Device slot=%u port=%u failed: rc=%d CC=%u",
-                  (unsigned)slot_id, (unsigned)root_port, rc, (unsigned)cc);
+        LOG_ERROR("xhci", "Address Device slot=%u port=%u failed: rc=%d CC=%u", (unsigned)slot_id,
+                  (unsigned)root_port, rc, (unsigned)cc);
         return rc;
     }
 
@@ -383,11 +364,10 @@ static int address_device(struct XhciController *c, u8 slot_id,
     volatile u32 *out_slot_ctx = (volatile u32 *)(slot->output_ctx + 0);
     u32 dw3 = out_slot_ctx[3];
     slot->usb_address = (u8)(dw3 & XHCI_SLOT_CTX_DW3_ADDRESS_MASK);
-    slot->slot_state  = (u8)((dw3 >> XHCI_SLOT_CTX_DW3_STATE_SHIFT)
-                             & XHCI_SLOT_CTX_DW3_STATE_MASK);
-    slot->root_port   = root_port;
-    slot->speed       = speed;
-    slot->in_use      = true;
+    slot->slot_state = (u8)((dw3 >> XHCI_SLOT_CTX_DW3_STATE_SHIFT) & XHCI_SLOT_CTX_DW3_STATE_MASK);
+    slot->root_port = root_port;
+    slot->speed = speed;
+    slot->in_use = true;
     return CARA_EOK;
 }
 
@@ -411,21 +391,17 @@ static int address_device(struct XhciController *c, u8 slot_id,
 
         int rc = port_reset(c, i);
         if (rc != CARA_EOK) {
-            LOG_WARN("xhci", "port %u reset skipped/failed (%d)",
-                     (unsigned)(i + 1), rc);
+            LOG_WARN("xhci", "port %u reset skipped/failed (%d)", (unsigned)(i + 1), rc);
             continue;
         }
 
         // Re-read PORTSC after reset to capture the negotiated speed
         // (USB2 ports populate Port Speed only after PED settles).
-        u32 portsc = xhci_op_read32(c,
-            XHCI_OP_PORTSC_BASE + i * XHCI_OP_PORTSC_STRIDE);
-        u8 speed = (u8)((portsc >> XHCI_PORTSC_SPEED_SHIFT)
-                        & XHCI_PORTSC_SPEED_MASK);
-        c->port[i].enabled    = (portsc & XHCI_PORTSC_PED) != 0;
-        c->port[i].speed      = speed;
-        c->port[i].link_state = (u8)((portsc >> XHCI_PORTSC_PLS_SHIFT)
-                                     & XHCI_PORTSC_PLS_MASK);
+        u32 portsc = xhci_op_read32(c, XHCI_OP_PORTSC_BASE + i * XHCI_OP_PORTSC_STRIDE);
+        u8 speed = (u8)((portsc >> XHCI_PORTSC_SPEED_SHIFT) & XHCI_PORTSC_SPEED_MASK);
+        c->port[i].enabled = (portsc & XHCI_PORTSC_PED) != 0;
+        c->port[i].speed = speed;
+        c->port[i].link_state = (u8)((portsc >> XHCI_PORTSC_PLS_SHIFT) & XHCI_PORTSC_PLS_MASK);
 
         u8 slot_id = 0;
         rc = enable_slot(c, &slot_id);
@@ -439,21 +415,17 @@ static int address_device(struct XhciController *c, u8 slot_id,
         }
 
         c->n_addressed_slots++;
-        LOG_INFO("xhci",
-                 "addressed slot=%u port=%u speed=%u usb-addr=%u state=%u",
+        LOG_INFO("xhci", "addressed slot=%u port=%u speed=%u usb-addr=%u state=%u",
                  (unsigned)slot_id, (unsigned)(i + 1), (unsigned)speed,
-                 (unsigned)c->slots[slot_id].usb_address,
-                 (unsigned)c->slots[slot_id].slot_state);
+                 (unsigned)c->slots[slot_id].usb_address, (unsigned)c->slots[slot_id].slot_state);
     }
 
-    LOG_INFO("xhci", "%u of %u connected ports addressed",
-             (unsigned)c->n_addressed_slots,
+    LOG_INFO("xhci", "%u of %u connected ports addressed", (unsigned)c->n_addressed_slots,
              (unsigned)c->n_connected_ports);
     return CARA_EOK;
 }
 
-[[nodiscard]] int Croi_Xhci_ConfigureEndpoint(struct XhciController *c,
-                                              u8 slot_id,
+[[nodiscard]] int Croi_Xhci_ConfigureEndpoint(struct XhciController *c, u8 slot_id,
                                               u64 input_ctx_phys)
 {
     if (!c || !c->running || slot_id == 0 || slot_id > CARA_XHCI_MAX_SLOTS) {
@@ -464,24 +436,18 @@ static int address_device(struct XhciController *c, u8 slot_id,
     }
     u32 ev[4];
     int rc = xhci_cmd_send(
-        c,
-        (u32)(input_ctx_phys & 0xFFFFFFFFu),
-        (u32)(input_ctx_phys >> 32),
-        0,
-        XHCI_TRB_TYPE(XHCI_TRB_CONFIGURE_ENDPOINT)
-            | ((u32)slot_id << XHCI_TRB_SLOT_ID_SHIFT),
-        ev);
+        c, (u32)(input_ctx_phys & 0xFFFFFFFFu), (u32)(input_ctx_phys >> 32), 0,
+        XHCI_TRB_TYPE(XHCI_TRB_CONFIGURE_ENDPOINT) | ((u32)slot_id << XHCI_TRB_SLOT_ID_SHIFT), ev);
     if (rc != CARA_EOK) {
         u8 cc = (u8)((ev[2] >> XHCI_CC_SHIFT) & XHCI_CC_MASK);
-        LOG_ERROR("xhci",
-                  "Configure Endpoint slot=%u failed: rc=%d CC=%u",
-                  (unsigned)slot_id, rc, (unsigned)cc);
+        LOG_ERROR("xhci", "Configure Endpoint slot=%u failed: rc=%d CC=%u", (unsigned)slot_id, rc,
+                  (unsigned)cc);
         return rc;
     }
     // Update cached slot_state from Output Slot Context.
     volatile u32 *out_slot_ctx = (volatile u32 *)(c->slots[slot_id].output_ctx + 0);
     u32 dw3 = out_slot_ctx[3];
-    c->slots[slot_id].slot_state = (u8)((dw3 >> XHCI_SLOT_CTX_DW3_STATE_SHIFT)
-                                        & XHCI_SLOT_CTX_DW3_STATE_MASK);
+    c->slots[slot_id].slot_state =
+        (u8)((dw3 >> XHCI_SLOT_CTX_DW3_STATE_SHIFT) & XHCI_SLOT_CTX_DW3_STATE_MASK);
     return CARA_EOK;
 }

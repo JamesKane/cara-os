@@ -4,8 +4,7 @@
 
 #include <cara/types.h>
 
-struct SbiRet sbi_ecall(u64 eid, u64 fid, u64 a0, u64 a1, u64 a2, u64 a3, u64 a4,
-                        u64 a5)
+struct SbiRet sbi_ecall(u64 eid, u64 fid, u64 a0, u64 a1, u64 a2, u64 a3, u64 a4, u64 a5)
 {
     register u64 _a7 __asm__("a7") = eid;
     register u64 _a6 __asm__("a6") = fid;
@@ -17,16 +16,14 @@ struct SbiRet sbi_ecall(u64 eid, u64 fid, u64 a0, u64 a1, u64 a2, u64 a3, u64 a4
     register u64 _a5 __asm__("a5") = a5;
     __asm__ volatile("ecall"
                      : "+r"(_a0), "+r"(_a1)
-                     : "r"(_a2), "r"(_a3), "r"(_a4), "r"(_a5), "r"(_a6),
-                       "r"(_a7)
+                     : "r"(_a2), "r"(_a3), "r"(_a4), "r"(_a5), "r"(_a6), "r"(_a7)
                      : "memory");
     return (struct SbiRet){ .error = (i64)_a0, .value = (i64)_a1 };
 }
 
 bool sbi_probe_extension(u64 eid)
 {
-    struct SbiRet r =
-        sbi_ecall(SBI_EID_BASE, SBI_BASE_FID_PROBE_EXTENSION, eid, 0, 0, 0, 0, 0);
+    struct SbiRet r = sbi_ecall(SBI_EID_BASE, SBI_BASE_FID_PROBE_EXTENSION, eid, 0, 0, 0, 0, 0);
     return r.error == 0 && r.value != 0;
 }
 
@@ -52,8 +49,7 @@ void sbi_putc(char c)
 {
     dbcn_probe_once();
     if (g_dbcn_present) {
-        (void)sbi_ecall(SBI_EID_DBCN, SBI_DBCN_FID_WRITE_BYTE, (u64)(u8)c, 0, 0,
-                        0, 0, 0);
+        (void)sbi_ecall(SBI_EID_DBCN, SBI_DBCN_FID_WRITE_BYTE, (u64)(u8)c, 0, 0, 0, 0, 0);
     } else {
         sbi_legacy_putchar(c);
     }

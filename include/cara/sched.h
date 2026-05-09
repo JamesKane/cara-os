@@ -27,9 +27,9 @@
 //                Must NOT collide with the shared-library region
 //                (0x4000_0000–0x4_4000_0000) or the shared heap.
 // Later phases let user code pick its own layout via the ELF.
-#define CARA_USER_TEXT_BASE   0x0000000000010000ull
-#define CARA_USER_STACK_BASE  0x0000001100000000ull
-#define CARA_USER_STACK_SIZE  (4u * 4096u)
+constexpr u64 CARA_USER_TEXT_BASE = 0x0000000000010000ull;
+constexpr u64 CARA_USER_STACK_BASE = 0x0000001100000000ull;
+constexpr u32 CARA_USER_STACK_SIZE = (4u * 4096u);
 
 typedef void (*KernelTaskFn)(void *arg);
 
@@ -37,17 +37,14 @@ typedef void (*KernelTaskFn)(void *arg);
 // the boot context to it (current = kmain). Must run after Heap_Init.
 void Sched_Init(void);
 
-[[nodiscard]] struct Task *Croi_SpawnKernelTask(const char *name, i32 pri,
-                                                KernelTaskFn entry, void *arg);
+[[nodiscard]] struct Task *Croi_SpawnKernelTask(const char *name, i32 pri, KernelTaskFn entry,
+                                                void *arg);
 
-[[nodiscard]] struct Task *Croi_SpawnUserTask(const char *name, i32 pri,
-                                              const void *user_text_kva,
-                                              usize user_text_size,
-                                              u64 user_entry_va);
+[[nodiscard]] struct Task *Croi_SpawnUserTask(const char *name, i32 pri, const void *user_text_kva,
+                                              usize user_text_size, u64 user_entry_va);
 
 [[nodiscard]] struct Task *Croi_SpawnUserTaskFromElf(const char *name, i32 pri,
-                                                     const void *elf_blob,
-                                                     usize elf_size);
+                                                     const void *elf_blob, usize elf_size);
 
 void Croi_Yield(void);
 

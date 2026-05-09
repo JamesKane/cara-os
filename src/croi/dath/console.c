@@ -11,8 +11,7 @@
 #include <cara/types.h>
 
 void Dath_Console_Init(struct DathConsole *con, struct DathFramebuffer *fb,
-                       const struct DathFont *font,
-                       DathColor fg, DathColor bg)
+                       const struct DathFont *font, DathColor fg, DathColor bg)
 {
     if (!con || !fb || !font || font->width == 0 || font->height == 0) {
         return;
@@ -37,8 +36,7 @@ static void scroll_up_one_row(struct DathConsole *con)
     u32 px_h = con->n_rows * fh;
     u32 fb_w = con->fb->width;
 
-    Dath_BlitRect(con->fb, 0, 0, con->fb, 0, (i32)fh, (i32)fb_w,
-                  (i32)(px_h - fh));
+    Dath_BlitRect(con->fb, 0, 0, con->fb, 0, (i32)fh, (i32)fb_w, (i32)(px_h - fh));
     Dath_FillRect(con->fb, 0, (i32)(px_h - fh), (i32)fb_w, (i32)fh, con->bg);
 }
 
@@ -69,10 +67,8 @@ void Dath_Console_PutChar(struct DathConsole *con, char c)
         // Soft tab to next 8-column stop.
         u32 next = (con->cur_col + 8u) & ~7u;
         while (con->cur_col < next && con->cur_col < con->n_cols) {
-            Dath_DrawChar(con->fb, con->font,
-                          (i32)(con->cur_col * con->font->width),
-                          (i32)(con->cur_row * con->font->height),
-                          ' ', con->fg, con->bg);
+            Dath_DrawChar(con->fb, con->font, (i32)(con->cur_col * con->font->width),
+                          (i32)(con->cur_row * con->font->height), ' ', con->fg, con->bg);
             con->cur_col++;
         }
         if (con->cur_col >= con->n_cols) {
@@ -85,10 +81,8 @@ void Dath_Console_PutChar(struct DathConsole *con, char c)
         return;
     }
 
-    Dath_DrawChar(con->fb, con->font,
-                  (i32)(con->cur_col * con->font->width),
-                  (i32)(con->cur_row * con->font->height),
-                  c, con->fg, con->bg);
+    Dath_DrawChar(con->fb, con->font, (i32)(con->cur_col * con->font->width),
+                  (i32)(con->cur_row * con->font->height), c, con->fg, con->bg);
     con->cur_col++;
     if (con->cur_col >= con->n_cols) {
         newline(con);

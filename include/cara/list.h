@@ -28,8 +28,8 @@
 
 static inline void MinList_Init(struct MinList *l)
 {
-    l->mlh_Head     = (struct MinNode *)&l->mlh_Tail;
-    l->mlh_Tail     = nullptr;
+    l->mlh_Head = (struct MinNode *)&l->mlh_Tail;
+    l->mlh_Tail = nullptr;
     l->mlh_TailPred = (struct MinNode *)&l->mlh_Head;
 }
 
@@ -82,15 +82,12 @@ static inline struct MinNode *MinList_RemTail(struct MinList *l)
     return n;
 }
 
-#define MinList_NodeOf(PTR, TYPE, MEMBER) \
-    ((TYPE *)(void *)((char *)(PTR) - offsetof(TYPE, MEMBER)))
+#define MinList_NodeOf(PTR, TYPE, MEMBER) ((TYPE *)(void *)((char *)(PTR) - offsetof(TYPE, MEMBER)))
 
 // Forward iteration. The terminating condition `(VAR)->mln_Succ` is true
 // for every real node and false at the virtual tail-node (whose
 // mln_Succ aliases mlh_Tail = nullptr).
-#define MinList_ForEach(VAR, LIST) \
-    for (struct MinNode *VAR = (LIST)->mlh_Head; \
-         (VAR)->mln_Succ; \
-         (VAR) = (VAR)->mln_Succ)
+#define MinList_ForEach(VAR, LIST)                                                                 \
+    for (struct MinNode *VAR = (LIST)->mlh_Head; (VAR)->mln_Succ; (VAR) = (VAR)->mln_Succ)
 
 #endif

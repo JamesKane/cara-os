@@ -28,25 +28,17 @@ KERNEL_TEST(dath_smoke)
     struct DathFramebuffer fb;
 
     // 1. Init validation — reject zero width.
-    TEST_ASSERT(ctx,
-                Dath_Framebuffer_Init(&fb, g_buf, 0, H, W * 4, DATH_FMT_RGBA8888)
-                    != CARA_EOK,
+    TEST_ASSERT(ctx, Dath_Framebuffer_Init(&fb, g_buf, 0, H, W * 4, DATH_FMT_RGBA8888) != CARA_EOK,
                 "init accepted zero width");
     // Reject undersize stride.
-    TEST_ASSERT(ctx,
-                Dath_Framebuffer_Init(&fb, g_buf, W, H, W * 2, DATH_FMT_RGBA8888)
-                    != CARA_EOK,
+    TEST_ASSERT(ctx, Dath_Framebuffer_Init(&fb, g_buf, W, H, W * 2, DATH_FMT_RGBA8888) != CARA_EOK,
                 "init accepted undersize stride");
     // Reject DATH_FMT_NONE.
-    TEST_ASSERT(ctx,
-                Dath_Framebuffer_Init(&fb, g_buf, W, H, W * 4, DATH_FMT_NONE)
-                    != CARA_EOK,
+    TEST_ASSERT(ctx, Dath_Framebuffer_Init(&fb, g_buf, W, H, W * 4, DATH_FMT_NONE) != CARA_EOK,
                 "init accepted format NONE");
 
     // 2. Successful init.
-    TEST_ASSERT(ctx,
-                Dath_Framebuffer_Init(&fb, g_buf, W, H, W * 4, DATH_FMT_RGBA8888)
-                    == CARA_EOK,
+    TEST_ASSERT(ctx, Dath_Framebuffer_Init(&fb, g_buf, W, H, W * 4, DATH_FMT_RGBA8888) == CARA_EOK,
                 "init failed for valid args");
     TEST_ASSERT(ctx, fb.bpp == 4, "RGBA8888 bpp not 4");
 
@@ -63,7 +55,7 @@ KERNEL_TEST(dath_smoke)
     Dath_Pixel(&fb, 10, 5, Dath_RGB(0xFF, 0, 0));
     TEST_ASSERT(ctx, g_buf[5 * W + 10] == 0xFFFF0000u, "pixel: red wrong");
     TEST_ASSERT(ctx, g_buf[5 * W + 11] == 0xFF000000u, "pixel: leaked right");
-    TEST_ASSERT(ctx, g_buf[5 * W + 9]  == 0xFF000000u, "pixel: leaked left");
+    TEST_ASSERT(ctx, g_buf[5 * W + 9] == 0xFF000000u, "pixel: leaked left");
 
     // 5. Out-of-bounds pixels are silently dropped.
     Dath_Pixel(&fb, (i32)W, 0, Dath_RGB(1, 2, 3));
@@ -110,8 +102,8 @@ KERNEL_TEST(dath_smoke)
     // 8. Blit. Source filled yellow; copy to (40, 12) on dest.
     struct DathFramebuffer src;
     TEST_ASSERT(ctx,
-                Dath_Framebuffer_Init(&src, g_src, SRC_W, SRC_H, SRC_W * 4,
-                                      DATH_FMT_RGBA8888) == CARA_EOK,
+                Dath_Framebuffer_Init(&src, g_src, SRC_W, SRC_H, SRC_W * 4, DATH_FMT_RGBA8888) ==
+                    CARA_EOK,
                 "src init failed");
     Dath_Clear(&src, Dath_RGB(0xFF, 0xFF, 0));
     Dath_BlitRect(&fb, 40, 12, &src, 0, 0, (i32)SRC_W, (i32)SRC_H);
@@ -125,7 +117,7 @@ KERNEL_TEST(dath_smoke)
 
     // 9. Blit clipped against dest right edge: dst (60, 0) src (0,0,16,4)
     //    should write only pixels (60..63, 0..3).
-    Dath_Clear(&src, Dath_RGB(0xFF, 0, 0xFF));        // magenta
+    Dath_Clear(&src, Dath_RGB(0xFF, 0, 0xFF)); // magenta
     // First clear an area we expect to remain black, so the clipped
     // blit's "wrote nothing past the edge" property is observable.
     Dath_FillRect(&fb, 56, 0, 8, 4, Dath_RGB(0, 0, 0));
@@ -148,14 +140,12 @@ KERNEL_TEST(dath_smoke)
     //     'C' starts with row 0 = 0x7C  →  pixels .#####.. across 8 cols.
     static u32 g_text_buf[16 * 8];
     struct DathFramebuffer tfb;
-    TEST_ASSERT(ctx,
-                Dath_Framebuffer_Init(&tfb, g_text_buf, 16, 8, 16 * 4,
-                                      DATH_FMT_RGBA8888) == CARA_EOK,
-                "text fb init failed");
+    TEST_ASSERT(
+        ctx, Dath_Framebuffer_Init(&tfb, g_text_buf, 16, 8, 16 * 4, DATH_FMT_RGBA8888) == CARA_EOK,
+        "text fb init failed");
     Dath_Clear(&tfb, Dath_RGB(0, 0, 0));
     DathColor white = Dath_RGB(0xFF, 0xFF, 0xFF);
-    Dath_DrawChar(&tfb, &dath_font_8x8, 0, 0, 'C', white,
-                  Dath_RGB(0, 0, 0));
+    Dath_DrawChar(&tfb, &dath_font_8x8, 0, 0, 'C', white, Dath_RGB(0, 0, 0));
 
     // 'C' row 0 = 0x7C = 0b01111100 — pixels at columns 1..5 are set.
     static const u8 row0_bits[8] = { 0, 1, 1, 1, 1, 1, 0, 0 };
@@ -168,8 +158,7 @@ KERNEL_TEST(dath_smoke)
 
     // 11. DrawString advances by font width per char.
     Dath_Clear(&tfb, Dath_RGB(0, 0, 0));
-    Dath_DrawString(&tfb, &dath_font_8x8, 0, 0, "C C", white,
-                    Dath_RGB(0, 0, 0));
+    Dath_DrawString(&tfb, &dath_font_8x8, 0, 0, "C C", white, Dath_RGB(0, 0, 0));
     // Second 'C' starts at x=16, so its row 0 should match too.
     for (u32 x = 0; x < 8; x++) {
         u32 expected = row0_bits[x] ? 0xFFFFFFFFu : 0xFF000000u;
@@ -209,8 +198,13 @@ KERNEL_TEST(dath_smoke)
     DathColor magenta = Dath_RGB(0xFF, 0, 0xFF);
     Dath_DrawRect(&fb, 4, 4, 8, 6, magenta);
     // Each corner pixel:
-    static const struct { u32 x, y; } corners[4] = {
-        { 4, 4 }, { 11, 4 }, { 4, 9 }, { 11, 9 },
+    static const struct {
+        u32 x, y;
+    } corners[4] = {
+        { 4, 4 },
+        { 11, 4 },
+        { 4, 9 },
+        { 11, 9 },
     };
     for (u32 i = 0; i < 4; i++) {
         if (g_buf[corners[i].y * W + corners[i].x] != 0xFFFF00FFu) {
@@ -233,8 +227,7 @@ KERNEL_TEST(dath_smoke)
     // 15. Lowercase + digit coverage. Render '0' (font row 0 = 0x70 =
     //     01110000): cols 1..3 set, others clear.
     Dath_Clear(&tfb, Dath_RGB(0, 0, 0));
-    Dath_DrawChar(&tfb, &dath_font_8x8, 0, 0, '0', white,
-                  Dath_RGB(0, 0, 0));
+    Dath_DrawChar(&tfb, &dath_font_8x8, 0, 0, '0', white, Dath_RGB(0, 0, 0));
     static const u8 zero_row0[8] = { 0, 1, 1, 1, 0, 0, 0, 0 };
     for (u32 x = 0; x < 8; x++) {
         u32 expected = zero_row0[x] ? 0xFFFFFFFFu : 0xFF000000u;
@@ -244,11 +237,9 @@ KERNEL_TEST(dath_smoke)
     }
     // 'a' has empty rows 0 and 1 (the cap-line gap), body in rows 2..6.
     Dath_Clear(&tfb, Dath_RGB(0, 0, 0));
-    Dath_DrawChar(&tfb, &dath_font_8x8, 0, 0, 'a', white,
-                  Dath_RGB(0, 0, 0));
+    Dath_DrawChar(&tfb, &dath_font_8x8, 0, 0, 'a', white, Dath_RGB(0, 0, 0));
     for (u32 x = 0; x < 8; x++) {
-        if (g_text_buf[0 * 16 + x] != 0xFF000000u
-            || g_text_buf[1 * 16 + x] != 0xFF000000u) {
+        if (g_text_buf[0 * 16 + x] != 0xFF000000u || g_text_buf[1 * 16 + x] != 0xFF000000u) {
             TEST_FAIL(ctx, "DrawChar 'a' rows 0..1 should be background");
         }
     }
@@ -264,15 +255,13 @@ KERNEL_TEST(dath_smoke)
     // 16. DathConsole — cursor advance, newline reset, scroll on overflow.
     static u32 g_con_buf[64 * 32];
     struct DathFramebuffer cfb;
-    TEST_ASSERT(ctx,
-                Dath_Framebuffer_Init(&cfb, g_con_buf, 64, 32, 64 * 4,
-                                      DATH_FMT_RGBA8888) == CARA_EOK,
-                "console fb init failed");
+    TEST_ASSERT(
+        ctx, Dath_Framebuffer_Init(&cfb, g_con_buf, 64, 32, 64 * 4, DATH_FMT_RGBA8888) == CARA_EOK,
+        "console fb init failed");
     Dath_Clear(&cfb, Dath_RGB(0, 0, 0));
 
     struct DathConsole con;
-    Dath_Console_Init(&con, &cfb, &dath_font_8x8,
-                      Dath_RGB(0xFF, 0xFF, 0xFF), Dath_RGB(0, 0, 0));
+    Dath_Console_Init(&con, &cfb, &dath_font_8x8, Dath_RGB(0xFF, 0xFF, 0xFF), Dath_RGB(0, 0, 0));
     TEST_ASSERT(ctx, con.n_cols == 8, "console n_cols wrong");
     TEST_ASSERT(ctx, con.n_rows == 4, "console n_rows wrong");
 
@@ -285,8 +274,7 @@ KERNEL_TEST(dath_smoke)
     TEST_ASSERT(ctx, con.cur_row == 1, "\\n did not advance row");
 
     Dath_Console_PutChar(&con, 'X');
-    TEST_ASSERT(ctx, con.cur_col == 1 && con.cur_row == 1,
-                "PutChar on second row mis-tracked");
+    TEST_ASSERT(ctx, con.cur_col == 1 && con.cur_row == 1, "PutChar on second row mis-tracked");
 
     // Force scroll. Currently at (1, 1) with n_rows=4. Two more \n's
     // put cursor at (0, 3); a third triggers scroll-up → (0, 3) again.
@@ -298,8 +286,7 @@ KERNEL_TEST(dath_smoke)
                 "scroll-up did not clamp cursor to last row");
 
     // Right-edge wrap: filling exactly n_cols characters wraps to (0, 1).
-    Dath_Console_Init(&con, &cfb, &dath_font_8x8,
-                      Dath_RGB(0xFF, 0xFF, 0xFF), Dath_RGB(0, 0, 0));
+    Dath_Console_Init(&con, &cfb, &dath_font_8x8, Dath_RGB(0xFF, 0xFF, 0xFF), Dath_RGB(0, 0, 0));
     Dath_Clear(&cfb, Dath_RGB(0, 0, 0));
     Dath_Console_PutString(&con, "12345678");
     TEST_ASSERT(ctx, con.cur_col == 0, "row-fill did not wrap col to 0");
@@ -311,14 +298,12 @@ KERNEL_TEST(dath_smoke)
     TEST_ASSERT(ctx, Dath_RGB565(0xFF, 0, 0) == 0xF800u, "RGB565 red wrong");
     TEST_ASSERT(ctx, Dath_RGB565(0, 0xFF, 0) == 0x07E0u, "RGB565 green wrong");
     TEST_ASSERT(ctx, Dath_RGB565(0, 0, 0xFF) == 0x001Fu, "RGB565 blue wrong");
-    TEST_ASSERT(ctx, Dath_RGB565(0xFF, 0xFF, 0xFF) == 0xFFFFu,
-                "RGB565 white wrong");
+    TEST_ASSERT(ctx, Dath_RGB565(0xFF, 0xFF, 0xFF) == 0xFFFFu, "RGB565 white wrong");
 
     static u16 g_buf16[16 * 8];
     struct DathFramebuffer fb16;
     TEST_ASSERT(ctx,
-                Dath_Framebuffer_Init(&fb16, g_buf16, 16, 8, 16 * 2,
-                                      DATH_FMT_RGB565) == CARA_EOK,
+                Dath_Framebuffer_Init(&fb16, g_buf16, 16, 8, 16 * 2, DATH_FMT_RGB565) == CARA_EOK,
                 "RGB565 fb init failed");
     TEST_ASSERT(ctx, fb16.bpp == 2, "RGB565 bpp not 2");
 
@@ -344,8 +329,7 @@ KERNEL_TEST(dath_smoke)
     static u16 g_src16[4 * 4];
     struct DathFramebuffer src16;
     TEST_ASSERT(ctx,
-                Dath_Framebuffer_Init(&src16, g_src16, 4, 4, 4 * 2,
-                                      DATH_FMT_RGB565) == CARA_EOK,
+                Dath_Framebuffer_Init(&src16, g_src16, 4, 4, 4 * 2, DATH_FMT_RGB565) == CARA_EOK,
                 "src16 init failed");
     Dath_Clear(&src16, Dath_RGB565(0, 0, 0xFF));
     Dath_BlitRect(&fb16, 10, 4, &src16, 0, 0, 4, 4);
@@ -360,8 +344,7 @@ KERNEL_TEST(dath_smoke)
     // 18. AllocBitmap / FreeBitmap. Heap-backed off-screen surface,
     //     drawn into and blitted onto the static framebuffer.
     struct DathFramebuffer bm;
-    TEST_ASSERT(ctx,
-                Dath_AllocBitmap(&bm, 8, 8, DATH_FMT_RGBA8888) == CARA_EOK,
+    TEST_ASSERT(ctx, Dath_AllocBitmap(&bm, 8, 8, DATH_FMT_RGBA8888) == CARA_EOK,
                 "AllocBitmap failed");
     TEST_ASSERT(ctx, bm.base != nullptr, "AllocBitmap base null");
     TEST_ASSERT(ctx, bm.width == 8 && bm.height == 8, "AllocBitmap dims wrong");
@@ -391,11 +374,9 @@ KERNEL_TEST(dath_smoke)
 
     // Reject zero-sized + format-NONE allocation requests.
     struct DathFramebuffer junk;
-    TEST_ASSERT(ctx,
-                Dath_AllocBitmap(&junk, 0, 8, DATH_FMT_RGBA8888) != CARA_EOK,
+    TEST_ASSERT(ctx, Dath_AllocBitmap(&junk, 0, 8, DATH_FMT_RGBA8888) != CARA_EOK,
                 "AllocBitmap accepted zero width");
-    TEST_ASSERT(ctx,
-                Dath_AllocBitmap(&junk, 8, 8, DATH_FMT_NONE) != CARA_EOK,
+    TEST_ASSERT(ctx, Dath_AllocBitmap(&junk, 8, 8, DATH_FMT_NONE) != CARA_EOK,
                 "AllocBitmap accepted format NONE");
 
     Dath_FreeBitmap(&bm);

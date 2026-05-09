@@ -15,7 +15,7 @@
 #include <cara/test.h>
 #include <cara/types.h>
 
-#define TEST_VA 0x40000000ull       // 1 GiB into the lower half
+#define TEST_VA 0x40000000ull // 1 GiB into the lower half
 
 static inline void csrw_satp(u64 v)
 {

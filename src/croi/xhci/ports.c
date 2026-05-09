@@ -17,12 +17,18 @@
 static const char *speed_name(u8 speed)
 {
     switch (speed) {
-    case XHCI_SPEED_FULL:        return "FS";
-    case XHCI_SPEED_LOW:         return "LS";
-    case XHCI_SPEED_HIGH:        return "HS";
-    case XHCI_SPEED_SUPER:       return "SS";
-    case XHCI_SPEED_SUPER_PLUS:  return "SS+";
-    default:                     return "?";
+    case XHCI_SPEED_FULL:
+        return "FS";
+    case XHCI_SPEED_LOW:
+        return "LS";
+    case XHCI_SPEED_HIGH:
+        return "HS";
+    case XHCI_SPEED_SUPER:
+        return "SS";
+    case XHCI_SPEED_SUPER_PLUS:
+        return "SS+";
+    default:
+        return "?";
     }
 }
 
@@ -50,30 +56,24 @@ static const char *speed_name(u8 speed)
         u32 portsc = xhci_op_read32(c, off);
 
         bool connected = (portsc & XHCI_PORTSC_CCS) != 0;
-        bool enabled   = (portsc & XHCI_PORTSC_PED) != 0;
-        u8   speed     = (u8)((portsc >> XHCI_PORTSC_SPEED_SHIFT)
-                              & XHCI_PORTSC_SPEED_MASK);
-        u8   pls       = (u8)((portsc >> XHCI_PORTSC_PLS_SHIFT)
-                              & XHCI_PORTSC_PLS_MASK);
+        bool enabled = (portsc & XHCI_PORTSC_PED) != 0;
+        u8 speed = (u8)((portsc >> XHCI_PORTSC_SPEED_SHIFT) & XHCI_PORTSC_SPEED_MASK);
+        u8 pls = (u8)((portsc >> XHCI_PORTSC_PLS_SHIFT) & XHCI_PORTSC_PLS_MASK);
 
-        c->port[i].connected  = connected;
-        c->port[i].enabled    = enabled;
-        c->port[i].speed      = speed;
+        c->port[i].connected = connected;
+        c->port[i].enabled = enabled;
+        c->port[i].speed = speed;
         c->port[i].link_state = pls;
 
         if (connected) {
             c->n_connected_ports++;
-            LOG_INFO("xhci",
-                     "port %u: connected speed=%s pls=%u portsc=0x%x",
-                     (unsigned)(i + 1),       // 1-based for the human-facing log
-                     speed_name(speed),
-                     (unsigned)pls,
-                     (unsigned)portsc);
+            LOG_INFO("xhci", "port %u: connected speed=%s pls=%u portsc=0x%x",
+                     (unsigned)(i + 1), // 1-based for the human-facing log
+                     speed_name(speed), (unsigned)pls, (unsigned)portsc);
         }
     }
 
-    LOG_INFO("xhci", "%u of %u ports connected",
-             (unsigned)c->n_connected_ports,
+    LOG_INFO("xhci", "%u of %u ports connected", (unsigned)c->n_connected_ports,
              (unsigned)c->max_ports);
     return CARA_EOK;
 }
