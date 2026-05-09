@@ -17,6 +17,7 @@
 
 #include <cara/dath.h>
 #include <cara/types.h>
+#include <intuition/intuition.h>
 #include <intuition/screens.h>
 
 // ---- Flat input event record ----------------------------------------------
@@ -237,5 +238,72 @@ void Leargas_CloseScreen(struct Screen *s);
 // on the input ring's signal kobj so motion arrives at IRQ rate
 // rather than poll-loop cadence.
 u32 Leargas_Input_Drain(struct LeargasPointer *p);
+
+// ---- LD — Window primitives ----------------------------------------------
+//
+// LeargasWindow extends V36+ struct Window with brand-private state
+// (the title buffer the public Title pointer points at, plus the
+// owning screen's framebuffer cached for renderer reach). Same
+// CroiMsgPort/LeargasScreen pattern: pub field at offset 0 so a
+// `struct LeargasWindow *` round-trips with `struct Window *` via
+// plain cast / FromPub.
+
+#define LEARGAS_WINDOW_TITLE_MAX 64
+
+struct LeargasWindow {
+    struct Window pub; // V36+ public Window — must be first field
+
+    // Brand-private state.
+    char title_buf[LEARGAS_WINDOW_TITLE_MAX];
+    bool initialised;
+};
+
+// Initialise a caller-provided LeargasWindow from a NewWindow
+// descriptor. Copies the title into the brand-owned buffer; pubs
+// every public field (LeftEdge/TopEdge/Width/Height, Flags,
+// IDCMPFlags, MinWidth/MinHeight/MaxWidth/MaxHeight, DetailPen,
+// BlockPen, WScreen, BorderLeft/Top/Right/Bottom default insets);
+// leaves the V36+-deviating fields (RPort, BorderRPort, WLayer,
+// MenuStrip, FirstRequest, DMRequest, IFont, Pointer) at nullptr —
+// the renderer goes through the brand wrapper instead. Does not
+// link into the screen's window list, allocate memory, or paint;
+// those are kernel-side.
+//
+// Returns CARA_EINVAL on null arguments, an unset NewWindow.Screen
+// AND no active screen, or zero-sized geometry; CARA_EOK on success.
+[[nodiscard]] int Leargas_Window_InitInPlace(struct LeargasWindow *w,
+                                             const struct NewWindow *nw);
+
+// Render the window decorations (border, title bar, title text,
+// close gadget if WFLG_CLOSEGADGET) into the owning screen's
+// framebuffer. Pulls the framebuffer from
+// Leargas_Screen_FromPub(w->pub.WScreen)->fb. Subsequent screen-
+// level repaints (Phase 3+ Layer support) call this again.
+void Leargas_Window_Render(struct LeargasWindow *w);
+
+// Recover a LeargasWindow pointer from its public Window pointer.
+[[nodiscard]] struct LeargasWindow *Leargas_Window_FromPub(struct Window *pub);
+
+// Link `w` into the head of its screen's FirstWindow list; safe to
+// call exactly once per Leargas_Window_InitInPlace.
+void Leargas_Window_LinkToScreen(struct LeargasWindow *w);
+
+// Unlink `w` from its screen's FirstWindow list; safe to call on
+// a window that was never linked or has already been unlinked.
+void Leargas_Window_UnlinkFromScreen(struct LeargasWindow *w);
+
+// Kernel-only: heap-allocate a LeargasWindow, init from `nw`, link
+// into the screen's window list, render decorations. Returns the
+// public Window pointer or nullptr on allocation / argument
+// failure. NewWindow.Screen may be nullptr — falls back to the
+// active screen (Leargas_ActiveScreen).
+[[nodiscard]] struct Window *Leargas_OpenWindow(const struct NewWindow *nw);
+
+// Kernel-only: tear down a window previously returned from
+// Leargas_OpenWindow. Unlinks from the screen's window list,
+// blanks the screen region the window occupied (Phase 1 has no
+// Layer support — Phase 3+ redraws the underneath properly),
+// frees the heap allocation. Safe on nullptr.
+void Leargas_CloseWindow(struct Window *w);
 
 #endif // CARA_LEARGAS_H

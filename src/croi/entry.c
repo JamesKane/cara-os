@@ -250,20 +250,16 @@ static void console_putc(char c)
                 Dath_FillRect(&g_fb, 96, 48, 32, 12, blue);
 
                 Dath_Console_Init(&g_fb_console, &g_fb, &dath_font_8x8, white, bg);
-                // Reserve the top of the screen for the banner — start
-                // the log sink at row 9 (px 72 with the 8x8 font).
                 g_fb_console.cur_row = 9;
                 g_fb_console.cur_col = 0;
-                struct LogSink fb_sink = {
-                    .emit = Log_Sink_DathConsole_Emit,
-                    .ctx = &g_fb_console,
-                    .ansi_capable = false,
-                    .min_level = (u8)LOG_LV_INFO,
-                };
-                if (Log_RegisterSink(&fb_sink) == CARA_EOK) {
-                    g_fb_present = true;
-                    LOG_INFO("dath", "framebuffer console registered");
-                }
+                g_fb_present = true;
+                // Phase 1 deliberately does NOT register the framebuffer
+                // as a LogSink: once Leargas LB takes over the screen
+                // (next block), windows + pointer would be overpainted
+                // by every subsequent LOG_INFO line. The DathConsole is
+                // kept around so Phase 3 can route logs to a dedicated
+                // "Console" window via the same emit fn. UART log keeps
+                // everything for debugging.
 
                 // ---- Leargas LB + LA boot init. Ride the existing
                 //      banner colours so OpenScreen's Dath_Clear
@@ -275,8 +271,62 @@ static void console_putc(char c)
                                      leargas_pointer_arrow.height, g_fb.format) == CARA_EOK) {
                     g_screen = Leargas_OpenScreen(&g_fb, "Workbench", bg);
                     if (g_screen) {
+                        // LD: open a sample window centered on the
+                        // screen so the framebuffer shows boot
+                        // chrome (border + title bar + close
+                        // gadget). Order matters — Pointer_Init
+                        // must follow OpenWindow so the pointer's
+                        // save buffer captures the with-window
+                        // pixels at center; otherwise the first
+                        // Pointer_Move would restore stale pre-
+                        // window pixels and corrupt the title bar.
+                        char wb_title[] = "Croi";
+                        i32 win_w = (i32)g_fb.width - 200;
+                        i32 win_h = (i32)g_fb.height - 120;
+                        if (win_w < 120) {
+                            win_w = 120;
+                        }
+                        if (win_h < 60) {
+                            win_h = 60;
+                        }
+                        struct NewWindow nw = {
+                            .LeftEdge = (WORD)(((i32)g_fb.width - win_w) / 2),
+                            .TopEdge = (WORD)(((i32)g_fb.height - win_h) / 2),
+                            .Width = (WORD)win_w,
+                            .Height = (WORD)win_h,
+                            .DetailPen = 0,
+                            .BlockPen = 1,
+                            .IDCMPFlags = IDCMP_CLOSEWINDOW | IDCMP_RAWKEY |
+                                          IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE,
+                            .Flags = WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_CLOSEGADGET |
+                                     WFLG_ACTIVATE | WFLG_SMART_REFRESH,
+                            .Title = (UBYTE *)wb_title,
+                            .Screen = g_screen,
+                            .MinWidth = 120,
+                            .MinHeight = 60,
+                            .MaxWidth = (UWORD)g_fb.width,
+                            .MaxHeight = (UWORD)g_fb.height,
+                            .Type = WBENCHSCREEN,
+                        };
+                        struct Window *win = Leargas_OpenWindow(&nw);
+                        if (win) {
+                            LOG_INFO("larg", "window '%s' at (%d,%d) %dx%d", wb_title,
+                                     (int)win->LeftEdge, (int)win->TopEdge, (int)win->Width,
+                                     (int)win->Height);
+                        } else {
+                            LOG_WARN("larg", "OpenWindow failed");
+                        }
+
+                        // Pointer fg=white (body), bg=black (outline) so
+                        // both pixel kinds contrast against the dark-blue
+                        // screen pen0. Reusing screen bg as the outline
+                        // colour makes the outline disappear against
+                        // similarly-coloured backgrounds.
+                        DathColor ptr_outline =
+                            (g_fb.format == DATH_FMT_RGB565) ? Dath_RGB565(0, 0, 0)
+                                                             : Dath_RGB(0, 0, 0);
                         if (Leargas_Pointer_Init(&g_pointer, &g_fb, &g_pointer_save,
-                                                 &leargas_pointer_arrow, white, bg,
+                                                 &leargas_pointer_arrow, white, ptr_outline,
                                                  (i32)g_fb.width / 2,
                                                  (i32)g_fb.height / 2) == CARA_EOK) {
                             g_leargas_up = true;
@@ -285,6 +335,9 @@ static void console_putc(char c)
                                      (int)g_pointer.x, (int)g_pointer.y);
                         } else {
                             LOG_WARN("larg", "Pointer_Init failed");
+                            if (win) {
+                                Leargas_CloseWindow(win);
+                            }
                             Leargas_CloseScreen(g_screen);
                             g_screen = nullptr;
                         }

@@ -13,10 +13,10 @@
 
 ## Status — 2026-05-08
 
-**L0 + LA + LB + LC shipped; Tier 1 done. LD/LE/LF/LG/LH
-remain.** PHASE1_USB.md Tier 1–2 + HA.1–4 + HidIntReadOnce are
-in HEAD; that's enough to feed the L0 producer side. The L0
-commit lands:
+**Tier 1 done (L0+LA+LB+LC); LD shipped. LE/LF/LG/LH remain.**
+PHASE1_USB.md Tier 1–2 + HA.1–4 + HidIntReadOnce are in HEAD;
+that's enough to feed the L0 producer side. The L0 commit
+lands:
 
 - `<devices/inputevent.h>` — V36+ canonical `struct InputEvent`
   shape + IECLASS_* / IECODE_* / IEQUALIFIER_* / IESUBCLASS_*
@@ -117,7 +117,42 @@ QEMU `-device ramfb` + a DTS overlay) Boot ends with a visible
 pointer at center-screen, and any mouse delta from the HID
 poll moves it inside the screen extent.
 
-Remaining for Phase 1 Subgoal 6: LD/LE/LF windows + focus +
+The LD commit adds:
+
+- `<intuition/intuition.h>` — V36+ struct Window + struct
+  NewWindow + WFLG_* / IDCMP_* constants. Same pragmatic
+  pointer-where-V36+-embeds deviation as struct Screen.
+- `struct LeargasWindow` (cara/leargas.h) — brand wrapper with
+  `struct Window pub` first; CroiMsgPort-style FromPub.
+- `Leargas_Window_InitInPlace / Render / FromPub /
+  LinkToScreen / UnlinkFromScreen` (dual-target, host-testable).
+- `Leargas_OpenWindow / CloseWindow` (kernel-only, heap-backed).
+- entry.c boot wiring opens a sample "Croi" window centered on
+  the screen with WFLG_DRAGBAR | DEPTHGADGET | CLOSEGADGET |
+  ACTIVATE before Pointer_Init so the pointer save buffer
+  captures the with-window pixels at center. Pointer outline
+  passes black (not the screen pen0) so the arrow's edge is
+  visible against any backdrop.
+- The framebuffer LogSink is no longer registered: once Leargas
+  takes over the screen, log lines would overpaint windows on
+  every LOG_INFO call. UART log keeps everything for debugging;
+  Phase 3+ can route logs to a dedicated console window via the
+  same DathConsole emit fn (kept around in g_fb_console).
+- `tests/unit/test_leargas_window.c` (test 15/17) — argument
+  validation, active-screen fallback, field seeding,
+  borderless flag, FromPub round-trip, link/unlink across
+  multi-window screens, decoration rendering bounds (pixels
+  inside / outside window rect).
+- Visual verification under QEMU virt with a custom DTB
+  injecting a `simple-framebuffer` node at 0x9F000000 (800×480
+  RGBA8888) confirmed end-to-end rendering: dark-blue screen
+  background, lighter-blue window chrome, white "Croi" title
+  text, close gadget on the right, mid-blue window body, and
+  the 16×16 black-outlined-white-fill arrow pointer at center.
+  Captured via QEMU monitor `pmemsave` of the framebuffer
+  region into a PPM.
+
+Remaining for Phase 1 Subgoal 6: LE/LF windows focus +
 keyboard routing, LG/LH gadgets + string Inntin. The HB.*
 HID Gleas (Phase 3 prerequisite) wires the Phase 3 producer
 side onto the same L0 contract — no L0 changes needed when
