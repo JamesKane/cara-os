@@ -7,6 +7,7 @@
 #include <cara/alloc.h>
 #include <cara/dath.h>
 #include <cara/leargas.h>
+#include <cara/shared.h>
 #include <cara/types.h>
 
 [[nodiscard]] struct Screen *Leargas_OpenScreen(struct DathFramebuffer *fb, const char *title,
@@ -15,7 +16,11 @@
     if (!fb) {
         return nullptr;
     }
-    struct LeargasScreen *s = (struct LeargasScreen *)Croi_Alloc(sizeof(struct LeargasScreen));
+    // Shared heap: the Screen must be dereferenceable by a U-mode client
+    // (Clar) that holds the pointer OpenScreen returns. Croi_Free
+    // range-routes it back to the shared heap at CloseScreen.
+    struct LeargasScreen *s =
+        (struct LeargasScreen *)Croi_AllocShared(sizeof(struct LeargasScreen));
     if (!s) {
         return nullptr;
     }

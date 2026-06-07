@@ -10,9 +10,18 @@
 
 #include <cara/dath.h>
 #include <cara/leargas.h>
+#include <cara/shared.h>
 #include <cara/test.h>
 #include <cara/types.h>
 #include <devices/inputevent.h>
+
+// A Window / IntuiMessage a U-mode client will dereference must live in
+// the SASOS shared window (S3), not the upper-half kernel heap.
+static bool in_shared(const void *p)
+{
+    u64 va = (u64)(uptr)p;
+    return va >= CARA_SHARED_VA_BASE && va < CARA_SHARED_VA_BASE + CARA_SHARED_ARENA_BYTES;
+}
 
 KERNEL_TEST(idcmp_rawkey)
 {
@@ -41,6 +50,7 @@ KERNEL_TEST(idcmp_rawkey)
     };
     struct Window *win = Leargas_OpenWindow(&nw);
     TEST_ASSERT(ctx, win != nullptr, "open window");
+    TEST_ASSERT(ctx, in_shared(win), "Window allocated in the SASOS shared window (S3)");
     TEST_ASSERT(ctx, win->UserPort != nullptr, "window got a UserPort");
     TEST_ASSERT(ctx, Leargas_ActiveWindow() == win, "WFLG_ACTIVATE focused the window");
 
@@ -55,6 +65,7 @@ KERNEL_TEST(idcmp_rawkey)
     struct IntuiMessage *im = nullptr;
     TEST_ASSERT(ctx, Leargas_IDCMP_GetMsg(win, &im), "GetMsg returned a message");
     TEST_ASSERT(ctx, im != nullptr, "message non-null");
+    TEST_ASSERT(ctx, in_shared(im), "IntuiMessage allocated in the shared window (S3)");
     TEST_ASSERT(ctx, im->Class == IDCMP_RAWKEY, "Class IDCMP_RAWKEY");
     TEST_ASSERT(ctx, im->Code == 0x20, "Code");
     TEST_ASSERT(ctx, im->Qualifier == IEQUALIFIER_LSHIFT, "Qualifier");

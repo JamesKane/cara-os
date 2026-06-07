@@ -9,6 +9,7 @@
 #include <cara/leargas.h>
 #include <cara/msgport.h>
 #include <cara/sched.h>
+#include <cara/shared.h>
 #include <cara/types.h>
 
 [[nodiscard]] struct Window *Leargas_OpenWindow(const struct NewWindow *nw)
@@ -16,7 +17,10 @@
     if (!nw) {
         return nullptr;
     }
-    struct LeargasWindow *w = (struct LeargasWindow *)Croi_Alloc(sizeof(struct LeargasWindow));
+    // Shared heap: a U-mode client (Clar) dereferences the Window this
+    // returns (window->UserPort, fields). Croi_Free range-routes it back.
+    struct LeargasWindow *w =
+        (struct LeargasWindow *)Croi_AllocShared(sizeof(struct LeargasWindow));
     if (!w) {
         return nullptr;
     }

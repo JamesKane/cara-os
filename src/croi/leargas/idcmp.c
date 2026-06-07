@@ -13,6 +13,7 @@
 #include <cara/alloc.h>
 #include <cara/leargas.h>
 #include <cara/msgport.h>
+#include <cara/shared.h>
 #include <cara/types.h>
 
 [[nodiscard]] bool Leargas_IDCMP_RouteKey(struct Window *focused,
@@ -25,7 +26,7 @@
         return false; // the window didn't ask for keys
     }
 
-    struct IntuiMessage *im = (struct IntuiMessage *)Croi_Alloc(sizeof(struct IntuiMessage));
+    struct IntuiMessage *im = (struct IntuiMessage *)Croi_AllocShared(sizeof(struct IntuiMessage));
     if (!im) {
         return false;
     }
@@ -79,7 +80,7 @@ void Leargas_IDCMP_DisposeMsg(struct IntuiMessage *im)
         return false; // the window didn't ask for gadget events
     }
 
-    struct IntuiMessage *im = (struct IntuiMessage *)Croi_Alloc(sizeof(struct IntuiMessage));
+    struct IntuiMessage *im = (struct IntuiMessage *)Croi_AllocShared(sizeof(struct IntuiMessage));
     if (!im) {
         return false;
     }
