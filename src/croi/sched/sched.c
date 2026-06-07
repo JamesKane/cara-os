@@ -11,6 +11,7 @@
 #include <cara/loader.h>
 #include <cara/log.h>
 #include <cara/sched.h>
+#include <cara/shared.h>
 #include <cara/types.h>
 
 extern void croi_ctx_switch(u64 *from, u64 *to);
@@ -271,6 +272,16 @@ void Croi_TaskSetSelfPriority(i32 pri)
         return nullptr;
     }
 
+    // Install the SASOS shared-heap window so library bodies' pointers
+    // (Screen/Window/IntuiMessage/…) are dereferenceable in this task.
+    if (Croi_Shared_InstallMapping(t->user_pt) != CARA_EOK) {
+        Croi_DestroyPT(t->user_pt);
+        HandleTable_Destroy(&t->handles);
+        Croi_Free(t->kstack);
+        Croi_Free(t);
+        return nullptr;
+    }
+
     // Map the user text bytes (already loaded as part of croi.elf's
     // rodata) at the user-VA entry as PTE_USER_RX, page by page.
     u64 base_kva = (u64)(uptr)user_text_kva;
@@ -362,6 +373,15 @@ void Croi_TaskSetSelfPriority(i32 pri)
     // Install the exec.library shared region at user VA 0x4000_0000
     // (same as Croi_SpawnUserTask above).
     if (Croi_ExecLib_InstallMapping(t->user_pt) != CARA_EOK) {
+        Croi_DestroyPT(t->user_pt);
+        HandleTable_Destroy(&t->handles);
+        Croi_Free(t->kstack);
+        Croi_Free(t);
+        return nullptr;
+    }
+
+    // Install the SASOS shared-heap window (same as Croi_SpawnUserTask).
+    if (Croi_Shared_InstallMapping(t->user_pt) != CARA_EOK) {
         Croi_DestroyPT(t->user_pt);
         HandleTable_Destroy(&t->handles);
         Croi_Free(t->kstack);

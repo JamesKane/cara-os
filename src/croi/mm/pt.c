@@ -7,6 +7,7 @@
 
 #include <cara/alloc.h>
 #include <cara/mm.h>
+#include <cara/shared.h>
 #include <cara/types.h>
 
 #define ENTRIES_PER_TABLE 512u
@@ -113,8 +114,13 @@ void Croi_DestroyPT(struct PageTable *pt)
     }
     if (pt->root) {
         // Don't recurse into kernel-upper-half (256, 258) — those are
-        // 1 GiB leaves shared by every PT.
+        // 1 GiB leaves shared by every PT. Likewise skip the SASOS shared
+        // heap's L2 slot: its L1 subtree is one object shared by every PT
+        // (cara/shared.h), so freeing it here would corrupt other tasks.
         for (u32 i = 0; i < 256; i++) {
+            if (i == CARA_SHARED_L2_INDEX) {
+                continue;
+            }
             u64 pte = pt->root[i];
             if (pte_present(pte) && !pte_is_leaf(pte)) {
                 u64 *child = pte_child(pte);

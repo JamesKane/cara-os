@@ -27,6 +27,7 @@
 #include <cara/pci.h>
 #include <cara/platform.h>
 #include <cara/sched.h>
+#include <cara/shared.h>
 #include <cara/test.h>
 #include <cara/time.h>
 #include <cara/trap.h>
@@ -197,6 +198,16 @@ static void console_putc(char c)
     };
     if (Log_RegisterSink(&uart_sink) != CARA_EOK) {
         Croi_Print("Log_RegisterSink failed\n");
+        Croi_Halt();
+    }
+
+    // ---- SASOS shared heap. Maps the lower-half RW+U shared window
+    //      (ARCHITECTURE §4.3) and registers it with the allocator so
+    //      AllocMem / library bodies can return U-mode-dereferenceable
+    //      pointers. Installed into the boot PT here; spawn paths install
+    //      it into each task PT.
+    if (Croi_Shared_Init(&g_page_alloc) != CARA_EOK) {
+        LOG_FATAL("entry", "Croi_Shared_Init failed");
         Croi_Halt();
     }
 

@@ -13,6 +13,8 @@ add_library(cara_mm STATIC
 target_include_directories(cara_mm PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 
 if(CARA_TARGET STREQUAL "riscv64")
+    # shared.c (SASOS shared heap) uses satp / sfence — kernel-only.
+    target_sources(cara_mm PRIVATE shared.c)
     target_link_libraries(cara_mm
         PUBLIC cara_headers cara_fdt
         PRIVATE cara_kernel_flags

@@ -37,9 +37,41 @@ static const u32 g_class_sizes[CARA_HEAP_NUM_CLASSES] = {
 
 static struct Heap *g_active_heap = nullptr;
 
+// Optional second heap (the SASOS shared heap) and the VA window it
+// owns, so Croi_Free can route a pointer to the right heap by range.
+static struct Heap *g_shared_heap = nullptr;
+static u64 g_shared_lo = 0;
+static u64 g_shared_hi = 0;
+
 void Heap_SetActive(struct Heap *h)
 {
     g_active_heap = h;
+}
+
+void Heap_RegisterShared(struct Heap *h, u64 lo, u64 hi)
+{
+    g_shared_heap = h;
+    g_shared_lo = lo;
+    g_shared_hi = hi;
+}
+
+// Translate a freshly-allocated physical page to the VA this heap
+// addresses it by, and back. The kernel heap uses the upper-half direct
+// map; an arena heap uses its pre-mapped window.
+static void *heap_p2v(const struct Heap *h, u64 phys)
+{
+    if (h->va_base) {
+        return (void *)(uptr)(h->va_base + (phys - h->pa_base));
+    }
+    return Mm_PhysToVirt(phys);
+}
+
+static u64 heap_v2p(const struct Heap *h, const void *va)
+{
+    if (h->va_base) {
+        return h->pa_base + ((uptr)va - (uptr)h->va_base);
+    }
+    return Mm_VirtToPhys(va);
 }
 
 [[nodiscard]] int Heap_Init(struct Heap *h, struct PageAllocator *pa)
@@ -53,6 +85,17 @@ void Heap_SetActive(struct Heap *h)
         h->classes[i].obj_size = g_class_sizes[i];
         MinList_Init(&h->classes[i].slab_pages);
     }
+    return CARA_EOK;
+}
+
+[[nodiscard]] int Heap_InitArena(struct Heap *h, struct PageAllocator *pa, u64 va_base, u64 pa_base)
+{
+    int rc = Heap_Init(h, pa);
+    if (rc != CARA_EOK) {
+        return rc;
+    }
+    h->va_base = va_base;
+    h->pa_base = pa_base;
     return CARA_EOK;
 }
 
@@ -74,7 +117,7 @@ static u32 size_to_class(usize size)
     if (phys == 0) {
         return CARA_ENOMEM;
     }
-    struct SlabHeader *sh = (struct SlabHeader *)Mm_PhysToVirt(phys);
+    struct SlabHeader *sh = (struct SlabHeader *)heap_p2v(h, phys);
     sh->magic = SLAB_MAGIC;
     sh->class_id = (u8)cid;
     MinList_AddTail(&h->classes[cid].slab_pages, &sh->link);
@@ -98,9 +141,8 @@ static u32 size_to_class(usize size)
     return CARA_EOK;
 }
 
-[[nodiscard]] void *Croi_Alloc(usize size)
+[[nodiscard]] static void *alloc_from(struct Heap *h, usize size)
 {
-    struct Heap *h = g_active_heap;
     if (!h || size == 0) {
         return nullptr;
     }
@@ -138,7 +180,7 @@ static u32 size_to_class(usize size)
     if (phys == 0) {
         return nullptr;
     }
-    struct LargeHeader *lh = (struct LargeHeader *)Mm_PhysToVirt(phys);
+    struct LargeHeader *lh = (struct LargeHeader *)heap_p2v(h, phys);
     lh->magic = LARGE_MAGIC;
     lh->n_pages = n_pages;
     h->large_in_flight++;
@@ -152,12 +194,27 @@ static u32 size_to_class(usize size)
     return (u8 *)lh + sizeof(struct LargeHeader);
 }
 
+[[nodiscard]] void *Croi_Alloc(usize size)
+{
+    return alloc_from(g_active_heap, size);
+}
+
+[[nodiscard]] void *Croi_HeapAlloc(struct Heap *h, usize size)
+{
+    return alloc_from(h, size);
+}
+
 void Croi_Free(void *ptr)
 {
     if (!ptr) {
         return;
     }
+    // Route by VA range: pointers in the registered shared window belong
+    // to the shared heap; everything else to the active kernel heap.
     struct Heap *h = g_active_heap;
+    if (g_shared_heap && (u64)(uptr)ptr >= g_shared_lo && (u64)(uptr)ptr < g_shared_hi) {
+        h = g_shared_heap;
+    }
     if (!h) {
         return;
     }
@@ -177,7 +234,7 @@ void Croi_Free(void *ptr)
         u32 n_pages = lh->n_pages;
         h->large_in_flight--;
         h->bytes_in_flight -= (u64)n_pages * CARA_PAGE_SIZE;
-        Page_Free(h->pa, Mm_VirtToPhys(page), n_pages);
+        Page_Free(h->pa, heap_v2p(h, page), n_pages);
         return;
     }
     // Bad magic — caller passed a non-heap pointer or memory was
