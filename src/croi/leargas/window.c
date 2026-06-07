@@ -9,6 +9,7 @@
 #include <cara/dath.h>
 #include <cara/leargas.h>
 #include <cara/types.h>
+#include <devices/inputevent.h>
 
 #include <stddef.h> // offsetof
 
@@ -47,6 +48,7 @@ static u32 copy_bounded(char *dst, u32 dst_cap, const char *src)
     }
 
     *w = (struct LeargasWindow){ 0 };
+    w->idcmp_sigbit = -1; // no UserPort yet — OpenWindow may add one (LF)
     copy_bounded(w->title_buf, LEARGAS_WINDOW_TITLE_MAX, (const char *)nw->Title);
 
     // ---- V36+ public field set --------------------------------------------
@@ -278,4 +280,45 @@ void Leargas_Window_Render(struct LeargasWindow *w)
             Dath_DrawLine(fb, ix0, iy1, ix1, iy0, chrome_fg);
         }
     }
+}
+
+// ---- LF — IntuiMessage translation (dual-target, pure) --------------------
+
+void Leargas_BuildIntuiMessage(struct IntuiMessage *im, struct Window *w,
+                               const struct LeargasInputEvent *ev)
+{
+    if (!im || !w || !ev) {
+        return;
+    }
+
+    // Map the flat input class to its IDCMP class. Phase 1 routes
+    // RAWKEY; other classes resolve to 0 until their epics land.
+    ULONG cls = 0;
+    if (ev->ie_class == IECLASS_RAWKEY) {
+        cls = IDCMP_RAWKEY;
+    }
+
+    im->ExecMessage.mn_Length = (UWORD)sizeof(struct IntuiMessage);
+    im->Class = cls;
+    im->Code = ev->ie_code;
+    im->Qualifier = ev->ie_qualifier;
+    im->IAddress = nullptr;
+
+    // Window-relative pointer position at the time of the event. The
+    // router mirrors the (clamped) pointer into WScreen->MouseX/Y;
+    // subtract the window origin. No screen → leave at origin.
+    if (w->WScreen) {
+        im->MouseX = (WORD)(w->WScreen->MouseX - w->LeftEdge);
+        im->MouseY = (WORD)(w->WScreen->MouseY - w->TopEdge);
+    } else {
+        im->MouseX = 0;
+        im->MouseY = 0;
+    }
+
+    // Split the boot-time nanosecond stamp into Exec's seconds/micros.
+    im->Seconds = (ULONG)(ev->ie_ts_ns / 1000000000ull);
+    im->Micros = (ULONG)((ev->ie_ts_ns % 1000000000ull) / 1000ull);
+
+    im->IDCMPWindow = w;
+    im->SpecialLink = nullptr;
 }

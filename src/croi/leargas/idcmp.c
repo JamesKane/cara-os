@@ -1,0 +1,71 @@
+// SPDX-License-Identifier: BSD-2-Clause
+//
+// Leargas LF — IDCMP key delivery (kernel-only). Holds the default
+// key-routing hook the router calls, plus the consumer-side GetMsg /
+// DisposeMsg. These touch the kernel heap (Croi_Alloc) and the
+// MsgPort/Ring IPC layer (Croi_PutMsg / Croi_GetMsg), so unlike the
+// dual-target translation in window.c they build only for the kernel.
+//
+// A window's UserPort is a `struct CroiMsgPort` whose public `struct
+// MsgPort` prefix is its first field, so the `struct MsgPort *` stored
+// in window->UserPort casts straight back to `struct CroiMsgPort *`.
+
+#include <cara/alloc.h>
+#include <cara/leargas.h>
+#include <cara/msgport.h>
+#include <cara/types.h>
+
+[[nodiscard]] bool Leargas_IDCMP_RouteKey(struct Window *focused,
+                                          const struct LeargasInputEvent *ev)
+{
+    if (!focused || !ev || !focused->UserPort) {
+        return false;
+    }
+    if (!(focused->IDCMPFlags & IDCMP_RAWKEY)) {
+        return false; // the window didn't ask for keys
+    }
+
+    struct IntuiMessage *im = (struct IntuiMessage *)Croi_Alloc(sizeof(struct IntuiMessage));
+    if (!im) {
+        return false;
+    }
+    *im = (struct IntuiMessage){ 0 };
+    Leargas_BuildIntuiMessage(im, focused, ev);
+
+    struct CroiMsgPort *port = (struct CroiMsgPort *)focused->UserPort;
+    struct RingSlot slot = {
+        .kind = IDCMP_RAWKEY,
+        .length = (u32)sizeof(struct IntuiMessage),
+        .payload = (uptr)im,
+        .reserved = 0,
+    };
+    if (!Croi_PutMsg(port, slot)) {
+        // Ring full — the client isn't draining fast enough. Drop the
+        // event rather than block the input path, and free the message
+        // we couldn't enqueue.
+        Croi_Free(im);
+        return false;
+    }
+    return true;
+}
+
+[[nodiscard]] bool Leargas_IDCMP_GetMsg(struct Window *w, struct IntuiMessage **out)
+{
+    if (!w || !w->UserPort || !out) {
+        return false;
+    }
+    struct CroiMsgPort *port = (struct CroiMsgPort *)w->UserPort;
+    struct RingSlot slot;
+    if (!Croi_GetMsg(port, &slot)) {
+        return false;
+    }
+    *out = (struct IntuiMessage *)slot.payload;
+    return true;
+}
+
+void Leargas_IDCMP_DisposeMsg(struct IntuiMessage *im)
+{
+    if (im) {
+        Croi_Free(im);
+    }
+}

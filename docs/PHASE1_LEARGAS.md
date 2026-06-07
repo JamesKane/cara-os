@@ -13,7 +13,7 @@
 
 ## Status — 2026-06-06
 
-**Tier 1 done (L0+LA+LB+LC); LD+LE shipped. LF/LG/LH remain.**
+**Tier 1 done (L0+LA+LB+LC); LD+LE+LF shipped. LG/LH remain.**
 PHASE1_USB.md Tier 1–2 + HA.1–4 + HidIntReadOnce are in HEAD;
 that's enough to feed the L0 producer side. The L0 commit
 lands:
@@ -185,18 +185,55 @@ The LE commit adds:
   router button-to-focus path (click A, move + click B, click
   empty → unchanged).
 
-**IDCMP delivery stays with LF.** LE owns the focus state, the
-flag, and the redraw; turning a focus change into
-`IDCMP_ACTIVEWINDOW` / `IDCMP_INACTIVEWINDOW` IntuiMessages on each
-window's UserPort waits on LF's per-window `KOBJ_MSGPORT` +
-`struct IntuiMessage`. `Leargas_SetActiveWindow` is the single
-chokepoint LF extends to post them (seam comment in focus.c).
+**IDCMP_ACTIVEWINDOW/INACTIVEWINDOW delivery stays with LG+.** LE
+owns the focus state, the flag, and the redraw; LF added the
+per-window IDCMP port + `struct IntuiMessage` that those focus
+messages will ride. Wiring `Leargas_SetActiveWindow` to post them is
+deferred until a focus-event consumer exists (Clar); the chokepoint
+(seam comment in focus.c) is ready.
 
-Remaining for Phase 1 Subgoal 6: LF keyboard routing (RAWKEY →
-IDCMP on the focused window's port), LG/LH gadgets + string
-Inntin. The HB.* HID Gleas (Phase 3 prerequisite) wires the
-Phase 3 producer side onto the same L0 contract — no L0 changes
-needed when it lands.
+The LF commit adds:
+
+- `<intuition/intuition.h>` — V36+ `struct IntuiMessage` (ExecMessage
+  prefix + Class/Code/Qualifier/IAddress/MouseX/MouseY/Seconds/Micros
+  /IDCMPWindow). `intuition.h` now includes `<exec/ports.h>` for the
+  `struct Message` prefix.
+- `Leargas_BuildIntuiMessage` (window.c, dual-target, pure) — maps a
+  flat `LeargasInputEvent` to an IntuiMessage: IECLASS_RAWKEY →
+  IDCMP_RAWKEY, copies Code/Qualifier, window-relative MouseX/MouseY
+  (screen pointer minus window origin), the seconds/micros split of
+  `ie_ts_ns`, and the IDCMPWindow back-pointer.
+- Per-window UserPort (window_alloc.c): OpenWindow creates a
+  `KOBJ_MSGPORT` (`Croi_AllocSignal` + `Croi_CreateMsgPort`, cap
+  `LEARGAS_IDCMP_RING_CAP = 16`) when `IDCMPFlags != 0` and a task
+  context exists; CloseWindow drains + frees any pending IntuiMessages,
+  destroys the port, and frees the signal. `LeargasWindow` gains
+  `idcmp_sigbit` (−1 when portless). The pre-Sched_Init boot demo
+  window opens portless (AllocSignal returns −1) and keys are dropped
+  until a post-scheduler client owns a port.
+- Router hook (router.c): a `Leargas_KeyRouteFn` function pointer kept
+  in the dual-target router (no kernel dep); RAWKEY events call the
+  installed hook with the active window. Unset (host builds, the
+  router unit test) → the pre-LF drop behaviour.
+- idcmp.c (kernel-only): `Leargas_IDCMP_RouteKey` (the default hook —
+  alloc + Build + `Croi_PutMsg`; refuses null window / no UserPort /
+  no IDCMP_RAWKEY / full ring, freeing on failure), and the consumer
+  side `Leargas_IDCMP_GetMsg` / `Leargas_IDCMP_DisposeMsg`. Phase 1
+  has the consumer free the message; Phase 3 swaps DisposeMsg for the
+  V36+ `ReplyMsg` round-trip.
+- entry.c installs the hook (`Leargas_SetKeyRouter`) at boot.
+- `tests/unit/test_leargas_idcmp.c` (host, test 18/18) — the pure
+  translation: class map, field copy, window-relative coords,
+  timestamp split, no-screen fallback, null-safety.
+- `src/croi/tests/test_idcmp.c` — `KERNEL_TEST(idcmp_rawkey)`, the
+  full path: OpenWindow gets a UserPort + focus via WFLG_ACTIVATE;
+  direct RouteKey → GetMsg field checks; rejection (no IDCMP_RAWKEY,
+  null window); and the end-to-end Post → Drain → hook → focused
+  window's port. 16/16 kernel tests pass under the QEMU boot smoke.
+
+Remaining for Phase 1 Subgoal 6: LG/LH gadgets + string Inntin. The
+HB.* HID Gleas (Phase 3 prerequisite) wires the Phase 3 producer
+side onto the same L0 contract — no L0 changes needed when it lands.
 
 ---
 

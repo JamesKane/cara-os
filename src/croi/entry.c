@@ -146,6 +146,13 @@ static void console_putc(char c)
     //      run unconditionally even when there's no HID to feed it.
     (void)Leargas_Input_Init();
 
+    // LF — install the keyboard router so RAWKEY events from the HID
+    // poll reach the focused window's IDCMP port. Harmless before any
+    // window exists (the hook drops keys when there's no focus / port);
+    // the boot demo window opens before Sched_Init, so it has no port
+    // and keys are dropped until a post-scheduler client owns one.
+    Leargas_SetKeyRouter(Leargas_IDCMP_RouteKey);
+
     // ---- Physical memory map ----
     u64 kphys_start = _kernel_image_phys_start;
     u64 kphys_end = _kernel_image_phys_end;

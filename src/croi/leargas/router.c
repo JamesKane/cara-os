@@ -1,15 +1,28 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
-// Leargas LC — mouse-motion router. Bridges L0 (input ring) to LA
-// (pointer rendering): accumulates IECLASS_RAWMOUSE deltas onto the
-// pointer's position, clamps against the active screen extent, calls
-// Pointer_Move. Phase 1 polls; Phase 3 moves the producer to a
-// U-mode HID Gleas + a blocking ring read but the contract here
+// Leargas LC + LE + LF — input router. Drains the L0 ring and bridges
+// each event to its handler: RAWMOUSE motion drives the pointer (LC),
+// a left-button-down re-focuses the window under the pointer (LE), and
+// a RAWKEY is routed to the focused window's IDCMP UserPort via the
+// installed key hook (LF). Phase 1 polls; Phase 3 moves the producer
+// to a U-mode HID Gleas + a blocking ring read but the contract here
 // stays the same.
 
 #include <cara/leargas.h>
 #include <cara/types.h>
 #include <devices/inputevent.h>
+
+// LF — key-routing hook. Kept in this dual-target file (a plain
+// function pointer) so the router carries no kernel dependency; the
+// kernel installs Leargas_IDCMP_RouteKey at boot. Unset (host builds,
+// the router unit test) → RAWKEY events are counted and dropped, the
+// pre-LF behaviour.
+static Leargas_KeyRouteFn g_key_router = nullptr;
+
+void Leargas_SetKeyRouter(Leargas_KeyRouteFn fn)
+{
+    g_key_router = fn;
+}
 
 static i32 clamp_i32(i32 v, i32 lo, i32 hi)
 {
@@ -32,11 +45,18 @@ u32 Leargas_Input_Drain(struct LeargasPointer *p)
     struct LeargasInputEvent ev;
     while (Leargas_Input_Read(&ev)) {
         n++;
+        if (ev.ie_class == IECLASS_RAWKEY) {
+            // LF — hand the keystroke to the focused window's IDCMP
+            // port via the installed hook (kernel: Leargas_IDCMP_RouteKey).
+            // No hook (host builds) or no focused window → dropped.
+            if (g_key_router) {
+                (void)g_key_router(Leargas_ActiveWindow(), &ev);
+            }
+            continue;
+        }
         if (ev.ie_class != IECLASS_RAWMOUSE) {
-            // RAWKEY / etc. — LF will route keyboard events to the
-            // focused window once it lands. Phase 1 has a single
-            // consumer of the ring, so anything we don't handle is
-            // dropped on the floor here.
+            // Other classes have no Phase 1 consumer yet; Phase 1 has a
+            // single consumer of the ring, so they're dropped here.
             continue;
         }
 

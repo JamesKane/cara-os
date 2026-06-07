@@ -268,6 +268,7 @@ struct LeargasWindow {
 
     // Brand-private state.
     char title_buf[LEARGAS_WINDOW_TITLE_MAX];
+    i32 idcmp_sigbit; // signal bit backing pub.UserPort, or -1 if none (LF)
     bool initialised;
 };
 
@@ -360,5 +361,58 @@ void Leargas_SetActiveWindow(struct Window *w);
 // exists so host unit tests start each scenario from a known state,
 // mirroring Leargas_Input_Reset / Leargas_Screen_SetActive(nullptr).
 void Leargas_Focus_Reset(void);
+
+// ---- LF — Keyboard event routing ------------------------------------------
+//
+// IECLASS_RAWKEY events drained from the L0 ring become IDCMP_RAWKEY
+// IntuiMessages on the *focused* window's UserPort. Each window that
+// requested IDCMP events gets a per-window KOBJ_MSGPORT UserPort at
+// OpenWindow time (Phase 3 wraps this behind OpenWindow's IDCMP_*
+// flags + ModifyIDCMP). A client WaitPort()s its UserPort and GetMsg()s
+// the IntuiMessages, exactly as on V36+.
+//
+// Capacity of a window's IDCMP ring. Power of two; human keystroke
+// rates leave ample headroom between a client's drains.
+constexpr u32 LEARGAS_IDCMP_RING_CAP = 16;
+
+// Fill an IntuiMessage from a focused window and a flat input event.
+// Pure / dual-target (no allocation, no IPC) so the translation is
+// host-testable. Sets ExecMessage.mn_Length, Class (mapped from
+// ev->ie_class — IECLASS_RAWKEY → IDCMP_RAWKEY), Code, Qualifier,
+// IAddress (nullptr), window-relative MouseX/MouseY (read through
+// w->WScreen->MouseX/Y minus the window origin), the Seconds/Micros
+// split of ev->ie_ts_ns, and IDCMPWindow = w. Does not touch
+// mn_ReplyPort / mn_Node (the delivery path owns those). No-op on
+// null arguments.
+void Leargas_BuildIntuiMessage(struct IntuiMessage *im, struct Window *w,
+                               const struct LeargasInputEvent *ev);
+
+// Key-routing hook. The router (Leargas_Input_Drain) calls the
+// installed function for each IECLASS_RAWKEY event with the currently
+// focused window (may be nullptr). MsgPort allocation + PutMsg are
+// kernel-only, so the kernel installs Leargas_IDCMP_RouteKey at boot;
+// host builds (and the dual-target router unit test) leave the hook
+// unset, preserving the pre-LF "RAWKEY dropped" behaviour. The hook
+// returns true when the event was delivered.
+typedef bool (*Leargas_KeyRouteFn)(struct Window *focused, const struct LeargasInputEvent *ev);
+void Leargas_SetKeyRouter(Leargas_KeyRouteFn fn);
+
+// Kernel-only: the default key-routing hook. Allocates a struct
+// IntuiMessage, fills it via Leargas_BuildIntuiMessage, and PutMsg's
+// it to `focused`->UserPort. Returns false (delivering nothing) when
+// `focused` is null, has no UserPort, doesn't list IDCMP_RAWKEY in
+// IDCMPFlags, or the ring is full (in which case the message is
+// freed). Install via Leargas_SetKeyRouter.
+[[nodiscard]] bool Leargas_IDCMP_RouteKey(struct Window *focused,
+                                          const struct LeargasInputEvent *ev);
+
+// Kernel-only consumer side, mirroring GetMsg/ReplyMsg. GetMsg
+// dequeues the next IntuiMessage from `w`'s UserPort (returns false +
+// leaves *out untouched when the port is empty or absent); DisposeMsg
+// frees a message the client is done with. Phase 1 has the consumer
+// free the message directly; Phase 3 replaces DisposeMsg with the
+// V36+ ReplyMsg round-trip.
+[[nodiscard]] bool Leargas_IDCMP_GetMsg(struct Window *w, struct IntuiMessage **out);
+void Leargas_IDCMP_DisposeMsg(struct IntuiMessage *im);
 
 #endif // CARA_LEARGAS_H

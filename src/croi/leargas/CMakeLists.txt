@@ -17,11 +17,13 @@ add_library(cara_leargas STATIC
 )
 
 if(CARA_TARGET STREQUAL "riscv64")
-    # screen_alloc.c needs Croi_Alloc / Croi_Free which live in the
-    # kernel heap module; only built for the kernel target. Host
-    # tests exercise InitInPlace + SetActive / ActiveScreen / FromPub
-    # which all live in screen.c.
-    target_sources(cara_leargas PRIVATE screen_alloc.c window_alloc.c)
+    # screen_alloc.c / window_alloc.c need Croi_Alloc / Croi_Free; idcmp.c
+    # (LF key delivery) additionally needs the MsgPort/Ring IPC layer and
+    # the signal helpers. All kernel-only — host tests exercise the
+    # dual-target InitInPlace / Render / BuildIntuiMessage paths. The IPC
+    # and sched symbols resolve at the final croi link (it links cara_ipc
+    # + cara_sched), so cara_leargas stays header-only here.
+    target_sources(cara_leargas PRIVATE screen_alloc.c window_alloc.c idcmp.c)
     target_link_libraries(cara_leargas
         PUBLIC  cara_headers cara_dath
         PRIVATE cara_kernel_flags

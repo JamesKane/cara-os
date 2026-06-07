@@ -19,6 +19,7 @@
 #ifndef INTUITION_INTUITION_H
 #define INTUITION_INTUITION_H
 
+#include <exec/ports.h> // struct Message — the IntuiMessage prefix
 #include <exec/types.h>
 
 // Forward declarations for types that struct Window references.
@@ -170,6 +171,29 @@ struct NewWindow {
     WORD MinWidth, MinHeight;
     UWORD MaxWidth, MaxHeight;
     UWORD Type; // WBENCHSCREEN / CUSTOMSCREEN, mirroring the screen
+};
+
+// ---- struct IntuiMessage (V36+ public field set) --------------------------
+//
+// What a program reads from its window's UserPort. The ExecMessage
+// header makes it a first-class exec Message, so GetMsg / ReplyMsg /
+// WaitPort operate on it unchanged. Class is an IDCMP_* flag; Code /
+// Qualifier carry the raw event; MouseX / MouseY are window-relative
+// at the time of the event; Seconds / Micros are the timestamp.
+
+struct IntuiMessage {
+    struct Message ExecMessage; // exec Message prefix — mn_Node etc.
+
+    ULONG Class;     // IDCMP_* — the message class
+    UWORD Code;      // event sub-code (rawkey number for IDCMP_RAWKEY)
+    UWORD Qualifier; // IEQUALIFIER_* modifier bitmap
+    APTR IAddress;   // class-specific (gadget / etc.); nullptr for RAWKEY
+
+    WORD MouseX, MouseY;   // pointer position, relative to the window
+    ULONG Seconds, Micros; // event timestamp
+
+    struct Window *IDCMPWindow;       // the window this message is for
+    struct IntuiMessage *SpecialLink; // Intuition-private chaining
 };
 
 // ---- Phase 1 default chrome metrics ---------------------------------------
