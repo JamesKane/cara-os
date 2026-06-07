@@ -415,4 +415,49 @@ void Leargas_SetKeyRouter(Leargas_KeyRouteFn fn);
 [[nodiscard]] bool Leargas_IDCMP_GetMsg(struct Window *w, struct IntuiMessage **out);
 void Leargas_IDCMP_DisposeMsg(struct IntuiMessage *im);
 
+// ---- LG — Gadget framework ------------------------------------------------
+//
+// Gadgets are plain V36+ `struct Gadget` the client (Clar) allocates and
+// chains onto a window via Leargas_AddGadget. Coordinates are
+// window-relative. The router hit-tests the chain on a left-button-down
+// inside the focused window and gives the hit gadget the pressed look
+// (GFLG_SELECTED) + input focus (the active gadget); the up-stroke
+// clears the pressed look. Phase 1 LG renders a button-style face +
+// GadgetText label and tracks selection; IDCMP_GADGETUP / GADGETDOWN
+// delivery and string editing land in LH.
+//
+// All dual-target (pure list ops + Dath rendering) — host-testable.
+
+// Append `g` to the end of `w`'s FirstGadget chain. No-op on null args
+// or if `g` is already linked (its NextGadget is left intact otherwise).
+void Leargas_AddGadget(struct Window *w, struct Gadget *g);
+
+// Unlink `g` from `w`'s FirstGadget chain. Safe if `g` was never linked.
+void Leargas_RemoveGadget(struct Window *w, struct Gadget *g);
+
+// Hit-test `w`'s gadget chain at the window-relative point (wx, wy).
+// Returns the first gadget whose box contains the point, skipping
+// GFLG_DISABLED gadgets; nullptr if none / `w` is null.
+[[nodiscard]] struct Gadget *Leargas_Gadget_HitTest(struct Window *w, i32 wx, i32 wy);
+
+// Render gadget `g` into `w`'s screen framebuffer: a bordered button
+// face (a pressed shade when GFLG_SELECTED, ghosted when GFLG_DISABLED),
+// plus its GadgetText label. Window-relative coordinates are offset by
+// the window origin. No-op when the window has no backing framebuffer.
+void Leargas_Gadget_Render(struct Window *w, struct Gadget *g);
+
+// Render every gadget in `w`'s FirstGadget chain. Called by
+// Leargas_Window_Render after the window chrome so gadgets sit on top.
+void Leargas_Window_RenderGadgets(struct Window *w);
+
+// The gadget currently holding input focus (the last one pressed), or
+// nullptr. LH routes keystrokes to the active gadget when it is a string
+// Inntin. SetActiveGadget(nullptr) clears focus.
+[[nodiscard]] struct Gadget *Leargas_ActiveGadget(void);
+void Leargas_SetActiveGadget(struct Gadget *g);
+
+// Test-only: clear the active-gadget pointer without side effects,
+// mirroring Leargas_Focus_Reset.
+void Leargas_Gadget_Reset(void);
+
 #endif // CARA_LEARGAS_H

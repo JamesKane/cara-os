@@ -13,7 +13,7 @@
 
 ## Status — 2026-06-06
 
-**Tier 1 done (L0+LA+LB+LC); LD+LE+LF shipped. LG/LH remain.**
+**Tier 1 done (L0+LA+LB+LC); LD+LE+LF+LG shipped. LH remains.**
 PHASE1_USB.md Tier 1–2 + HA.1–4 + HidIntReadOnce are in HEAD;
 that's enough to feed the L0 producer side. The L0 commit
 lands:
@@ -231,9 +231,41 @@ The LF commit adds:
   null window); and the end-to-end Post → Drain → hook → focused
   window's port. 16/16 kernel tests pass under the QEMU boot smoke.
 
-Remaining for Phase 1 Subgoal 6: LG/LH gadgets + string Inntin. The
-HB.* HID Gleas (Phase 3 prerequisite) wires the Phase 3 producer
-side onto the same L0 contract — no L0 changes needed when it lands.
+The LG commit adds:
+
+- `<intuition/intuition.h>` — V36+ `struct Gadget`, `struct IntuiText`,
+  and the `GTYP_*` / `GFLG_*` / `GACT_*` constant sets.
+- gadget.c (dual-target): `Leargas_AddGadget` / `Leargas_RemoveGadget`
+  (FirstGadget-chain append / unlink, dedup-safe), `Leargas_Gadget_HitTest`
+  (window-relative, right/bottom edges exclusive, skips GFLG_DISABLED),
+  `Leargas_Gadget_Render` (a grey button face — lighter at rest, darker
+  when GFLG_SELECTED, mid-grey when GFLG_DISABLED — a 1px border, and the
+  GadgetText label), `Leargas_Window_RenderGadgets`, and the
+  process-wide active-gadget pointer (`ActiveGadget` / `SetActiveGadget`
+  / `Gadget_Reset`).
+- window.c — `Leargas_Window_Render` now paints the gadget chain on top
+  of the window chrome.
+- router.c — a left-button-down inside the focused window hit-tests the
+  gadget chain (window-relative); the hit gadget gets the pressed look
+  (GFLG_SELECTED) + input focus (the active gadget) and is re-rendered;
+  the up-stroke clears the pressed look. All redraws happen under a
+  hidden pointer so the cursor stays on top. No raise-to-front and no
+  GADGETUP/GADGETDOWN delivery yet — that, plus string editing, is LH.
+- `tests/unit/test_leargas_gadget.c` (host, test 19/19) — chain order /
+  dedup / remove, hit-test (edges, disabled skip), render pixels (face,
+  border, selected shade), active gadget, and the router press/release
+  select path.
+
+**No kernel test for LG** — the whole epic is dual-target (pure list ops
++ Dath rendering, no IPC), so the host test covers it; the kernel build
++ boot smoke confirm it links and boots. IDCMP_GADGETUP / GADGETDOWN
+delivery (which needs the LF MsgPort path) lands with LH.
+
+Remaining for Phase 1 Subgoal 6: LH — the string Inntin (StringInfo,
+text + cursor render, keyboard editing of the active gadget, Enter →
+IDCMP_GADGETUP). The HB.* HID Gleas (Phase 3 prerequisite) wires the
+Phase 3 producer side onto the same L0 contract — no L0 changes needed
+when it lands.
 
 ---
 

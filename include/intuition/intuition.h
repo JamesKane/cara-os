@@ -37,6 +37,9 @@ struct Requester;
 struct Menu;
 struct MsgPort;
 struct IntuiMessage;
+struct IntuiText;
+struct StringInfo; // SpecialInfo for GTYP_STRGADGET (filled out in LH)
+struct TextAttr;
 
 // ---- WFLG_* — window Flags bits (V36+ verbatim) ---------------------------
 
@@ -194,6 +197,112 @@ struct IntuiMessage {
 
     struct Window *IDCMPWindow;       // the window this message is for
     struct IntuiMessage *SpecialLink; // Intuition-private chaining
+};
+
+// ---- GTYP_* — Gadget GadgetType (V36+ verbatim) ---------------------------
+//
+// Low 3 bits (GTYP_GTYPEMASK) select the gadget kind; the high bits flag
+// system / screen / requester ownership. Phase 1 LG implements the
+// BOOLGADGET face + hit/select; STRGADGET interaction lands in LH.
+
+enum : u16 {
+    GTYP_GADGETTYPE = 0xFC00, // reserved system-type bits
+    GTYP_SYSGADGET = 0x8000,
+    GTYP_SCRGADGET = 0x4000,
+    GTYP_GZZGADGET = 0x2000,
+    GTYP_REQGADGET = 0x1000,
+    GTYP_SIZING = 0x0010,
+    GTYP_WDRAGGING = 0x0020,
+    GTYP_SDRAGGING = 0x0030,
+    GTYP_WUPFRONT = 0x0040,
+    GTYP_SUPFRONT = 0x0050,
+    GTYP_WDOWNBACK = 0x0060,
+    GTYP_SDOWNBACK = 0x0070,
+    GTYP_CLOSE = 0x0080,
+
+    GTYP_BOOLGADGET = 0x0001,
+    GTYP_GADGET0002 = 0x0002,
+    GTYP_PROPGADGET = 0x0003,
+    GTYP_STRGADGET = 0x0004,
+    GTYP_CUSTOMGADGET = 0x0005,
+    GTYP_GTYPEMASK = 0x0007,
+};
+
+// ---- GFLG_* — Gadget Flags (V36+ verbatim) --------------------------------
+
+enum : u16 {
+    GFLG_GADGHCOMP = 0x0000, // highlight by complementing
+    GFLG_GADGHBOX = 0x0001,  // highlight by drawing a box
+    GFLG_GADGHIMAGE = 0x0002,
+    GFLG_GADGHNONE = 0x0003,
+    GFLG_GADGHIGHBITS = 0x0003,
+    GFLG_GADGIMAGE = 0x0004, // GadgetRender points to an Image, not a Border
+    GFLG_RELBOTTOM = 0x0008, // TopEdge is relative to the window bottom
+    GFLG_RELRIGHT = 0x0010,  // LeftEdge is relative to the window right
+    GFLG_RELWIDTH = 0x0020,
+    GFLG_RELHEIGHT = 0x0040,
+    GFLG_SELECTED = 0x0080, // currently selected (pressed)
+    GFLG_DISABLED = 0x0100, // ghosted; ignores input
+    GFLG_STRINGEXTEND = 0x0400,
+};
+
+// ---- GACT_* — Gadget Activation (V36+ verbatim) ---------------------------
+
+enum : u16 {
+    GACT_RELVERIFY = 0x0001,   // post IDCMP_GADGETUP only if released over the gadget
+    GACT_IMMEDIATE = 0x0002,   // post IDCMP_GADGETDOWN on select
+    GACT_ENDGADGET = 0x0004,   // (requesters) selecting ends the requester
+    GACT_FOLLOWMOUSE = 0x0008, // report mouse moves while selected
+    GACT_RIGHTBORDER = 0x0010,
+    GACT_LEFTBORDER = 0x0020,
+    GACT_TOPBORDER = 0x0040,
+    GACT_BOTTOMBORDER = 0x0080,
+    GACT_TOGGLESELECT = 0x0100, // selection toggles rather than momentary
+    GACT_BOOLEXTEND = 0x2000,
+    GACT_STRINGLEFT = 0x0000, // string justification (LH)
+    GACT_STRINGCENTER = 0x0200,
+    GACT_STRINGRIGHT = 0x0400,
+    GACT_LONGINT = 0x0800,
+    GACT_ALTKEYMAP = 0x1000,
+};
+
+// ---- struct IntuiText (V36+) — a gadget / window label --------------------
+
+struct IntuiText {
+    UBYTE FrontPen, BackPen; // pen numbers (palette indices)
+    UBYTE DrawMode;          // JAM1 / JAM2 / COMPLEMENT
+    WORD LeftEdge, TopEdge;  // offset from the host object's origin
+    struct TextAttr *ITextFont;
+    UBYTE *IText;               // NUL-terminated text
+    struct IntuiText *NextText; // chained text segments
+};
+
+// ---- struct Gadget (V36+ public field set) --------------------------------
+//
+// The app allocates these and chains them via NextGadget; a window's
+// FirstGadget points at the head. Coordinates are window-relative.
+
+struct Gadget {
+    struct Gadget *NextGadget;
+
+    WORD LeftEdge, TopEdge;
+    WORD Width, Height;
+
+    UWORD Flags;      // GFLG_*
+    UWORD Activation; // GACT_*
+    UWORD GadgetType; // GTYP_*
+
+    APTR GadgetRender; // Image / Border for the rendered look (Phase 3+)
+    APTR SelectRender; // alternate imagery for the selected state
+
+    struct IntuiText *GadgetText; // label
+
+    LONG MutualExclude; // bit mask of sibling gadgets to deselect
+
+    APTR SpecialInfo; // StringInfo * for GTYP_STRGADGET (LH), etc.
+
+    UWORD GadgetID; // app-assigned id, echoed in IDCMP_GADGETUP
+    APTR UserData;
 };
 
 // ---- Phase 1 default chrome metrics ---------------------------------------

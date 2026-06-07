@@ -280,6 +280,9 @@ void Leargas_Window_Render(struct LeargasWindow *w)
             Dath_DrawLine(fb, ix0, iy1, ix1, iy0, chrome_fg);
         }
     }
+
+    // LG — app gadgets sit on top of the window chrome.
+    Leargas_Window_RenderGadgets(&w->pub);
 }
 
 // ---- LF — IntuiMessage translation (dual-target, pure) --------------------

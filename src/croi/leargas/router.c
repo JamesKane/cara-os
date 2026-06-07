@@ -60,23 +60,46 @@ u32 Leargas_Input_Drain(struct LeargasPointer *p)
             continue;
         }
 
-        // LE — left-button-down changes focus. The up-stroke carries
-        // IECODE_UP_PREFIX; only the down transition activates a
-        // window (classic click-to-front-less focus). Hit-test at the
-        // pointer's current hot-spot against the active screen's
-        // window list; if it lands on a different window, lift the
-        // pointer, re-focus (which redraws both title bars under the
-        // now-hidden cursor), and show the pointer back on top.
+        // LE + LG — left button. The down-stroke (no IECODE_UP_PREFIX)
+        // re-focuses the window under the pointer and presses any gadget
+        // there; the up-stroke releases the pressed gadget. Each redraw
+        // happens under a hidden pointer so the cursor stays on top.
         if (ev.ie_code == IECODE_LBUTTON) {
             struct Screen *screen = Leargas_ActiveScreen();
             struct Window *hit = Leargas_Window_HitTest(screen, p->x, p->y);
-            if (hit && hit != Leargas_ActiveWindow()) {
+            if (hit) {
                 Leargas_Pointer_Hide(p);
-                Leargas_SetActiveWindow(hit);
+                if (hit != Leargas_ActiveWindow()) {
+                    Leargas_SetActiveWindow(hit); // LE — focus + title-bar redraw
+                }
+                // LG — gadget hit-test in window-relative coordinates.
+                struct Gadget *g = Leargas_Gadget_HitTest(hit, p->x - (i32)hit->LeftEdge,
+                                                          p->y - (i32)hit->TopEdge);
+                if (g) {
+                    g->Flags |= GFLG_SELECTED;
+                    Leargas_SetActiveGadget(g);
+                    Leargas_Gadget_Render(hit, g);
+                }
                 Leargas_Pointer_Show(p);
             }
             // Fall through: a button event may also carry motion
             // deltas (typically zero — then Pointer_Move no-ops).
+        } else if (ev.ie_code == (IECODE_LBUTTON | IECODE_UP_PREFIX)) {
+            // LG — release clears the pressed look on the gadget we
+            // selected on the down-stroke. (IDCMP_GADGETUP for
+            // GACT_RELVERIFY gadgets is LH; Phase 1 assumes focus didn't
+            // change between down and up, so the gadget's window is the
+            // active one.)
+            struct Gadget *g = Leargas_ActiveGadget();
+            if (g && (g->Flags & GFLG_SELECTED)) {
+                struct Window *aw = Leargas_ActiveWindow();
+                Leargas_Pointer_Hide(p);
+                g->Flags &= ~(UWORD)GFLG_SELECTED;
+                if (aw) {
+                    Leargas_Gadget_Render(aw, g);
+                }
+                Leargas_Pointer_Show(p);
+            }
         }
 
         i32 nx = p->x + (i32)ev.ie_dx;
