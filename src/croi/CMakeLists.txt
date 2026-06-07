@@ -53,6 +53,11 @@ add_dependencies(croi userhello userexec)
 if(TARGET cara_aistreoir_table)
     add_dependencies(croi cara_aistreoir_table)
 endif()
+# I1: force the intuition.library LVO artefacts to generate (proto stub,
+# lvo.h, vec table, aistreoir fragment). Trampolines + impls link in I2.
+if(TARGET cara_intuition_lib_gen)
+    add_dependencies(croi cara_intuition_lib_gen)
+endif()
 target_link_libraries(croi PRIVATE
     cara_kernel_flags
     cara_headers
