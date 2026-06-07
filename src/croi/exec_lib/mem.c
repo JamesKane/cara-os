@@ -14,6 +14,7 @@
 #include <cara/alloc.h>
 #include <cara/exec_lib.h>
 #include <cara/log.h>
+#include <cara/shared.h>
 #include <cara/types.h>
 #include <exec/memory.h>
 
@@ -67,7 +68,11 @@ APTR Croi_AllocMem_Impl(ULONG size, ULONG flags)
     }
     warn_advisory_once(flags);
 
-    void *p = Croi_Alloc((usize)size);
+    // V36+ AllocMem is the SASOS public allocator (ARCHITECTURE §4.3): it
+    // returns lower-half RW+U shared-heap memory so the pointer is valid
+    // in the calling U-mode Gleas, not just the kernel. (Internal kernel
+    // allocations still use Croi_Alloc on the upper-half kernel heap.)
+    void *p = Croi_AllocShared((usize)size);
     if (!p) {
         return nullptr;
     }

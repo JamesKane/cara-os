@@ -84,17 +84,35 @@ int main(void)
     }
 
     // 3. AllocMem with MEMF_CLEAR — the kernel-side dispatcher's
-    //    SYS_AllocMem arm calls Croi_AllocMem_Impl. v0 returns
-    //    upper-half-kernel-VA heap pointers that user mode can't
-    //    safely dereference (the SASOS shared-heap region at
-    //    0x1_0000_0000 in ARCHITECTURE.md §4.3 isn't wired up yet),
-    //    so userexec just observes the alloc/free round-trip
-    //    without touching the bytes. The kernel-side
-    //    exec_lib_smoke test verifies MEMF_CLEAR zeroing.
+    //    SYS_AllocMem arm calls Croi_AllocMem_Impl, which (since S2)
+    //    allocates from the SASOS shared heap (ARCHITECTURE.md §4.3,
+    //    0x1_0000_0000). The returned pointer is lower-half RW+U, so —
+    //    unlike v0 — user mode can dereference it directly. We verify
+    //    MEMF_CLEAR zeroed it and that a write/read round-trips, proving
+    //    the shared mapping reaches U-mode. A fault here would Guru the
+    //    task and the boot smoke would catch the wrong exit status.
     APTR mem = AllocMem(64, MEMF_CLEAR);
     if (!mem) {
         CloseLibrary(lib);
         return (int)USEREXEC_EXIT_ALLOC_FAILED;
+    }
+    volatile UBYTE *bytes = (volatile UBYTE *)mem;
+    for (int i = 0; i < 64; i++) {
+        if (bytes[i] != 0) {
+            FreeMem(mem, 64);
+            CloseLibrary(lib);
+            return (int)USEREXEC_EXIT_NOT_ZEROED;
+        }
+    }
+    for (int i = 0; i < 64; i++) {
+        bytes[i] = (UBYTE)(i * 3 + 1);
+    }
+    for (int i = 0; i < 64; i++) {
+        if (bytes[i] != (UBYTE)(i * 3 + 1)) {
+            FreeMem(mem, 64);
+            CloseLibrary(lib);
+            return (int)USEREXEC_EXIT_NOT_ZEROED; // write/read mismatch
+        }
     }
     FreeMem(mem, 64);
 
