@@ -11,9 +11,9 @@
 
 ---
 
-## Status — 2026-05-08
+## Status — 2026-06-06
 
-**Tier 1 done (L0+LA+LB+LC); LD shipped. LE/LF/LG/LH remain.**
+**Tier 1 done (L0+LA+LB+LC); LD+LE shipped. LF/LG/LH remain.**
 PHASE1_USB.md Tier 1–2 + HA.1–4 + HidIntReadOnce are in HEAD;
 that's enough to feed the L0 producer side. The L0 commit
 lands:
@@ -152,11 +152,51 @@ The LD commit adds:
   Captured via QEMU monitor `pmemsave` of the framebuffer
   region into a PPM.
 
-Remaining for Phase 1 Subgoal 6: LE/LF windows focus +
-keyboard routing, LG/LH gadgets + string Inntin. The HB.*
-HID Gleas (Phase 3 prerequisite) wires the Phase 3 producer
-side onto the same L0 contract — no L0 changes needed when
-it lands.
+The LE commit adds:
+
+- `Leargas_ActiveWindow` / `Leargas_SetActiveWindow` /
+  `Leargas_Window_HitTest` (+ test-only `Leargas_Focus_Reset`) in
+  src/croi/leargas/focus.c (dual-target). A single process-wide
+  active-window pointer; SetActiveWindow flips `WFLG_WINDOWACTIVE`
+  on the outgoing/incoming window and redraws both title bars.
+  HitTest walks the screen's `FirstWindow` list front-to-back
+  (right/bottom edges exclusive) and returns the topmost hit.
+- `Leargas_Pointer_Hide` / `Leargas_Pointer_Show` (pointer.c) so
+  chrome under the cursor can be repainted without the stale save
+  buffer clobbering it; the router brackets focus-driven redraws
+  with them.
+- router.c (LC → LE): a left-button-down (IECODE_LBUTTON, the
+  down-stroke — up carries IECODE_UP_PREFIX) hit-tests at the
+  pointer hot-spot against the active screen and re-focuses the
+  hit window. Clicking empty screen space leaves focus unchanged;
+  Phase 1 does not raise-to-front (no depth-arrange).
+- window.c (LE.3): `Leargas_Window_Render` reads `WFLG_WINDOWACTIVE`
+  and paints the active window's title bar / frame in a brighter
+  blue (`0x3878D0`) vs. the inactive `0x204080` — the Phase 1
+  stand-in for V36+'s active-vs-inactive title-bar fill. A window
+  opened with `WFLG_ACTIVATE` is focused by `Leargas_OpenWindow`.
+- entry.c logs `active window: <title>` after the boot OpenWindow
+  (WFLG_ACTIVATE), and a real left-click through the HID poll →
+  `Leargas_Input_Drain` re-focuses under the pointer.
+- `tests/unit/test_leargas_focus.c` (test 16/17) — hit-test
+  geometry (overlap → front-most, exclusive edges, off-window
+  null), focus flag transitions (activate / switch / idempotent
+  re-activate / clear), active-vs-inactive chrome pixels, and the
+  router button-to-focus path (click A, move + click B, click
+  empty → unchanged).
+
+**IDCMP delivery stays with LF.** LE owns the focus state, the
+flag, and the redraw; turning a focus change into
+`IDCMP_ACTIVEWINDOW` / `IDCMP_INACTIVEWINDOW` IntuiMessages on each
+window's UserPort waits on LF's per-window `KOBJ_MSGPORT` +
+`struct IntuiMessage`. `Leargas_SetActiveWindow` is the single
+chokepoint LF extends to post them (seam comment in focus.c).
+
+Remaining for Phase 1 Subgoal 6: LF keyboard routing (RAWKEY →
+IDCMP on the focused window's port), LG/LH gadgets + string
+Inntin. The HB.* HID Gleas (Phase 3 prerequisite) wires the
+Phase 3 producer side onto the same L0 contract — no L0 changes
+needed when it lands.
 
 ---
 

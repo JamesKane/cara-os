@@ -40,6 +40,25 @@ u32 Leargas_Input_Drain(struct LeargasPointer *p)
             continue;
         }
 
+        // LE — left-button-down changes focus. The up-stroke carries
+        // IECODE_UP_PREFIX; only the down transition activates a
+        // window (classic click-to-front-less focus). Hit-test at the
+        // pointer's current hot-spot against the active screen's
+        // window list; if it lands on a different window, lift the
+        // pointer, re-focus (which redraws both title bars under the
+        // now-hidden cursor), and show the pointer back on top.
+        if (ev.ie_code == IECODE_LBUTTON) {
+            struct Screen *screen = Leargas_ActiveScreen();
+            struct Window *hit = Leargas_Window_HitTest(screen, p->x, p->y);
+            if (hit && hit != Leargas_ActiveWindow()) {
+                Leargas_Pointer_Hide(p);
+                Leargas_SetActiveWindow(hit);
+                Leargas_Pointer_Show(p);
+            }
+            // Fall through: a button event may also carry motion
+            // deltas (typically zero — then Pointer_Move no-ops).
+        }
+
         i32 nx = p->x + (i32)ev.ie_dx;
         i32 ny = p->y + (i32)ev.ie_dy;
 

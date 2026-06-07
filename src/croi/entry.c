@@ -296,8 +296,8 @@ static void console_putc(char c)
                             .Height = (WORD)win_h,
                             .DetailPen = 0,
                             .BlockPen = 1,
-                            .IDCMPFlags = IDCMP_CLOSEWINDOW | IDCMP_RAWKEY |
-                                          IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE,
+                            .IDCMPFlags = IDCMP_CLOSEWINDOW | IDCMP_RAWKEY | IDCMP_MOUSEBUTTONS |
+                                          IDCMP_MOUSEMOVE,
                             .Flags = WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_CLOSEGADGET |
                                      WFLG_ACTIVATE | WFLG_SMART_REFRESH,
                             .Title = (UBYTE *)wb_title,
@@ -313,6 +313,12 @@ static void console_putc(char c)
                             LOG_INFO("larg", "window '%s' at (%d,%d) %dx%d", wb_title,
                                      (int)win->LeftEdge, (int)win->TopEdge, (int)win->Width,
                                      (int)win->Height);
+                            // LE — WFLG_ACTIVATE focused the window at
+                            // open; a left-click (via the HID poll →
+                            // Leargas_Input_Drain) re-focuses whichever
+                            // window the pointer is over.
+                            LOG_INFO("larg", "active window: %s",
+                                     Leargas_ActiveWindow() == win ? wb_title : "(none)");
                         } else {
                             LOG_WARN("larg", "OpenWindow failed");
                         }
@@ -322,17 +328,17 @@ static void console_putc(char c)
                         // screen pen0. Reusing screen bg as the outline
                         // colour makes the outline disappear against
                         // similarly-coloured backgrounds.
-                        DathColor ptr_outline =
-                            (g_fb.format == DATH_FMT_RGB565) ? Dath_RGB565(0, 0, 0)
-                                                             : Dath_RGB(0, 0, 0);
+                        DathColor ptr_outline = (g_fb.format == DATH_FMT_RGB565)
+                                                    ? Dath_RGB565(0, 0, 0)
+                                                    : Dath_RGB(0, 0, 0);
                         if (Leargas_Pointer_Init(&g_pointer, &g_fb, &g_pointer_save,
                                                  &leargas_pointer_arrow, white, ptr_outline,
                                                  (i32)g_fb.width / 2,
                                                  (i32)g_fb.height / 2) == CARA_EOK) {
                             g_leargas_up = true;
                             LOG_INFO("larg", "screen %ux%u + pointer at (%d, %d)",
-                                     (unsigned)g_fb.width, (unsigned)g_fb.height,
-                                     (int)g_pointer.x, (int)g_pointer.y);
+                                     (unsigned)g_fb.width, (unsigned)g_fb.height, (int)g_pointer.x,
+                                     (int)g_pointer.y);
                         } else {
                             LOG_WARN("larg", "Pointer_Init failed");
                             if (win) {
@@ -490,19 +496,17 @@ static void console_putc(char c)
                                                                         // (HB.* / Phase 3).
                                                                         if (raw0 !=
                                                                             CARA_RAWKEY_NONE) {
-                                                                            struct LeargasInputEvent
-                                                                                ev = {
-                                                                                    .ie_class =
-                                                                                        IECLASS_RAWKEY,
-                                                                                    .ie_code = raw0,
-                                                                                    .ie_qualifier =
-                                                                                        kr.ie_qualifier,
-                                                                                    .ie_ts_ns =
-                                                                                        Croi_Time_Now(),
-                                                                                };
-                                                                            (void)
-                                                                                Leargas_Input_Post(
-                                                                                    &ev);
+                                                                            struct LeargasInputEvent ev = {
+                                                                                .ie_class =
+                                                                                    IECLASS_RAWKEY,
+                                                                                .ie_code = raw0,
+                                                                                .ie_qualifier =
+                                                                                    kr.ie_qualifier,
+                                                                                .ie_ts_ns =
+                                                                                    Croi_Time_Now(),
+                                                                            };
+                                                                            (void)Leargas_Input_Post(
+                                                                                &ev);
                                                                         }
                                                                     }
                                                                 } else {
@@ -562,7 +566,8 @@ static void console_putc(char c)
                                                     // are consumed but dropped (LF will own
                                                     // them once it lands).
                                                     if (g_leargas_up) {
-                                                        u32 drained = Leargas_Input_Drain(&g_pointer);
+                                                        u32 drained =
+                                                            Leargas_Input_Drain(&g_pointer);
                                                         LOG_INFO("larg",
                                                                  "drained %u event(s); "
                                                                  "pointer at (%d, %d)",

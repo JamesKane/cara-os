@@ -42,15 +42,15 @@
 // the ring slot.
 
 struct LeargasInputEvent {
-    u8 ie_class;     // IECLASS_*
-    u8 ie_subclass;  // IESUBCLASS_* (default IESUBCLASS_COMPATIBLE = 0)
-    u16 ie_code;     // IECODE_* / rawkey
-    u16 ie_qualifier;// IEQUALIFIER_*
-    u16 _ie_pad0;    // explicit pad — keeps the layout deterministic
-    i16 ie_dx;       // RAWMOUSE: X delta (pixels)
-    i16 ie_dy;       // RAWMOUSE: Y delta (pixels)
-    u32 _ie_pad1;    // explicit pad — see above
-    u64 ie_ts_ns;    // boot-time nanoseconds; producer fills from Croi_Time_Now
+    u8 ie_class;      // IECLASS_*
+    u8 ie_subclass;   // IESUBCLASS_* (default IESUBCLASS_COMPATIBLE = 0)
+    u16 ie_code;      // IECODE_* / rawkey
+    u16 ie_qualifier; // IEQUALIFIER_*
+    u16 _ie_pad0;     // explicit pad — keeps the layout deterministic
+    i16 ie_dx;        // RAWMOUSE: X delta (pixels)
+    i16 ie_dy;        // RAWMOUSE: Y delta (pixels)
+    u32 _ie_pad1;     // explicit pad — see above
+    u64 ie_ts_ns;     // boot-time nanoseconds; producer fills from Croi_Time_Now
 };
 static_assert(sizeof(struct LeargasInputEvent) == 24,
               "LeargasInputEvent layout drifted; ring slot pun depends on it");
@@ -115,9 +115,9 @@ enum : u8 {
 struct LeargasPointerImage {
     u32 width;
     u32 height;
-    i32 hot_x;       // hot-spot offset within the image (left = 0)
-    i32 hot_y;       // hot-spot offset within the image (top  = 0)
-    const u8 *pixels;// width*height bytes; values are LEARGAS_PTR_*
+    i32 hot_x;        // hot-spot offset within the image (left = 0)
+    i32 hot_y;        // hot-spot offset within the image (top  = 0)
+    const u8 *pixels; // width*height bytes; values are LEARGAS_PTR_*
 };
 
 // Default 16×16 arrow pointer with hot-spot at (0, 0). Phase 1 ships
@@ -159,6 +159,19 @@ struct LeargasPointer {
 // the pointer state still tracks the requested coordinates so the
 // next Move from off-screen back into bounds reappears correctly.
 void Leargas_Pointer_Move(struct LeargasPointer *p, i32 x, i32 y);
+
+// Lift the pointer off the framebuffer: restore the saved underneath
+// pixels at the current position so chrome beneath the cursor can be
+// repainted without the stale save clobbering it on the next Move.
+// No-op if the pointer is already hidden (save not valid). Pairs with
+// Leargas_Pointer_Show; used by the LE focus path (and LF/LG onward)
+// whenever a redraw may touch pixels under the pointer.
+void Leargas_Pointer_Hide(struct LeargasPointer *p);
+
+// Re-capture the underneath pixels at the current position and
+// composite the pointer image back on top. No-op if already shown.
+// Pairs with Leargas_Pointer_Hide.
+void Leargas_Pointer_Show(struct LeargasPointer *p);
 
 // ---- LB — Screen substrate ------------------------------------------------
 //
@@ -271,8 +284,7 @@ struct LeargasWindow {
 //
 // Returns CARA_EINVAL on null arguments, an unset NewWindow.Screen
 // AND no active screen, or zero-sized geometry; CARA_EOK on success.
-[[nodiscard]] int Leargas_Window_InitInPlace(struct LeargasWindow *w,
-                                             const struct NewWindow *nw);
+[[nodiscard]] int Leargas_Window_InitInPlace(struct LeargasWindow *w, const struct NewWindow *nw);
 
 // Render the window decorations (border, title bar, title text,
 // close gadget if WFLG_CLOSEGADGET) into the owning screen's
@@ -305,5 +317,48 @@ void Leargas_Window_UnlinkFromScreen(struct LeargasWindow *w);
 // Layer support — Phase 3+ redraws the underneath properly),
 // frees the heap allocation. Safe on nullptr.
 void Leargas_CloseWindow(struct Window *w);
+
+// ---- LE — Focus + activation ----------------------------------------------
+//
+// Phase 1 tracks exactly one focused (active) window, process-wide.
+// A mouse button-down hit-tests the active screen's window list
+// front-to-back (FirstWindow is the front-most); the topmost window
+// containing the pointer becomes active and the previously-active
+// window deactivates. Each window's WFLG_WINDOWACTIVE flag mirrors
+// the focus state, and the title bar redraws in active vs. inactive
+// chrome (Leargas_Window_Render reads the flag).
+//
+// Phase 1 deliberately does NOT raise the clicked window to the front
+// of the list — focus changes without a depth-arrange. Overlap is
+// handled by simple repaint; Layer-based z-order is Phase 3 + 4.
+//
+// IDCMP delivery — turning a focus change into IDCMP_ACTIVEWINDOW /
+// IDCMP_INACTIVEWINDOW IntuiMessages on each window's UserPort — is
+// LF's job (LF owns the per-window MsgPort + IntuiMessage shape; LD
+// leaves UserPort nullptr until then). Leargas_SetActiveWindow is the
+// single focus-change chokepoint LF extends to post those messages.
+
+// Return the currently-focused window, or nullptr if none.
+[[nodiscard]] struct Window *Leargas_ActiveWindow(void);
+
+// Make `w` the focused window; nullptr clears focus. Clears
+// WFLG_WINDOWACTIVE on the outgoing window and sets it on `w`, then
+// redraws both title bars. Idempotent — re-activating the already-
+// active window is a no-op. `w` need not be linked to the active
+// screen; the router only ever passes a window it found there.
+void Leargas_SetActiveWindow(struct Window *w);
+
+// Hit-test `screen`'s window list front-to-back. Returns the topmost
+// window whose outer rectangle (LeftEdge/TopEdge .. +Width/+Height,
+// right/bottom exclusive) contains the screen-space point (x, y), or
+// nullptr if the point is over no window / `screen` is null.
+[[nodiscard]] struct Window *Leargas_Window_HitTest(struct Screen *screen, i32 x, i32 y);
+
+// Test-only: clear the process-wide active-window pointer without
+// touching the (possibly out-of-scope) previously-active window.
+// Production focus changes go through Leargas_SetActiveWindow; this
+// exists so host unit tests start each scenario from a known state,
+// mirroring Leargas_Input_Reset / Leargas_Screen_SetActive(nullptr).
+void Leargas_Focus_Reset(void);
 
 #endif // CARA_LEARGAS_H

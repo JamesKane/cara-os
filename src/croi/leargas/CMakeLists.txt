@@ -13,6 +13,7 @@ add_library(cara_leargas STATIC
     router.c
     screen.c
     window.c
+    focus.c
 )
 
 if(CARA_TARGET STREQUAL "riscv64")

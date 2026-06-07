@@ -113,3 +113,32 @@ void Leargas_Pointer_Move(struct LeargasPointer *p, i32 x, i32 y)
     p->y = y;
     p->save_valid = true;
 }
+
+void Leargas_Pointer_Hide(struct LeargasPointer *p)
+{
+    if (!p || !p->fb || !p->save || !p->img) {
+        return;
+    }
+    if (!p->save_valid) {
+        return; // already hidden — nothing valid to restore
+    }
+    i32 top_x = p->x - p->img->hot_x;
+    i32 top_y = p->y - p->img->hot_y;
+    restore_underneath(p, top_x, top_y);
+    p->save_valid = false;
+}
+
+void Leargas_Pointer_Show(struct LeargasPointer *p)
+{
+    if (!p || !p->fb || !p->save || !p->img) {
+        return;
+    }
+    if (p->save_valid) {
+        return; // already shown
+    }
+    i32 top_x = p->x - p->img->hot_x;
+    i32 top_y = p->y - p->img->hot_y;
+    save_underneath(p, top_x, top_y);
+    composite_pointer(p, top_x, top_y);
+    p->save_valid = true;
+}

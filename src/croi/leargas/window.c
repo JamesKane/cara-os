@@ -32,8 +32,7 @@ static u32 copy_bounded(char *dst, u32 dst_cap, const char *src)
     return i;
 }
 
-[[nodiscard]] int Leargas_Window_InitInPlace(struct LeargasWindow *w,
-                                             const struct NewWindow *nw)
+[[nodiscard]] int Leargas_Window_InitInPlace(struct LeargasWindow *w, const struct NewWindow *nw)
 {
     if (!w || !nw) {
         return CARA_EINVAL;
@@ -93,8 +92,7 @@ static u32 copy_bounded(char *dst, u32 dst_cap, const char *src)
         w->pub.BorderLeft = 0;
         w->pub.BorderRight = 0;
     } else {
-        w->pub.BorderTop =
-            (w->pub.Flags & WFLG_DRAGBAR) ? LEARGAS_WINDOW_DEFAULT_BORDER_TOP : 1;
+        w->pub.BorderTop = (w->pub.Flags & WFLG_DRAGBAR) ? LEARGAS_WINDOW_DEFAULT_BORDER_TOP : 1;
         w->pub.BorderBottom = LEARGAS_WINDOW_DEFAULT_BORDER_BOTTOM;
         w->pub.BorderLeft = LEARGAS_WINDOW_DEFAULT_BORDER_LEFT;
         w->pub.BorderRight = LEARGAS_WINDOW_DEFAULT_BORDER_RIGHT;
@@ -105,7 +103,7 @@ static u32 copy_bounded(char *dst, u32 dst_cap, const char *src)
     w->pub.Descendant = nullptr;
 
     w->pub.IDCMPFlags = nw->IDCMPFlags;
-    w->pub.UserPort = nullptr;   // LF wires the IDCMP MsgPort
+    w->pub.UserPort = nullptr; // LF wires the IDCMP MsgPort
     w->pub.WindowPort = nullptr;
     w->pub.MessageKey = nullptr;
 
@@ -162,12 +160,24 @@ void Leargas_Window_UnlinkFromScreen(struct LeargasWindow *w)
 // ---- Decoration rendering -------------------------------------------------
 //
 // Phase 1 hard-codes a small palette: a darker blue for the
-// inactive window title bar / borders, a lighter blue for body
-// fill, white for the title text. LE flips active vs inactive
-// when focus changes; for now every window is rendered "inactive".
+// inactive window title bar / borders, a brighter blue for the
+// active (focused) window's chrome, a lighter blue for body fill,
+// white for the title text. LE flips active vs. inactive by reading
+// WFLG_WINDOWACTIVE (set by Leargas_SetActiveWindow on focus change);
+// a window opened without focus renders inactive, matching the LD
+// behaviour the window unit test pins.
 
-static DathColor pick_chrome_bg(struct DathFramebuffer *fb)
+static DathColor pick_chrome_bg(struct DathFramebuffer *fb, bool active)
 {
+    // Active windows get a noticeably brighter title bar / frame so
+    // the focused window reads at a glance — the Phase 1 stand-in for
+    // V36+'s active-vs-inactive title-bar fill distinction.
+    if (active) {
+        if (fb->format == DATH_FMT_RGB565) {
+            return Dath_RGB565(0x38, 0x78, 0xD0);
+        }
+        return Dath_RGB(0x38, 0x78, 0xD0);
+    }
     if (fb->format == DATH_FMT_RGB565) {
         return Dath_RGB565(0x20, 0x40, 0x80);
     }
@@ -204,7 +214,8 @@ void Leargas_Window_Render(struct LeargasWindow *w)
     }
     struct DathFramebuffer *fb = ls->fb;
 
-    DathColor chrome_bg = pick_chrome_bg(fb);
+    bool active = (w->pub.Flags & WFLG_WINDOWACTIVE) != 0;
+    DathColor chrome_bg = pick_chrome_bg(fb, active);
     DathColor chrome_fg = pick_chrome_fg(fb);
     DathColor body = pick_body(fb);
 
@@ -242,8 +253,7 @@ void Leargas_Window_Render(struct LeargasWindow *w)
             if (max_chars > 0) {
                 char tmp[LEARGAS_WINDOW_TITLE_MAX];
                 u32 n = 0;
-                while (n + 1 < sizeof(tmp) && (i32)n < max_chars &&
-                       w->title_buf[n] != '\0') {
+                while (n + 1 < sizeof(tmp) && (i32)n < max_chars && w->title_buf[n] != '\0') {
                     tmp[n] = w->title_buf[n];
                     n++;
                 }

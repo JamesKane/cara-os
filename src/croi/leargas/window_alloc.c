@@ -24,6 +24,13 @@
     }
     Leargas_Window_LinkToScreen(w);
     Leargas_Window_Render(w);
+
+    // V36+: a window opened with WFLG_ACTIVATE becomes the focused
+    // window. SetActiveWindow flips WFLG_WINDOWACTIVE + redraws it in
+    // active chrome (and deactivates whatever was focused before).
+    if (w->pub.Flags & WFLG_ACTIVATE) {
+        Leargas_SetActiveWindow(&w->pub);
+    }
     return &w->pub;
 }
 
