@@ -24,11 +24,11 @@
 #define INTUITION_SCREENS_H
 
 #include <exec/types.h>
-#include <graphics/gfx.h>      // PLANEPTR, struct Rectangle, struct BitMap fwd
-#include <graphics/layers.h>   // struct Layer, struct Layer_Info fwds
-#include <graphics/rastport.h> // struct RastPort fwd
-#include <graphics/text.h>     // struct TextAttr (full)
-#include <graphics/view.h>     // struct ViewPort, struct ColorMap fwds
+#include <graphics/gfx.h>        // PLANEPTR, struct Rectangle, struct BitMap fwd
+#include <graphics/layers.h>     // struct Layer, struct Layer_Info fwds
+#include <graphics/rastport.h>   // struct RastPort fwd
+#include <graphics/text.h>       // struct TextAttr (full)
+#include <graphics/view.h>       // struct ViewPort, struct ColorMap fwds
 #include <intuition/intuition.h> // struct Window, struct Gadget fwds
 
 // V36+ Flags bits — only the ones Phase 1 / Clar will plausibly read.
@@ -52,10 +52,10 @@ struct Screen {
     struct Screen *NextScreen;
     struct Window *FirstWindow;
 
-    WORD LeftEdge, TopEdge;  // top-left in screen coords
-    WORD Width, Height;      // pixel extent
-    WORD MouseY, MouseX;     // current pointer position
-    UWORD Flags;             // SCREENTYPE / SHOWTITLE / etc.
+    WORD LeftEdge, TopEdge; // top-left in screen coords
+    WORD Width, Height;     // pixel extent
+    WORD MouseY, MouseX;    // current pointer position
+    UWORD Flags;            // SCREENTYPE / SHOWTITLE / etc.
 
     UBYTE *Title;        // current title bar text (Leargas-owned buffer)
     UBYTE *DefaultTitle; // restored after a window's title takes over

@@ -138,8 +138,8 @@ int main(void)
 
     // Wrap-around: 4*CAP enqueue+dequeue pairs through the same ring.
     for (u32 i = 0; i < 4 * LEARGAS_INPUT_RING_CAP; i++) {
-        struct LeargasInputEvent ev = make_mouse((i16)(i * 3), (i16)(-(i32)i),
-                                                 (u16)(0x8000 | i), 0x100000ull + i);
+        struct LeargasInputEvent ev = make_mouse((i16)(i * 3), (i16)(-(i32)i), (u16)(0x8000 | i),
+                                                 0x100000ull + i);
         if (!Leargas_Input_Post(&ev)) {
             return fail("wrap Post failed", 19);
         }

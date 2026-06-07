@@ -104,7 +104,7 @@ struct Window {
 
     WORD LeftEdge, TopEdge;
     WORD Width, Height;
-    WORD MouseY, MouseX;       // pointer position relative to window origin
+    WORD MouseY, MouseX; // pointer position relative to window origin
     WORD MinWidth, MinHeight;
     UWORD MaxWidth, MaxHeight;
 
@@ -130,18 +130,18 @@ struct Window {
 
     struct Window *Parent, *Descendant;
 
-    UWORD *Pointer;          // custom mouse pointer image
+    UWORD *Pointer; // custom mouse pointer image
     BYTE PtrHeight, PtrWidth;
     WORD XOffset, YOffset;
 
-    ULONG IDCMPFlags;            // class bits client wants
-    struct MsgPort *UserPort;    // client receives IntuiMessages here
-    struct MsgPort *WindowPort;  // Intuition private
+    ULONG IDCMPFlags;           // class bits client wants
+    struct MsgPort *UserPort;   // client receives IntuiMessages here
+    struct MsgPort *WindowPort; // Intuition private
     struct IntuiMessage *MessageKey;
 
     UBYTE DetailPen, BlockPen;
     struct Image *CheckMark;
-    UBYTE *ScreenTitle;          // shown in screen title bar when active
+    UBYTE *ScreenTitle; // shown in screen title bar when active
 
     WORD GZZMouseX, GZZMouseY;
     WORD GZZWidth, GZZHeight;
@@ -149,7 +149,7 @@ struct Window {
     UBYTE *ExtData;
     BYTE *UserData;
 
-    struct Layer *WLayer;        // null in Phase 1 (no Layers yet)
+    struct Layer *WLayer; // null in Phase 1 (no Layers yet)
     struct TextFont *IFont;
     ULONG MoreFlags;
 };
@@ -178,7 +178,7 @@ struct NewWindow {
 // top) and ordinary side borders. Title bar height matches the
 // screen's BarHeight default; side borders are 1 pixel.
 
-constexpr i8 LEARGAS_WINDOW_DEFAULT_BORDER_TOP = 11;    // matches BarHeight
+constexpr i8 LEARGAS_WINDOW_DEFAULT_BORDER_TOP = 11; // matches BarHeight
 constexpr i8 LEARGAS_WINDOW_DEFAULT_BORDER_BOTTOM = 1;
 constexpr i8 LEARGAS_WINDOW_DEFAULT_BORDER_LEFT = 1;
 constexpr i8 LEARGAS_WINDOW_DEFAULT_BORDER_RIGHT = 1;

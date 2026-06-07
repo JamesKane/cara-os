@@ -118,8 +118,7 @@ int main(void)
     if (Leargas_Window_InitInPlace(&w, &nw) != CARA_EOK) {
         return fail("InitInPlace happy path failed", 9);
     }
-    if (w.pub.LeftEdge != 20 || w.pub.TopEdge != 30 || w.pub.Width != 100 ||
-        w.pub.Height != 50) {
+    if (w.pub.LeftEdge != 20 || w.pub.TopEdge != 30 || w.pub.Width != 100 || w.pub.Height != 50) {
         return fail("geometry not stored", 10);
     }
     if (w.pub.WScreen != &screen.pub) {

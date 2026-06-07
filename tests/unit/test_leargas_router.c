@@ -165,8 +165,8 @@ int main(void)
         Leargas_Input_Reset();
         (void)Leargas_Screen_InitInPlace(&screen, &fb, "TestScreen", 0);
         Leargas_Screen_SetActive(&screen);
-        (void)Leargas_Pointer_Init(&p, &fb, &save, &leargas_pointer_arrow, 0xFFFFFFFFu,
-                                   0xFF000000u, 10, 10);
+        (void)Leargas_Pointer_Init(&p, &fb, &save, &leargas_pointer_arrow, 0xFFFFFFFFu, 0xFF000000u,
+                                   10, 10);
 
         post_key(0x20);
         post_mouse(3, 4);
@@ -190,8 +190,8 @@ int main(void)
         Leargas_Input_Reset();
         (void)Leargas_Screen_InitInPlace(&screen, &fb, "TestScreen", 0);
         Leargas_Screen_SetActive(&screen);
-        (void)Leargas_Pointer_Init(&p, &fb, &save, &leargas_pointer_arrow, 0xFFFFFFFFu,
-                                   0xFF000000u, 32, 24);
+        (void)Leargas_Pointer_Init(&p, &fb, &save, &leargas_pointer_arrow, 0xFFFFFFFFu, 0xFF000000u,
+                                   32, 24);
 
         for (i32 i = 1; i <= 8; i++) {
             post_mouse((i16)i, (i16)-i);

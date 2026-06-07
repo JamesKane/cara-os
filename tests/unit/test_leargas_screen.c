@@ -76,8 +76,7 @@ int main(void)
     if (s.pub.BarHeight != LEARGAS_DEFAULT_BAR_HEIGHT) {
         return fail("BarHeight not seeded", 9);
     }
-    if (s.pub.WBorTop != LEARGAS_DEFAULT_WBOR_TOP ||
-        s.pub.WBorLeft != LEARGAS_DEFAULT_WBOR_LEFT ||
+    if (s.pub.WBorTop != LEARGAS_DEFAULT_WBOR_TOP || s.pub.WBorLeft != LEARGAS_DEFAULT_WBOR_LEFT ||
         s.pub.WBorRight != LEARGAS_DEFAULT_WBOR_RIGHT ||
         s.pub.WBorBottom != LEARGAS_DEFAULT_WBOR_BOTTOM) {
         return fail("WBor* metrics not seeded", 10);
