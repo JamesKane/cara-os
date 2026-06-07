@@ -40,6 +40,7 @@ struct IntuiMessage;
 struct IntuiText;
 struct StringInfo; // SpecialInfo for GTYP_STRGADGET (filled out in LH)
 struct TextAttr;
+struct KeyMap; // alternate keymap (Phase 3 keymap.library); null = default
 
 // ---- WFLG_* — window Flags bits (V36+ verbatim) ---------------------------
 
@@ -303,6 +304,31 @@ struct Gadget {
 
     UWORD GadgetID; // app-assigned id, echoed in IDCMP_GADGETUP
     APTR UserData;
+};
+
+// ---- struct StringInfo (V36+) — SpecialInfo for GTYP_STRGADGET -------------
+//
+// A GTYP_STRGADGET's SpecialInfo points here. The client owns Buffer
+// (MaxChars bytes, NUL-terminated); Leargas edits it in place. The
+// Intuition-private tail (UndoPos onward) is filled / used by the
+// editor. Phase 1 LH uses Buffer / MaxChars / BufferPos / NumChars and
+// renders from DispPos = 0 (no horizontal scroll yet).
+
+struct StringInfo {
+    UBYTE *Buffer;     // the string the user edits (NUL-terminated)
+    UBYTE *UndoBuffer; // optional undo scratch (MaxChars bytes)
+    WORD BufferPos;    // cursor position within Buffer
+    WORD MaxChars;     // Buffer size in bytes, including the NUL
+    WORD DispPos;      // first displayed character
+
+    // Intuition-private:
+    WORD UndoPos;  // cursor position within UndoBuffer
+    WORD NumChars; // current length of Buffer (excluding NUL)
+    WORD DispCount;
+    WORD CLeft, CTop;         // RastPort offset of the container
+    struct Layer *LayerPtr;   // null in Phase 1
+    LONG LongInt;             // GACT_LONGINT integer result
+    struct KeyMap *AltKeyMap; // alternate keymap; null = default (Phase 3)
 };
 
 // ---- Phase 1 default chrome metrics ---------------------------------------

@@ -460,4 +460,57 @@ void Leargas_SetActiveGadget(struct Gadget *g);
 // mirroring Leargas_Focus_Reset.
 void Leargas_Gadget_Reset(void);
 
+// ---- LH — String Inntin (the text input gadget) ---------------------------
+//
+// A GTYP_STRGADGET whose SpecialInfo is a struct StringInfo. Clicking it
+// makes it the active gadget; while active it eats RAWKEY events —
+// printable keys insert at the cursor, Backspace deletes, Return posts
+// IDCMP_GADGETUP (Code = GadgetID, IAddress = gadget) to the window and
+// drops edit focus. Rendered as a recessed text field with the buffer
+// text and a cursor bar at the edit position.
+//
+// All dual-target except the GADGETUP MsgPort post, which goes through a
+// hook the kernel installs (Leargas_IDCMP_PostGadgetUp) — same pattern
+// as the LF key router.
+
+// Decode a V36+ rawkey number + IEQUALIFIER_* bitmap to a US-ASCII
+// character, or 0 for a key release (IECODE_UP_PREFIX set) or a
+// non-printable key. A built-in US keymap stands in for Phase 3's
+// keymap.library; shift / caps affect letters, shift the symbol row.
+[[nodiscard]] char Leargas_RawkeyToAscii(u16 code, u16 qualifier);
+
+// Insert `c` at the cursor (BufferPos), shifting the tail right and
+// advancing the cursor. Returns false (no change) if the buffer is full
+// or the StringInfo is unusable.
+bool Leargas_String_InsertChar(struct StringInfo *si, char c);
+
+// Delete the character before the cursor, shifting the tail left.
+// Returns false (no change) when the cursor is already at the start.
+bool Leargas_String_Backspace(struct StringInfo *si);
+
+// Render gadget `g` as a string field (recessed box + buffer text + a
+// cursor bar when `g` is the active gadget). Leargas_Gadget_Render
+// dispatches GTYP_STRGADGET here; callers don't invoke it directly.
+void Leargas_StringGadget_Render(struct Window *w, struct Gadget *g);
+
+// Router integration: if the active gadget is a string Inntin, consume
+// `ev` (edit the buffer / post GADGETUP on Return) and return true; else
+// return false so the router falls through to LF window key delivery.
+// `p` (may be null) is used to lift the pointer while re-rendering.
+bool Leargas_String_RouteKey(struct LeargasPointer *p, const struct LeargasInputEvent *ev);
+
+// GADGETUP delivery hook. String_RouteKey calls the installed function
+// on Return to post the IDCMP_GADGETUP message. The kernel installs
+// Leargas_IDCMP_PostGadgetUp; host builds may install a stub or leave it
+// unset (then Return just drops edit focus). Returns true if delivered.
+typedef bool (*Leargas_GadgetUpFn)(struct Window *w, struct Gadget *g);
+void Leargas_SetGadgetRouter(Leargas_GadgetUpFn fn);
+
+// Kernel-only: the default GADGETUP hook. Allocates an IntuiMessage
+// (Class = IDCMP_GADGETUP, Code = g->GadgetID, IAddress = g) and PutMsg's
+// it to w->UserPort. Returns false (delivering nothing) when the window
+// has no UserPort, didn't request IDCMP_GADGETUP, or the ring is full
+// (freeing the message). Install via Leargas_SetGadgetRouter.
+[[nodiscard]] bool Leargas_IDCMP_PostGadgetUp(struct Window *w, struct Gadget *g);
+
 #endif // CARA_LEARGAS_H

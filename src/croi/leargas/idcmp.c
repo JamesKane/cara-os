@@ -69,3 +69,41 @@ void Leargas_IDCMP_DisposeMsg(struct IntuiMessage *im)
         Croi_Free(im);
     }
 }
+
+[[nodiscard]] bool Leargas_IDCMP_PostGadgetUp(struct Window *w, struct Gadget *g)
+{
+    if (!w || !g || !w->UserPort) {
+        return false;
+    }
+    if (!(w->IDCMPFlags & IDCMP_GADGETUP)) {
+        return false; // the window didn't ask for gadget events
+    }
+
+    struct IntuiMessage *im = (struct IntuiMessage *)Croi_Alloc(sizeof(struct IntuiMessage));
+    if (!im) {
+        return false;
+    }
+    *im = (struct IntuiMessage){ 0 };
+    im->ExecMessage.mn_Length = (UWORD)sizeof(struct IntuiMessage);
+    im->Class = IDCMP_GADGETUP;
+    im->Code = g->GadgetID; // the doc's "GADGETUP with the gadget's GadgetID"
+    im->IAddress = g;
+    im->IDCMPWindow = w;
+    if (w->WScreen) {
+        im->MouseX = (WORD)(w->WScreen->MouseX - w->LeftEdge);
+        im->MouseY = (WORD)(w->WScreen->MouseY - w->TopEdge);
+    }
+
+    struct CroiMsgPort *port = (struct CroiMsgPort *)w->UserPort;
+    struct RingSlot slot = {
+        .kind = IDCMP_GADGETUP,
+        .length = (u32)sizeof(struct IntuiMessage),
+        .payload = (uptr)im,
+        .reserved = 0,
+    };
+    if (!Croi_PutMsg(port, slot)) {
+        Croi_Free(im);
+        return false;
+    }
+    return true;
+}

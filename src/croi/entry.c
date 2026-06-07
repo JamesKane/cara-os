@@ -152,6 +152,9 @@ static void console_putc(char c)
     // the boot demo window opens before Sched_Init, so it has no port
     // and keys are dropped until a post-scheduler client owns one.
     Leargas_SetKeyRouter(Leargas_IDCMP_RouteKey);
+    // LH — install the GADGETUP router so a string Inntin's Return posts
+    // IDCMP_GADGETUP to its window's port.
+    Leargas_SetGadgetRouter(Leargas_IDCMP_PostGadgetUp);
 
     // ---- Physical memory map ----
     u64 kphys_start = _kernel_image_phys_start;

@@ -13,7 +13,10 @@
 
 ## Status — 2026-06-06
 
-**Tier 1 done (L0+LA+LB+LC); LD+LE+LF+LG shipped. LH remains.**
+**Subgoal 6 COMPLETE — L0+LA..LH all shipped.** Leargas Phase 1 is
+done: pointer, screen, windows, focus, keyboard IDCMP routing, gadgets,
+and the string Inntin. This is the full minimum substrate Clar
+(Subgoal 7) needs.
 PHASE1_USB.md Tier 1–2 + HA.1–4 + HidIntReadOnce are in HEAD;
 that's enough to feed the L0 producer side. The L0 commit
 lands:
@@ -261,11 +264,51 @@ The LG commit adds:
 + boot smoke confirm it links and boots. IDCMP_GADGETUP / GADGETDOWN
 delivery (which needs the LF MsgPort path) lands with LH.
 
-Remaining for Phase 1 Subgoal 6: LH — the string Inntin (StringInfo,
-text + cursor render, keyboard editing of the active gadget, Enter →
-IDCMP_GADGETUP). The HB.* HID Gleas (Phase 3 prerequisite) wires the
-Phase 3 producer side onto the same L0 contract — no L0 changes needed
-when it lands.
+The LH commit adds:
+
+- `<intuition/intuition.h>` — V36+ `struct StringInfo` (+ forward
+  `struct KeyMap`). A GTYP_STRGADGET's SpecialInfo points at one.
+- string_gadget.c (dual-target): a built-in US keymap
+  (`Leargas_RawkeyToAscii` — Phase 3's keymap.library replaces it),
+  StringInfo editing (`Leargas_String_InsertChar` / `_Backspace`,
+  in-place buffer edits with cursor tracking), `Leargas_StringGadget_Render`
+  (recessed field + buffer text + a cursor bar when the gadget is
+  active), and `Leargas_String_RouteKey` — when the active gadget is a
+  string Inntin it consumes every RAWKEY: printables insert, Backspace
+  deletes, Return posts IDCMP_GADGETUP through the gadgetup hook and
+  drops edit focus. The hook (`Leargas_SetGadgetRouter`) keeps the
+  MsgPort post out of this dual-target file.
+- gadget.c — `Leargas_Gadget_Render` dispatches GTYP_STRGADGET to the
+  string-field renderer.
+- router.c — the RAWKEY path tries `Leargas_String_RouteKey` first;
+  only if no string gadget is editing does it fall through to LF window
+  delivery.
+- idcmp.c (kernel-only) — `Leargas_IDCMP_PostGadgetUp` (the default
+  gadgetup hook: IntuiMessage Class = IDCMP_GADGETUP, Code = GadgetID,
+  IAddress = gadget, PutMsg to UserPort). entry.c installs it next to
+  the LF key router.
+- `tests/unit/test_leargas_string.c` (host) — keymap (shift / caps /
+  symbols / key-up), editing (insert / mid-insert / backspace / full),
+  render (cursor only when active), and the router edit path with a
+  stub gadgetup hook.
+- `src/croi/tests/test_string.c` — `KERNEL_TEST(string_gadgetup)`,
+  end-to-end: type into an Inntin via the ring + router, Return
+  delivers a real IDCMP_GADGETUP IntuiMessage to the window's UserPort.
+  17/17 kernel tests pass under the QEMU boot smoke.
+
+**Phase 1 simplifications noted in code:** the cursor is static (no
+blink — blinking needs an IntuiTick timer, Phase 3); the string field
+renders from DispPos 0 with no horizontal scroll on overflow; clicking
+empty window space does not deactivate an editing Inntin (Return or
+another gadget click does). All are Phase 3 polish, not Subgoal 6
+blockers.
+
+**What's next.** Subgoal 6 is done; the remaining Phase 1 work is
+Subgoal 7 — Clar (the Workbench analogue): a Leargas *client* that
+opens the Workbench screen, a drawer (Bosca) window, and a string
+Inntin, all through the surface above. The HB.* HID Gleas (Phase 3
+prerequisite) later wires the Phase 3 producer side onto the same L0
+contract — no L0 changes needed when it lands.
 
 ---
 

@@ -107,6 +107,13 @@ void Leargas_Gadget_Render(struct Window *w, struct Gadget *g)
     if (!w || !g) {
         return;
     }
+
+    // LH — string gadgets render as text fields, not buttons.
+    if ((g->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET) {
+        Leargas_StringGadget_Render(w, g);
+        return;
+    }
+
     struct LeargasScreen *ls = Leargas_Screen_FromPub(w->WScreen);
     if (!ls || !ls->fb) {
         return;

@@ -15,6 +15,7 @@ add_library(cara_leargas STATIC
     window.c
     focus.c
     gadget.c
+    string_gadget.c
 )
 
 if(CARA_TARGET STREQUAL "riscv64")

@@ -21,6 +21,7 @@ add_library(cara_kernel_tests STATIC
     test_pci.c
     test_xhci.c
     test_idcmp.c
+    test_string.c
 )
 target_include_directories(cara_kernel_tests PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/.."

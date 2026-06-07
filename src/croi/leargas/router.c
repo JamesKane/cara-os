@@ -46,6 +46,11 @@ u32 Leargas_Input_Drain(struct LeargasPointer *p)
     while (Leargas_Input_Read(&ev)) {
         n++;
         if (ev.ie_class == IECLASS_RAWKEY) {
+            // LH — an active string Inntin eats the keystroke (editing /
+            // Return → GADGETUP). Only if it doesn't:
+            if (Leargas_String_RouteKey(p, &ev)) {
+                continue;
+            }
             // LF — hand the keystroke to the focused window's IDCMP
             // port via the installed hook (kernel: Leargas_IDCMP_RouteKey).
             // No hook (host builds) or no focused window → dropped.
