@@ -13,6 +13,7 @@
 #include "kernel.h"
 #include "ns16550.h"
 #include "print.h"
+#include "ramfb.h"
 
 #include <cara/alloc.h>
 #include <cara/dath.h>
@@ -99,6 +100,10 @@ static bool g_leargas_up = false;
 // address P is reachable as P + KERNEL_VA_OFFSET. Anything we read from
 // hardware-handed-off pointers (DTB, MMIO bases) needs this fixup.
 #define KERNEL_VA_OFFSET 0xFFFFFFC000000000ULL
+
+// Default framebuffer geometry for the QEMU ramfb fallback (XRGB8888).
+#define CARA_FB_WIDTH 1024u
+#define CARA_FB_HEIGHT 768u
 
 static inline const void *phys_to_virt(u64 phys)
 {
@@ -247,155 +252,160 @@ static void console_putc(char c)
         LOG_DEBUG("mem ", "usable[%u]: 0x%llx..0x%llx (%llu KiB)", i, pm.usable[i].base,
                   pm.usable[i].base + pm.usable[i].size, pm.usable[i].size / 1024);
     }
-    // ---- Probe simple-framebuffer (optional). On QEMU virt without
-    //      `-device ramfb` there's no FDT node so we just log and skip;
-    //      on real boards U-Boot leaves a node here when HDMI's up.
+    // ---- Bring up a framebuffer. Prefer a simple-framebuffer FDT node
+    //      (real boards / U-Boot HDMI handoff); on QEMU virt there's no
+    //      such node, so fall back to QEMU's ramfb over fw-cfg. Headless
+    //      if neither is available.
     {
+        bool fb_ready = false;
         struct DathFbDescriptor fbdesc;
         int frc = Dath_Framebuffer_FromFdt(&fbdesc, &fdt);
         if (frc == CARA_EOK) {
             LOG_INFO("dath", "simple-framebuffer %ux%u stride=%u fmt=%u base=0x%llx", fbdesc.width,
                      fbdesc.height, fbdesc.stride, (u32)fbdesc.format, fbdesc.phys_base);
-            if (Dath_Framebuffer_Init(&g_fb, Mm_PhysToVirt(fbdesc.phys_base), fbdesc.width,
-                                      fbdesc.height, fbdesc.stride, fbdesc.format) == CARA_EOK) {
-                // Boot banner: dark-blue background, light-blue 1-pixel
-                // border, white "CaraOS" wordmark + subtitle, then a
-                // red/green/blue swatch row below so the format encoding
-                // is visible at a glance.
-                DathColor bg = Dath_RGB(0x10, 0x20, 0x40);
-                DathColor accent = Dath_RGB(0x40, 0x80, 0xFF);
-                DathColor white = Dath_RGB(0xFF, 0xFF, 0xFF);
-                DathColor red = Dath_RGB(0xFF, 0x40, 0x40);
-                DathColor green = Dath_RGB(0x40, 0xFF, 0x40);
-                DathColor blue = Dath_RGB(0x40, 0x80, 0xFF);
-                if (g_fb.format == DATH_FMT_RGB565) {
-                    bg = Dath_RGB565(0x10, 0x20, 0x40);
-                    accent = Dath_RGB565(0x40, 0x80, 0xFF);
-                    white = Dath_RGB565(0xFF, 0xFF, 0xFF);
-                    red = Dath_RGB565(0xFF, 0x40, 0x40);
-                    green = Dath_RGB565(0x40, 0xFF, 0x40);
-                    blue = Dath_RGB565(0x40, 0x80, 0xFF);
-                }
+            fb_ready =
+                (Dath_Framebuffer_Init(&g_fb, Mm_PhysToVirt(fbdesc.phys_base), fbdesc.width,
+                                       fbdesc.height, fbdesc.stride, fbdesc.format) == CARA_EOK);
+        } else {
+            int rrc = Croi_Ramfb_Setup(&g_fb, &fdt, &g_page_alloc, CARA_FB_WIDTH, CARA_FB_HEIGHT);
+            if (rrc == CARA_EOK) {
+                fb_ready = true;
+            } else {
+                LOG_INFO("dath", "no framebuffer (simple-fb absent; ramfb rc=%d); headless boot",
+                         rrc);
+            }
+        }
+        if (fb_ready) {
+            // Boot banner: dark-blue background, light-blue 1-pixel
+            // border, white "CaraOS" wordmark + subtitle, then a
+            // red/green/blue swatch row below so the format encoding
+            // is visible at a glance.
+            DathColor bg = Dath_RGB(0x10, 0x20, 0x40);
+            DathColor accent = Dath_RGB(0x40, 0x80, 0xFF);
+            DathColor white = Dath_RGB(0xFF, 0xFF, 0xFF);
+            DathColor red = Dath_RGB(0xFF, 0x40, 0x40);
+            DathColor green = Dath_RGB(0x40, 0xFF, 0x40);
+            DathColor blue = Dath_RGB(0x40, 0x80, 0xFF);
+            if (g_fb.format == DATH_FMT_RGB565) {
+                bg = Dath_RGB565(0x10, 0x20, 0x40);
+                accent = Dath_RGB565(0x40, 0x80, 0xFF);
+                white = Dath_RGB565(0xFF, 0xFF, 0xFF);
+                red = Dath_RGB565(0xFF, 0x40, 0x40);
+                green = Dath_RGB565(0x40, 0xFF, 0x40);
+                blue = Dath_RGB565(0x40, 0x80, 0xFF);
+            }
 
-                Dath_Clear(&g_fb, bg);
-                Dath_DrawRect(&g_fb, 0, 0, (i32)g_fb.width, (i32)g_fb.height, accent);
-                Dath_DrawString(&g_fb, &dath_font_8x8, 16, 16, "CaraOS", white, bg);
-                Dath_DrawString(&g_fb, &dath_font_8x8, 16, 28, "RISC-V kernel boot", accent, bg);
-                Dath_FillRect(&g_fb, 16, 48, 32, 12, red);
-                Dath_FillRect(&g_fb, 56, 48, 32, 12, green);
-                Dath_FillRect(&g_fb, 96, 48, 32, 12, blue);
+            Dath_Clear(&g_fb, bg);
+            Dath_DrawRect(&g_fb, 0, 0, (i32)g_fb.width, (i32)g_fb.height, accent);
+            Dath_DrawString(&g_fb, &dath_font_8x8, 16, 16, "CaraOS", white, bg);
+            Dath_DrawString(&g_fb, &dath_font_8x8, 16, 28, "RISC-V kernel boot", accent, bg);
+            Dath_FillRect(&g_fb, 16, 48, 32, 12, red);
+            Dath_FillRect(&g_fb, 56, 48, 32, 12, green);
+            Dath_FillRect(&g_fb, 96, 48, 32, 12, blue);
 
-                Dath_Console_Init(&g_fb_console, &g_fb, &dath_font_8x8, white, bg);
-                g_fb_console.cur_row = 9;
-                g_fb_console.cur_col = 0;
-                g_fb_present = true;
-                // Phase 1 deliberately does NOT register the framebuffer
-                // as a LogSink: once Leargas LB takes over the screen
-                // (next block), windows + pointer would be overpainted
-                // by every subsequent LOG_INFO line. The DathConsole is
-                // kept around so Phase 3 can route logs to a dedicated
-                // "Console" window via the same emit fn. UART log keeps
-                // everything for debugging.
+            Dath_Console_Init(&g_fb_console, &g_fb, &dath_font_8x8, white, bg);
+            g_fb_console.cur_row = 9;
+            g_fb_console.cur_col = 0;
+            g_fb_present = true;
+            // Phase 1 deliberately does NOT register the framebuffer
+            // as a LogSink: once Leargas LB takes over the screen
+            // (next block), windows + pointer would be overpainted
+            // by every subsequent LOG_INFO line. The DathConsole is
+            // kept around so Phase 3 can route logs to a dedicated
+            // "Console" window via the same emit fn. UART log keeps
+            // everything for debugging.
 
-                // ---- Leargas LB + LA boot init. Ride the existing
-                //      banner colours so OpenScreen's Dath_Clear
-                //      doesn't visually flash. The pointer renders
-                //      on top; LC's Drain (after HID poll) drives
-                //      it from IECLASS_RAWMOUSE events on the L0
-                //      ring.
-                if (Dath_AllocBitmap(&g_pointer_save, leargas_pointer_arrow.width,
-                                     leargas_pointer_arrow.height, g_fb.format) == CARA_EOK) {
-                    g_screen = Leargas_OpenScreen(&g_fb, "Workbench", bg);
-                    if (g_screen) {
-                        // LD: open a sample window centered on the
-                        // screen so the framebuffer shows boot
-                        // chrome (border + title bar + close
-                        // gadget). Order matters — Pointer_Init
-                        // must follow OpenWindow so the pointer's
-                        // save buffer captures the with-window
-                        // pixels at center; otherwise the first
-                        // Pointer_Move would restore stale pre-
-                        // window pixels and corrupt the title bar.
-                        char wb_title[] = "Croi";
-                        i32 win_w = (i32)g_fb.width - 200;
-                        i32 win_h = (i32)g_fb.height - 120;
-                        if (win_w < 120) {
-                            win_w = 120;
-                        }
-                        if (win_h < 60) {
-                            win_h = 60;
-                        }
-                        struct NewWindow nw = {
-                            .LeftEdge = (WORD)(((i32)g_fb.width - win_w) / 2),
-                            .TopEdge = (WORD)(((i32)g_fb.height - win_h) / 2),
-                            .Width = (WORD)win_w,
-                            .Height = (WORD)win_h,
-                            .DetailPen = 0,
-                            .BlockPen = 1,
-                            .IDCMPFlags = IDCMP_CLOSEWINDOW | IDCMP_RAWKEY | IDCMP_MOUSEBUTTONS |
-                                          IDCMP_MOUSEMOVE,
-                            .Flags = WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_CLOSEGADGET |
-                                     WFLG_ACTIVATE | WFLG_SMART_REFRESH,
-                            .Title = (UBYTE *)wb_title,
-                            .Screen = g_screen,
-                            .MinWidth = 120,
-                            .MinHeight = 60,
-                            .MaxWidth = (UWORD)g_fb.width,
-                            .MaxHeight = (UWORD)g_fb.height,
-                            .Type = WBENCHSCREEN,
-                        };
-                        struct Window *win = Leargas_OpenWindow(&nw);
-                        if (win) {
-                            LOG_INFO("larg", "window '%s' at (%d,%d) %dx%d", wb_title,
-                                     (int)win->LeftEdge, (int)win->TopEdge, (int)win->Width,
-                                     (int)win->Height);
-                            // LE — WFLG_ACTIVATE focused the window at
-                            // open; a left-click (via the HID poll →
-                            // Leargas_Input_Drain) re-focuses whichever
-                            // window the pointer is over.
-                            LOG_INFO("larg", "active window: %s",
-                                     Leargas_ActiveWindow() == win ? wb_title : "(none)");
-                        } else {
-                            LOG_WARN("larg", "OpenWindow failed");
-                        }
-
-                        // Pointer fg=white (body), bg=black (outline) so
-                        // both pixel kinds contrast against the dark-blue
-                        // screen pen0. Reusing screen bg as the outline
-                        // colour makes the outline disappear against
-                        // similarly-coloured backgrounds.
-                        DathColor ptr_outline = (g_fb.format == DATH_FMT_RGB565)
-                                                    ? Dath_RGB565(0, 0, 0)
-                                                    : Dath_RGB(0, 0, 0);
-                        if (Leargas_Pointer_Init(&g_pointer, &g_fb, &g_pointer_save,
-                                                 &leargas_pointer_arrow, white, ptr_outline,
-                                                 (i32)g_fb.width / 2,
-                                                 (i32)g_fb.height / 2) == CARA_EOK) {
-                            g_leargas_up = true;
-                            LOG_INFO("larg", "screen %ux%u + pointer at (%d, %d)",
-                                     (unsigned)g_fb.width, (unsigned)g_fb.height, (int)g_pointer.x,
-                                     (int)g_pointer.y);
-                        } else {
-                            LOG_WARN("larg", "Pointer_Init failed");
-                            if (win) {
-                                Leargas_CloseWindow(win);
-                            }
-                            Leargas_CloseScreen(g_screen);
-                            g_screen = nullptr;
-                        }
+            // ---- Leargas LB + LA boot init. Ride the existing
+            //      banner colours so OpenScreen's Dath_Clear
+            //      doesn't visually flash. The pointer renders
+            //      on top; LC's Drain (after HID poll) drives
+            //      it from IECLASS_RAWMOUSE events on the L0
+            //      ring.
+            if (Dath_AllocBitmap(&g_pointer_save, leargas_pointer_arrow.width,
+                                 leargas_pointer_arrow.height, g_fb.format) == CARA_EOK) {
+                g_screen = Leargas_OpenScreen(&g_fb, "Workbench", bg);
+                if (g_screen) {
+                    // LD: open a sample window centered on the
+                    // screen so the framebuffer shows boot
+                    // chrome (border + title bar + close
+                    // gadget). Order matters — Pointer_Init
+                    // must follow OpenWindow so the pointer's
+                    // save buffer captures the with-window
+                    // pixels at center; otherwise the first
+                    // Pointer_Move would restore stale pre-
+                    // window pixels and corrupt the title bar.
+                    char wb_title[] = "Croi";
+                    i32 win_w = (i32)g_fb.width - 200;
+                    i32 win_h = (i32)g_fb.height - 120;
+                    if (win_w < 120) {
+                        win_w = 120;
+                    }
+                    if (win_h < 60) {
+                        win_h = 60;
+                    }
+                    struct NewWindow nw = {
+                        .LeftEdge = (WORD)(((i32)g_fb.width - win_w) / 2),
+                        .TopEdge = (WORD)(((i32)g_fb.height - win_h) / 2),
+                        .Width = (WORD)win_w,
+                        .Height = (WORD)win_h,
+                        .DetailPen = 0,
+                        .BlockPen = 1,
+                        .IDCMPFlags = IDCMP_CLOSEWINDOW | IDCMP_RAWKEY | IDCMP_MOUSEBUTTONS |
+                                      IDCMP_MOUSEMOVE,
+                        .Flags = WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_CLOSEGADGET |
+                                 WFLG_ACTIVATE | WFLG_SMART_REFRESH,
+                        .Title = (UBYTE *)wb_title,
+                        .Screen = g_screen,
+                        .MinWidth = 120,
+                        .MinHeight = 60,
+                        .MaxWidth = (UWORD)g_fb.width,
+                        .MaxHeight = (UWORD)g_fb.height,
+                        .Type = WBENCHSCREEN,
+                    };
+                    struct Window *win = Leargas_OpenWindow(&nw);
+                    if (win) {
+                        LOG_INFO("larg", "window '%s' at (%d,%d) %dx%d", wb_title,
+                                 (int)win->LeftEdge, (int)win->TopEdge, (int)win->Width,
+                                 (int)win->Height);
+                        // LE — WFLG_ACTIVATE focused the window at
+                        // open; a left-click (via the HID poll →
+                        // Leargas_Input_Drain) re-focuses whichever
+                        // window the pointer is over.
+                        LOG_INFO("larg", "active window: %s",
+                                 Leargas_ActiveWindow() == win ? wb_title : "(none)");
                     } else {
-                        LOG_WARN("larg", "OpenScreen failed");
+                        LOG_WARN("larg", "OpenWindow failed");
+                    }
+
+                    // Pointer fg=white (body), bg=black (outline) so
+                    // both pixel kinds contrast against the dark-blue
+                    // screen pen0. Reusing screen bg as the outline
+                    // colour makes the outline disappear against
+                    // similarly-coloured backgrounds.
+                    DathColor ptr_outline = (g_fb.format == DATH_FMT_RGB565) ? Dath_RGB565(0, 0, 0)
+                                                                             : Dath_RGB(0, 0, 0);
+                    if (Leargas_Pointer_Init(
+                            &g_pointer, &g_fb, &g_pointer_save, &leargas_pointer_arrow, white,
+                            ptr_outline, (i32)g_fb.width / 2, (i32)g_fb.height / 2) == CARA_EOK) {
+                        g_leargas_up = true;
+                        LOG_INFO("larg", "screen %ux%u + pointer at (%d, %d)", (unsigned)g_fb.width,
+                                 (unsigned)g_fb.height, (int)g_pointer.x, (int)g_pointer.y);
+                    } else {
+                        LOG_WARN("larg", "Pointer_Init failed");
+                        if (win) {
+                            Leargas_CloseWindow(win);
+                        }
+                        Leargas_CloseScreen(g_screen);
+                        g_screen = nullptr;
                     }
                 } else {
-                    LOG_WARN("larg", "AllocBitmap for pointer save failed");
+                    LOG_WARN("larg", "OpenScreen failed");
                 }
+            } else {
+                LOG_WARN("larg", "AllocBitmap for pointer save failed");
             }
-        } else if (frc == CARA_ENOTFOUND) {
-            LOG_INFO("dath", "no simple-framebuffer in FDT; headless boot");
-        } else {
-            LOG_WARN("dath", "FromFdt failed: %d", frc);
         }
-    }
+    } // framebuffer + Leargas bring-up
 
     // ---- PCIe enumeration. Discovers the host bridge from the FDT
     //      and walks the bus; subsequent drivers (xHCI, NVMe, …)
