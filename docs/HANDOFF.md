@@ -12,28 +12,65 @@
 ## 1. Where we are
 
 **Phase 1 Subgoal 6 (Leargas) is COMPLETE.** The **`intuition.library`
-LVO surface (I1–I3) is now COMPLETE and proven end-to-end** — a real
-U-mode Gleas opens the library and a window through the canonical V36+
-LVOs. **Phase 1 Subgoal 7 (Clar) is the remaining work to ship Phase 1**,
-and it now builds directly on this surface as the "proper" U-mode-Gleas
-path the user chose.
+LVO surface (I1–I3) is COMPLETE**. **Phase 1 Subgoal 7 (Clar) now meets
+its success criterion in automated form** — a real U-mode Clar Gleas
+opens a desktop window with a drawer, clicking the drawer opens a child
+window with a text Inntin, and typing into it + Return logs the text,
+all through the canonical V36+ LVO surface + IDCMP. `KERNEL_TEST(clar_smoke)`
+drives the whole interaction and asserts it.
+
+**What remains to "ship" Phase 1 = Stage B, the live demo** (the user
+chose "test first, then demo"): make Clar run at *boot* against a real
+framebuffer + continuous HID, not just inside the kernel test. Concretely:
+(1) a framebuffer under QEMU virt (the boot path only finds a
+`simple-framebuffer` FDT node; `-device ramfb`/virtio-gpu needs bring-up —
+investigate first), (2) the **kernel input-pump task** (continuously poll
+xHCI HID → post to the Leargas ring → drain → route IDCMP; the chosen
+architecture — the smoke currently plays this role itself), (3) boot
+integration: open the Workbench screen, spawn the pump + Clar, kmain
+idles (CA.2/CA.3), (4) optional CH QEMU-monitor-scripted input for a
+visible end-to-end demo.
 
 Recent commits (newest first), all on `main`:
 
 ```
-d2e8594 phase-3/I3  construct intuition.library + U-mode smoke (userintuition)
-929fa3e tools       lvo-gen proto headers coexist across libraries
-dfa0f16 phase-3/I2  intuition.library trampolines, dispatch + Leargas bridge
-25270ad phase-3/I1  intuition.library conf + generated headers
-25bcebd phase-3/S3  Leargas Screen/Window/IntuiMessage → shared heap
-62d8c06 phase-3/S2  AllocMem → shared heap; userexec derefs it (U-mode proof)
-fd9fd9b phase-3/S1  SASOS shared system heap (RW+U lower-half window)
-87e4281 phase-1/LH  Leargas string Inntin  ← Subgoal 6 complete
+e00a3c7 phase-1/CE-CG Clar drawer opens child window + text Inntin (type to log)
+41c9365 phase-1/CA-CD Clar Workbench Gleas skeleton + drawer-click loop
+865eb9f phase-1/LJ    boolean-gadget GADGETUP on release
+c703e86 phase-1/LI    window mouse-button + close-gadget IDCMP delivery
+d2e8594 phase-3/I3    construct intuition.library + U-mode smoke (userintuition)
+929fa3e tools         lvo-gen proto headers coexist across libraries
+dfa0f16 phase-3/I2    intuition.library trampolines, dispatch + Leargas bridge
+25270ad phase-3/I1    intuition.library conf + generated headers
+fd9fd9b phase-3/S1    SASOS shared system heap (RW+U lower-half window)
+87e4281 phase-1/LH    Leargas string Inntin  ← Subgoal 6 complete
 ```
 
-Status: everything green — host `ctest` 20/20, in-kernel tests
-**19 passed / 0 failed** (added `userintuition_smoke`), QEMU boot smoke
-ok, `format-check` clean.
+Status: everything green — host `ctest` **21/21**, in-kernel tests
+**22 passed / 0 failed** (added `idcmp_buttons`, `idcmp_boolgadget`,
+`userintuition_smoke`, `clar_smoke`), QEMU boot smoke ok, `format-check`
+clean.
+
+### Clar so far (Subgoal 7) — what's built and how it works
+
+- **LI** (`c703e86`): the router now posts `IDCMP_MOUSEBUTTONS`
+  (SELECTDOWN, window-relative MouseX/Y) and `IDCMP_CLOSEWINDOW` (close-
+  gadget hit) to window UserPorts, via install-able hooks; `SELECTDOWN/UP`
+  constants + `Leargas_Window_CloseHitTest`.
+- **LJ** (`865eb9f`): a `GACT_RELVERIFY` `GTYP_BOOLGADGET` released over
+  itself posts `IDCMP_GADGETUP` — the drawer-open mechanism. The gadget-up
+  hook moved to `gadget.c` (`Leargas_Gadget_RouteUp`, shared with LH).
+- **Clar** (`41c9365`, `e00a3c7`): `src/userland/clar.c`, a U-mode Gleas.
+  Opens a desktop window + a drawer `BOOLGADGET` ("Bosca"); the drawer
+  click opens a child window with a string Inntin (StringInfo + buffer +
+  gadget, all `AllocMem`'d in the shared heap) and `ActivateGadget`'s it;
+  the V36+ multi-window IDCMP loop `Wait()`s on the union of the desktop +
+  child UserPort signal bits, drains the child first, logs the typed text
+  on Return, closes the drawer on child-close, quits on desktop-close.
+- **msgport** change (`e00a3c7`): window UserPorts (CroiMsgPort + ring)
+  now live in the SASOS shared heap and expose `mp_SigBit`/`mp_SigTask`,
+  so U-mode Clar can read `mp_SigBit` to build the multi-port `Wait()`
+  mask (a V36+ MsgPort is public memory).
 
 ### What I2/I3 delivered (the intuition.library bridge is done)
 
