@@ -19,17 +19,44 @@ window with a text Inntin, and typing into it + Return logs the text,
 all through the canonical V36+ LVO surface + IDCMP. `KERNEL_TEST(clar_smoke)`
 drives the whole interaction and asserts it.
 
-**What remains to "ship" Phase 1 = Stage B, the live demo** (the user
-chose "test first, then demo"): make Clar run at *boot* against a real
-framebuffer + continuous HID, not just inside the kernel test. Concretely:
-(1) a framebuffer under QEMU virt (the boot path only finds a
-`simple-framebuffer` FDT node; `-device ramfb`/virtio-gpu needs bring-up —
-investigate first), (2) the **kernel input-pump task** (continuously poll
-xHCI HID → post to the Leargas ring → drain → route IDCMP; the chosen
-architecture — the smoke currently plays this role itself), (3) boot
-integration: open the Workbench screen, spawn the pump + Clar, kmain
-idles (CA.2/CA.3), (4) optional CH QEMU-monitor-scripted input for a
-visible end-to-end demo.
+**Stage B (the live demo) is mostly built and visually verified; one
+gap remains.** Clar now runs at *boot* against a real framebuffer, fed by
+a kernel input-pump task:
+- **B1 (done, `a62648f`)**: `src/croi/ramfb.c` — a QEMU ramfb framebuffer
+  over fw-cfg (qemu virt has no simple-framebuffer node). Verified by
+  `screendump`.
+- **B2/B3 (done, `b1bf779`)**: `src/croi/input_pump.c` — the kernel
+  `Croi_InputPump_Task` (poll xHCI HID → decode → ring → drain → route).
+  `entry.c` brings the desktop up *after* the in-kernel tests and spawns
+  the pump + Clar at equal priority (kmain idles). Also fixed
+  `Croi_NewKernelPT` to map the full lower-4 GiB direct map (L2[256..259])
+  — task PTs were missing L2[257], the PCI MEM32 / xHCI-doorbell window,
+  so the pump faulted. Verified by `screendump`: booting with
+  `-device ramfb` shows the Workbench desktop + Clar's window + the drawer
+  gadget + pointer (7 colors), no fault.
+- **B4 (BLOCKED — the remaining gap)**: driving the *live* boot Clar via
+  QEMU monitor input (`mouse_move`/`mouse_button`/`sendkey`) does **not**
+  reach the pump — the pointer never moves. Root-cause candidates: (a)
+  `Croi_Xhci_HidIntReadOnce` re-enqueues a transfer every poll and only
+  waits briefly, so an async report completes against a stale TRB and is
+  dropped — it needs a *persistent outstanding* interrupt-IN transfer
+  consumed event-ring-driven, not re-enqueue-per-poll; and/or (b) QEMU
+  monitor input routing to usb-kbd/usb-mouse under `-display none`. The
+  boot one-shot poll has only ever logged "int-IN idle (no input)", so
+  real HID-report delivery through this xHCI driver is genuinely
+  unverified — that's the next session's first task. The full Clar
+  interaction (click → child window → type → log) is meanwhile proven
+  deterministically by `KERNEL_TEST(clar_smoke)`.
+
+How to repro the live demo + B4 attempt:
+```
+(sleep 7; for i in 1 2 3 4 5 6; do printf 'mouse_move -90 -64\n'; sleep .5; done; \
+ printf 'mouse_button 1\nmouse_button 0\n'; sleep 1; \
+ printf 'screendump /tmp/s.ppm\n'; sleep 1; printf 'quit\n') | \
+ qemu-system-riscv64 -M virt -m 256 -display none -serial file:/tmp/s.log \
+   -monitor stdio -kernel build-rv64/src/croi/croi.elf \
+   -device qemu-xhci -device usb-kbd -device usb-mouse -device ramfb
+```
 
 Recent commits (newest first), all on `main`:
 
