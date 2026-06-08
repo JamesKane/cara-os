@@ -9,6 +9,7 @@ set(_user_blob_s "${CMAKE_CURRENT_BINARY_DIR}/user_blob.S")
 set(_userhello_elf "${CMAKE_BINARY_DIR}/src/userland/userhello.elf")
 set(_userexec_elf  "${CMAKE_BINARY_DIR}/src/userland/userexec.elf")
 set(_userintuition_elf "${CMAKE_BINARY_DIR}/src/userland/userintuition.elf")
+set(_clar_elf      "${CMAKE_BINARY_DIR}/src/userland/clar.elf")
 file(WRITE ${_user_blob_s}
 "// Auto-generated. Embeds userhello.elf and userexec.elf into croi.elf
 // under the .user_elf section. Each ELF is wrapped in start/end
@@ -32,9 +33,15 @@ __userexec_elf_end:
 __userintuition_elf_start:
 .incbin \"${_userintuition_elf}\"
 __userintuition_elf_end:
+.balign 8
+.globl __clar_elf_start
+.globl __clar_elf_end
+__clar_elf_start:
+.incbin \"${_clar_elf}\"
+__clar_elf_end:
 ")
 set_source_files_properties(${_user_blob_s} PROPERTIES
-    OBJECT_DEPENDS "${_userhello_elf};${_userexec_elf};${_userintuition_elf}"
+    OBJECT_DEPENDS "${_userhello_elf};${_userexec_elf};${_userintuition_elf};${_clar_elf}"
 )
 
 add_executable(croi
@@ -52,7 +59,7 @@ add_executable(croi
     ns16550.c
     platform_init.c
 )
-add_dependencies(croi userhello userexec userintuition)
+add_dependencies(croi userhello userexec userintuition clar)
 # Make the Phase 9 aggregated lookup table build alongside croi.elf
 # even though no current code references it — keeps the artefact
 # in sync with the active .conf set so when Phase 9 lands the

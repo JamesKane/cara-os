@@ -86,3 +86,28 @@ set_target_properties(userintuition PROPERTIES
     SUFFIX ".elf"
     OUTPUT_NAME "userintuition"
 )
+
+# clar — the Phase 1 Workbench Gleas (docs/PHASE1_CLAR.md). Same link
+# recipe as userintuition; drives exec.library + intuition.library LVOs.
+add_executable(clar clar.c)
+target_link_libraries(clar PRIVATE
+    cara_kernel_flags
+    cara_headers
+    libcara_user
+)
+add_dependencies(clar cara_exec_lib_gen cara_intuition_lib_gen)
+target_link_options(clar PRIVATE
+    -nostdlib
+    -fuse-ld=${CARA_RV64_LDLLD_PATH}
+    -Wl,-T,${_user_lds}
+    -Wl,--build-id=none
+    -Wl,--whole-archive
+    "$<TARGET_FILE:libcara_user>"
+    -Wl,--no-whole-archive
+)
+set_target_properties(clar PROPERTIES
+    LINK_DEPENDS ${_user_lds}
+    LINKER_LANGUAGE C
+    SUFFIX ".elf"
+    OUTPUT_NAME "clar"
+)
