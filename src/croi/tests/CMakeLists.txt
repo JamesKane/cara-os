@@ -18,6 +18,7 @@ add_library(cara_kernel_tests STATIC
     test_dath.c
     test_exec_lib.c
     test_userexec.c
+    test_userintuition.c
     test_pci.c
     test_xhci.c
     test_idcmp.c

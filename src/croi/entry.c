@@ -20,6 +20,7 @@
 #include <cara/exec_lib_image.h>
 #include <cara/fdt.h>
 #include <cara/hid.h>
+#include <cara/intuition_lib.h>
 #include <cara/leargas.h>
 #include <cara/log.h>
 #include <cara/makelibrary.h>
@@ -34,6 +35,7 @@
 #include <cara/types.h>
 #include <cara/xhci.h>
 #include <exec/libraries.h>
+#include <intuition/intuitionbase.h>
 #include <utility/tagitem.h>
 
 // Boot-time PCIe inventory. Populated by Croi_Pci_Init from the FDT
@@ -55,6 +57,13 @@ bool g_xhci_probed = false;
 // — 4 reserved + the V36+ user-LVO range up to OpenLibrary at -552.
 extern void *exec_lib_vec[];
 extern const usize exec_lib_vec_count;
+
+// Generated likewise from tools/lvo-gen/intuition.conf. Unlike exec
+// (linker-placed at a fixed user VA), intuition.library's base + vec
+// table are allocated in the SASOS shared heap at construction time
+// (entry.c below), so we only need the vec here.
+extern void *intuition_lib_vec[];
+extern const usize intuition_lib_vec_count;
 
 // Kernel-image extents materialised into upper-half rodata by the
 // linker script's .kernel_extents — see croi.lds. We can't reach the
@@ -654,6 +663,47 @@ static void console_putc(char c)
         struct Library *base = Croi_MakeLibrary(mklib_tags);
         if (!base) {
             LOG_FATAL("entry", "Croi_MakeLibrary(exec.library) failed");
+            Croi_Halt();
+        }
+    }
+
+    // ---- Construct intuition.library (I3).
+    //      Unlike exec.library (linker-placed at the fixed user VA
+    //      0x4000_0800), intuition.library's base + negative-side vec
+    //      table live in the SASOS shared heap (ARCHITECTURE §4.3,
+    //      0x1_0000_0000). Because sstatus.SUM=1, that lower-half VA is
+    //      writable from S-mode and readable from U-mode through the
+    //      SAME pointer — so MKL_BASE and the kernel-write view coincide
+    //      (no separate MKL_BASE_KERNEL_WRITE as exec needs). The
+    //      trampolines its vec entries point at still live in the shared
+    //      0x4000_0000 RX region (.lib_text.intuition). User code
+    //      discovers the base at runtime via OpenLibrary, not a fixed VA.
+    {
+        usize priv_size = sizeof(struct IntuitionBase) - sizeof(struct Library);
+        usize neg_size = sizeof(void *) * intuition_lib_vec_count;
+        usize block_size = neg_size + sizeof(struct Library) + priv_size;
+
+        u8 *block = (u8 *)Croi_AllocShared(block_size);
+        if (!block) {
+            LOG_FATAL("entry", "AllocShared(intuition.library, %llu bytes) failed",
+                      (u64)block_size);
+            Croi_Halt();
+        }
+        struct Library *ibase = (struct Library *)(block + neg_size);
+
+        struct TagItem mklib_tags[] = {
+            { MKL_NAME, (IPTR) "intuition.library" },
+            { MKL_BASE, (IPTR)ibase },
+            { MKL_VEC_TABLE, (IPTR)intuition_lib_vec },
+            { MKL_VEC_COUNT, (IPTR)intuition_lib_vec_count },
+            { MKL_VERSION, 36 },
+            { MKL_REVISION, 0 },
+            { MKL_PRIVATE_SIZE, (IPTR)priv_size },
+            { TAG_END, 0 },
+        };
+        struct Library *base = Croi_MakeLibrary(mklib_tags);
+        if (!base) {
+            LOG_FATAL("entry", "Croi_MakeLibrary(intuition.library) failed");
             Croi_Halt();
         }
     }

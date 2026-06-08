@@ -59,3 +59,30 @@ set_target_properties(userexec PROPERTIES
     SUFFIX ".elf"
     OUTPUT_NAME "userexec"
 )
+
+# userintuition — I3 worked example. Links against libcara_user and the
+# generated <proto/exec.h> + <proto/intuition.h> inline stubs (header-
+# only; the only external symbols are SysBase, from libcara, and
+# IntuitionBase, which the program defines itself).
+add_executable(userintuition userintuition.c)
+target_link_libraries(userintuition PRIVATE
+    cara_kernel_flags
+    cara_headers
+    libcara_user
+)
+add_dependencies(userintuition cara_exec_lib_gen cara_intuition_lib_gen)
+target_link_options(userintuition PRIVATE
+    -nostdlib
+    -fuse-ld=${CARA_RV64_LDLLD_PATH}
+    -Wl,-T,${_user_lds}
+    -Wl,--build-id=none
+    -Wl,--whole-archive
+    "$<TARGET_FILE:libcara_user>"
+    -Wl,--no-whole-archive
+)
+set_target_properties(userintuition PROPERTIES
+    LINK_DEPENDS ${_user_lds}
+    LINKER_LANGUAGE C
+    SUFFIX ".elf"
+    OUTPUT_NAME "userintuition"
+)
