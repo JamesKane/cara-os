@@ -669,7 +669,14 @@ static void emit_proto(const Library *lib, FILE *out)
     for (size_t i = 0; i < lib->n_includes; i++) {
         fprintf(out, "#include %s\n", lib->includes[i]);
     }
-    fprintf(out, "#include <%s/lvo.h>\n\n", shortn);
+    // Deliberately NOT including <%s/lvo.h>: a well-written V36+ program
+    // includes several <proto/*.h> at once, and the runtime-ordinal /
+    // canonical-_LVO constants are not namespaced per library (the _LVO*
+    // names are verbatim-AmigaOS and must not be prefixed). So the stubs
+    // below index the vec table with the literal ordinal (the symbolic
+    // CARA_IDX_<name> is kept in a comment) and lvo.h is left for the
+    // single-library link units (vec.c) that need the full constant set.
+    fprintf(out, "\n");
     fprintf(out, "// Forward declaration only. The library's own type\n"
                  "// header (e.g. <%s/%sbase.h>) is what user code must\n"
                  "// include to dereference the base struct's fields.\n",
@@ -680,8 +687,14 @@ static void emit_proto(const Library *lib, FILE *out)
     char idx_buf[128];
     for (size_t i = 0; i < lib->nfuncs; i++) {
         const Function *f = &lib->funcs[i];
-        if (f->is_pad) {
-            continue;     // no user-callable stub for padding
+        // No user-callable stub for padding or the four reserved library
+        // vectors (slots 0..3 — Open/Close/Expunge/ExtFunc). On V36+ those
+        // are library-internal (the vec table still points at them, but
+        // clients never call them through proto/<lib>.h); emitting them
+        // here would also collide across libraries since every library
+        // names them identically.
+        if (f->is_pad || f->ordinal < 4) {
+            continue;
         }
         const char *idx = func_idx_suffix(f, idx_buf, sizeof(idx_buf));
 
@@ -726,8 +739,8 @@ static void emit_proto(const Library *lib, FILE *out)
 
         fprintf(out,
                 "    _Cara_Fn _fn =\n"
-                "        (_Cara_Fn)((void **)%s)[-1 - CARA_IDX_%s];\n",
-                lib->base, idx);
+                "        (_Cara_Fn)((void **)%s)[-1 - %d /* CARA_IDX_%s */];\n",
+                lib->base, f->ordinal, idx);
         fprintf(out, "    %s_fn(", returns_void ? "" : "return ");
         for (size_t a = 0; a < f->nargs; a++) {
             fprintf(out, "%s, ", f->args[a].name);

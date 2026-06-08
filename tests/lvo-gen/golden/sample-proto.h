@@ -8,7 +8,6 @@
 
 #include <exec/libraries.h>
 #include <exec/types.h>
-#include <sample/lvo.h>
 
 // Forward declaration only. The library's own type
 // header (e.g. <sample/samplebase.h>) is what user code must
@@ -17,47 +16,11 @@ struct SampleBase;
 extern struct SampleBase *SampleBase;
 
 [[gnu::always_inline]]
-static inline ULONG Open(STRPTR libname, ULONG version)
-{
-    typedef ULONG (*_Cara_Fn)(STRPTR, ULONG, struct SampleBase *);
-    _Cara_Fn _fn =
-        (_Cara_Fn)((void **)SampleBase)[-1 - CARA_IDX_Open];
-    return _fn(libname, version, SampleBase);
-}
-
-[[gnu::always_inline]]
-static inline void Close(void)
-{
-    typedef void (*_Cara_Fn)(struct SampleBase *);
-    _Cara_Fn _fn =
-        (_Cara_Fn)((void **)SampleBase)[-1 - CARA_IDX_Close];
-    _fn(SampleBase);
-}
-
-[[gnu::always_inline]]
-static inline void Expunge(void)
-{
-    typedef void (*_Cara_Fn)(struct SampleBase *);
-    _Cara_Fn _fn =
-        (_Cara_Fn)((void **)SampleBase)[-1 - CARA_IDX_Expunge];
-    _fn(SampleBase);
-}
-
-[[gnu::always_inline]]
-static inline void ExtFunc(void)
-{
-    typedef void (*_Cara_Fn)(struct SampleBase *);
-    _Cara_Fn _fn =
-        (_Cara_Fn)((void **)SampleBase)[-1 - CARA_IDX_ExtFunc];
-    _fn(SampleBase);
-}
-
-[[gnu::always_inline]]
 static inline ULONG PingLocal(ULONG a, ULONG b)
 {
     typedef ULONG (*_Cara_Fn)(ULONG, ULONG, struct SampleBase *);
     _Cara_Fn _fn =
-        (_Cara_Fn)((void **)SampleBase)[-1 - CARA_IDX_PingLocal];
+        (_Cara_Fn)((void **)SampleBase)[-1 - 4 /* CARA_IDX_PingLocal */];
     return _fn(a, b, SampleBase);
 }
 
@@ -66,7 +29,7 @@ static inline void GetTimeOfDay(ULONG* out)
 {
     typedef void (*_Cara_Fn)(ULONG*, struct SampleBase *);
     _Cara_Fn _fn =
-        (_Cara_Fn)((void **)SampleBase)[-1 - CARA_IDX_GetTimeOfDay];
+        (_Cara_Fn)((void **)SampleBase)[-1 - 5 /* CARA_IDX_GetTimeOfDay */];
     _fn(out, SampleBase);
 }
 
@@ -79,7 +42,7 @@ static inline ULONG SharedAlias1(ULONG x)
 {
     typedef ULONG (*_Cara_Fn)(ULONG, struct SampleBase *);
     _Cara_Fn _fn =
-        (_Cara_Fn)((void **)SampleBase)[-1 - CARA_IDX_SharedAlias1];
+        (_Cara_Fn)((void **)SampleBase)[-1 - 8 /* CARA_IDX_SharedAlias1 */];
     return _fn(x, SampleBase);
 }
 
@@ -88,7 +51,7 @@ static inline ULONG SharedAlias2(ULONG x)
 {
     typedef ULONG (*_Cara_Fn)(ULONG, struct SampleBase *);
     _Cara_Fn _fn =
-        (_Cara_Fn)((void **)SampleBase)[-1 - CARA_IDX_SharedAlias2];
+        (_Cara_Fn)((void **)SampleBase)[-1 - 9 /* CARA_IDX_SharedAlias2 */];
     return _fn(x, SampleBase);
 }
 

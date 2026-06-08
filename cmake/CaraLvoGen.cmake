@@ -134,6 +134,12 @@ function(cara_lvo_gen_library conf_path)
     set(_deps "${conf_path}")
     if(CARA_TARGET STREQUAL "host")
         list(APPEND _deps lvo-gen)
+    else()
+        # Cross build: lvo-gen is a prebuilt host binary (not a CMake
+        # target here). Depend on the binary file itself so regen
+        # retriggers when the tool is rebuilt — otherwise a generator
+        # change only takes effect when a .conf also changes.
+        list(APPEND _deps "${CARA_LVO_GEN_BIN}")
     endif()
 
     add_custom_command(
