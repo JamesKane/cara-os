@@ -464,6 +464,11 @@ void Leargas_Window_RenderGadgets(struct Window *w);
 [[nodiscard]] struct Gadget *Leargas_ActiveGadget(void);
 void Leargas_SetActiveGadget(struct Gadget *g);
 
+// Post IDCMP_GADGETUP for `g` to `w` via the installed gadget-up hook
+// (Leargas_SetGadgetRouter). Returns true if delivered. Shared by the
+// LH string Inntin (Return commit) and the LJ boolean-gadget release.
+bool Leargas_Gadget_RouteUp(struct Window *w, struct Gadget *g);
+
 // Test-only: clear the active-gadget pointer without side effects,
 // mirroring Leargas_Focus_Reset.
 void Leargas_Gadget_Reset(void);

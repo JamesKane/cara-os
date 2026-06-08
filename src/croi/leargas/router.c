@@ -146,8 +146,7 @@ u32 Leargas_Input_Drain(struct LeargasPointer *p)
             // deltas (typically zero — then Pointer_Move no-ops).
         } else if (ev.ie_code == (IECODE_LBUTTON | IECODE_UP_PREFIX)) {
             // LG — release clears the pressed look on the gadget we
-            // selected on the down-stroke. (IDCMP_GADGETUP for
-            // GACT_RELVERIFY gadgets is LH; Phase 1 assumes focus didn't
+            // selected on the down-stroke. (Phase 1 assumes focus didn't
             // change between down and up, so the gadget's window is the
             // active one.)
             struct Gadget *g = Leargas_ActiveGadget();
@@ -159,6 +158,18 @@ u32 Leargas_Input_Drain(struct LeargasPointer *p)
                     Leargas_Gadget_Render(aw, g);
                 }
                 Leargas_Pointer_Show(p);
+                // LJ — a boolean gadget with GACT_RELVERIFY posts
+                // IDCMP_GADGETUP when released over itself (the V36+
+                // button-release contract; a string Inntin instead posts
+                // GADGETUP on Return, handled in string_gadget.c).
+                if (aw && (g->GadgetType & GTYP_GTYPEMASK) == GTYP_BOOLGADGET &&
+                    (g->Activation & GACT_RELVERIFY)) {
+                    i32 wx = nx - (i32)aw->LeftEdge;
+                    i32 wy = ny - (i32)aw->TopEdge;
+                    if (Leargas_Gadget_HitTest(aw, wx, wy) == g) {
+                        (void)Leargas_Gadget_RouteUp(aw, g);
+                    }
+                }
             }
         }
 

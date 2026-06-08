@@ -242,3 +242,108 @@ KERNEL_TEST(idcmp_buttons)
     Leargas_Focus_Reset();
     Leargas_Screen_SetActive(nullptr);
 }
+
+// KERNEL_TEST(idcmp_boolgadget): the LJ boolean-gadget GADGETUP-on-
+// release path. A GACT_RELVERIFY BOOLGADGET clicked (press then release
+// over itself) posts IDCMP_GADGETUP with Code = GadgetID; the gadget
+// consumes the click (no IDCMP_MOUSEBUTTONS). A release that drifts off
+// the gadget posts nothing. This is the drawer-open mechanism for Clar.
+KERNEL_TEST(idcmp_boolgadget)
+{
+    Leargas_Input_Reset();
+    Leargas_Focus_Reset();
+    Leargas_Gadget_Reset();
+    Leargas_Screen_SetActive(nullptr);
+    Leargas_SetGadgetRouter(Leargas_IDCMP_PostGadgetUp);
+    Leargas_SetMouseButtonRouter(Leargas_IDCMP_PostMouseButtons);
+
+    struct DathFramebuffer fb;
+    TEST_ASSERT(ctx, Dath_AllocBitmap(&fb, 200, 120, DATH_FMT_RGBA8888) == CARA_EOK,
+                "framebuffer alloc");
+    struct Screen *scr = Leargas_OpenScreen(&fb, "T", Dath_RGB(0x10, 0x10, 0x20));
+    TEST_ASSERT(ctx, scr != nullptr, "open screen");
+
+    char wtitle[] = "Win";
+    struct NewWindow nw = {
+        .LeftEdge = 10,
+        .TopEdge = 10,
+        .Width = 160,
+        .Height = 90,
+        .Flags = WFLG_DRAGBAR | WFLG_ACTIVATE,
+        .IDCMPFlags = IDCMP_GADGETUP | IDCMP_MOUSEBUTTONS,
+        .Title = (UBYTE *)wtitle,
+        .Screen = scr,
+    };
+    struct Window *win = Leargas_OpenWindow(&nw);
+    TEST_ASSERT(ctx, win != nullptr, "open window");
+
+    // BOOLGADGET at window-relative (20,30) size 60x20 -> absolute rect
+    // x[30,90) y[40,60). A stack gadget is fine: only the kernel router
+    // dereferences it here (Clar will AllocMem its own in the shared heap).
+    struct Gadget g = {
+        .LeftEdge = 20,
+        .TopEdge = 30,
+        .Width = 60,
+        .Height = 20,
+        .GadgetType = GTYP_BOOLGADGET,
+        .Activation = GACT_RELVERIFY,
+        .GadgetID = 0x55,
+    };
+    Leargas_AddGadget(win, &g);
+
+    struct DathFramebuffer save;
+    TEST_ASSERT(ctx,
+                Dath_AllocBitmap(&save, leargas_pointer_arrow.width, leargas_pointer_arrow.height,
+                                 fb.format) == CARA_EOK,
+                "pointer save alloc");
+    struct LeargasPointer p;
+    // Pointer over the gadget centre: abs (60,50).
+    TEST_ASSERT(ctx,
+                Leargas_Pointer_Init(&p, &fb, &save, &leargas_pointer_arrow,
+                                     Dath_RGB(0xFF, 0xFF, 0xFF), Dath_RGB(0, 0, 0), 60,
+                                     50) == CARA_EOK,
+                "pointer init");
+
+    struct LeargasInputEvent down = { .ie_class = IECLASS_RAWMOUSE, .ie_code = IECODE_LBUTTON };
+    struct LeargasInputEvent up = { .ie_class = IECLASS_RAWMOUSE,
+                                    .ie_code = (u16)(IECODE_LBUTTON | IECODE_UP_PREFIX) };
+    struct IntuiMessage *im = nullptr;
+
+    // Press: selects the gadget, consumes the click (no MOUSEBUTTONS).
+    TEST_ASSERT(ctx, Leargas_Input_Post(&down), "post gadget press");
+    (void)Leargas_Input_Drain(&p);
+    TEST_ASSERT(ctx, Leargas_ActiveGadget() == &g, "press selected the gadget");
+    TEST_ASSERT(ctx, !Leargas_IDCMP_GetMsg(win, &im), "press on a gadget posts no MOUSEBUTTONS");
+
+    // Release over the gadget: posts GADGETUP with the GadgetID.
+    TEST_ASSERT(ctx, Leargas_Input_Post(&up), "post gadget release");
+    (void)Leargas_Input_Drain(&p);
+    TEST_ASSERT(ctx, Leargas_IDCMP_GetMsg(win, &im) && im, "release posted a message");
+    TEST_ASSERT(ctx, im->Class == IDCMP_GADGETUP, "Class IDCMP_GADGETUP");
+    TEST_ASSERT(ctx, im->Code == 0x55, "Code echoes GadgetID");
+    TEST_ASSERT(ctx, im->IAddress == &g, "IAddress points at the gadget");
+    Leargas_IDCMP_DisposeMsg(im);
+
+    // Press again, drift off the gadget, release: no GADGETUP.
+    TEST_ASSERT(ctx, Leargas_Input_Post(&down), "post second press");
+    (void)Leargas_Input_Drain(&p);
+    struct LeargasInputEvent off = {
+        .ie_class = IECLASS_RAWMOUSE, .ie_code = IECODE_NOBUTTON, .ie_dx = 80, .ie_dy = 0
+    };
+    TEST_ASSERT(ctx, Leargas_Input_Post(&off), "drift off the gadget");
+    (void)Leargas_Input_Drain(&p);
+    TEST_ASSERT(ctx, Leargas_Input_Post(&up), "release off the gadget");
+    (void)Leargas_Input_Drain(&p);
+    TEST_ASSERT(ctx, !Leargas_IDCMP_GetMsg(win, &im), "release off the gadget posts no GADGETUP");
+
+    // ---- Cleanup -----------------------------------------------------------
+    Leargas_RemoveGadget(win, &g);
+    Leargas_CloseWindow(win);
+    Leargas_CloseScreen(scr);
+    Dath_FreeBitmap(&save);
+    Dath_FreeBitmap(&fb);
+    Leargas_Input_Reset();
+    Leargas_Focus_Reset();
+    Leargas_Gadget_Reset();
+    Leargas_Screen_SetActive(nullptr);
+}

@@ -190,15 +190,9 @@ void Leargas_StringGadget_Render(struct Window *w, struct Gadget *g)
 
 // ---- Key routing -----------------------------------------------------------
 
-// GADGETUP delivery hook — kernel installs Leargas_IDCMP_PostGadgetUp;
-// host builds may install a stub. Kept here (a plain function pointer) so
-// this file carries no kernel dependency.
-static Leargas_GadgetUpFn g_gadgetup_router = nullptr;
-
-void Leargas_SetGadgetRouter(Leargas_GadgetUpFn fn)
-{
-    g_gadgetup_router = fn;
-}
+// GADGETUP delivery goes through Leargas_Gadget_RouteUp (gadget.c), which
+// holds the kernel-installed hook — shared with the LJ boolean-gadget
+// release path in the router.
 
 bool Leargas_String_RouteKey(struct LeargasPointer *p, const struct LeargasInputEvent *ev)
 {
@@ -231,9 +225,7 @@ bool Leargas_String_RouteKey(struct LeargasPointer *p, const struct LeargasInput
         if (p) {
             Leargas_Pointer_Show(p);
         }
-        if (g_gadgetup_router && w) {
-            (void)g_gadgetup_router(w, g);
-        }
+        (void)Leargas_Gadget_RouteUp(w, g);
         return true;
     }
 

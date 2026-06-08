@@ -31,6 +31,27 @@ void Leargas_Gadget_Reset(void)
     g_active_gadget = nullptr;
 }
 
+// ---- GADGETUP delivery hook (general; LH string Inntin + LJ boolean) -------
+//
+// Kept here (a plain function pointer) so this dual-target file carries
+// no kernel dependency; the kernel installs Leargas_IDCMP_PostGadgetUp.
+// Both the string Inntin (Return commit, string_gadget.c) and a boolean
+// gadget release (router.c) post through Leargas_Gadget_RouteUp.
+static Leargas_GadgetUpFn g_gadgetup_router = nullptr;
+
+void Leargas_SetGadgetRouter(Leargas_GadgetUpFn fn)
+{
+    g_gadgetup_router = fn;
+}
+
+bool Leargas_Gadget_RouteUp(struct Window *w, struct Gadget *g)
+{
+    if (g_gadgetup_router && w && g) {
+        return g_gadgetup_router(w, g);
+    }
+    return false;
+}
+
 // ---- Chain management ------------------------------------------------------
 
 void Leargas_AddGadget(struct Window *w, struct Gadget *g)
