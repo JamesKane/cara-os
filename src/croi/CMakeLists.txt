@@ -53,11 +53,10 @@ add_dependencies(croi userhello userexec)
 if(TARGET cara_aistreoir_table)
     add_dependencies(croi cara_aistreoir_table)
 endif()
-# I1: force the intuition.library LVO artefacts to generate (proto stub,
-# lvo.h, vec table, aistreoir fragment). Trampolines + impls link in I2.
-if(TARGET cara_intuition_lib_gen)
-    add_dependencies(croi cara_intuition_lib_gen)
-endif()
+# intuition.library (I2): the bridge static lib is whole-archived (like
+# cara_exec_lib) so trampolines.S.obj and the generated vec table aren't
+# GC'd — kernel code never references the trampolines directly; only the
+# user-mode vec table at 0x4000_0000+ does.
 target_link_libraries(croi PRIVATE
     cara_kernel_flags
     cara_headers
@@ -82,6 +81,7 @@ target_link_libraries(croi PRIVATE
     # pattern as cara_kernel_tests just below.
     -Wl,--whole-archive
     cara_exec_lib
+    cara_intuition_lib
     cara_kernel_tests
     -Wl,--no-whole-archive
 )

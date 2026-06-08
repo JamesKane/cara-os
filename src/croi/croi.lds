@@ -187,6 +187,11 @@ SECTIONS
          * Cara_Trampoline_* symbols (the references arrive when the
          * generated exec_vec.c lands in C9). */
         KEEP(*(.lib_text.exec))
+        /* intuition.library's per-LVO syscall trampolines share this
+         * one RX+U region (src/croi/intuition_lib/trampolines.S).
+         * intuition's base + vec table live in the SASOS shared heap,
+         * but its vec entries point at these trampolines. */
+        KEEP(*(.lib_text.intuition))
         . = ALIGN(4K);
         __exec_lib_end = .;
     } > LIB_VIRT AT > RAM_PHYS :lib_exec

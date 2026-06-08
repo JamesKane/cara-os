@@ -39,6 +39,16 @@ enum {
     SYS_PutMsg = 13,
     SYS_GetMsg = 14,
     SYS_WaitPort = 15,
+
+    // Phase 3 — intuition.library. Each maps to a Croi_*_Impl in
+    // src/croi/intuition_lib/ that bridges onto the Leargas_*
+    // window-system substrate. Declaration order mirrors
+    // tools/lvo-gen/intuition.conf.
+    SYS_AddGadget = 16,
+    SYS_CloseWindow = 17,
+    SYS_OpenWindow = 18,
+    SYS_RemoveGadget = 19,
+    SYS_ActivateGadget = 20,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -59,6 +69,13 @@ enum {
 #define SYS_PutMsg 13
 #define SYS_GetMsg 14
 #define SYS_WaitPort 15
+
+// Phase 3 — intuition.library.
+#define SYS_AddGadget 16
+#define SYS_CloseWindow 17
+#define SYS_OpenWindow 18
+#define SYS_RemoveGadget 19
+#define SYS_ActivateGadget 20
 #endif
 
 #endif

@@ -12,6 +12,7 @@
 // Croi_*_Impl helper from src/croi/exec_lib/.
 
 #include <cara/exec_lib.h>
+#include <cara/intuition_lib.h>
 #include <cara/log.h>
 #include <cara/sched.h>
 #include <cara/syscall.h>
@@ -137,6 +138,23 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)(uptr)Croi_GetMsg_Impl((struct MsgPort *)(uptr)a0);
     case SYS_WaitPort:
         return (i64)(uptr)Croi_WaitPort_Impl((struct MsgPort *)(uptr)a0);
+
+    // ---- intuition.library windows ----
+    case SYS_OpenWindow:
+        return (i64)(uptr)Croi_OpenWindow_Impl((struct NewWindow *)(uptr)a0);
+    case SYS_CloseWindow:
+        Croi_CloseWindow_Impl((struct Window *)(uptr)a0);
+        return 0;
+
+    // ---- intuition.library gadgets ----
+    case SYS_AddGadget:
+        return (i64)Croi_AddGadget_Impl((struct Window *)(uptr)a0, (struct Gadget *)(uptr)a1,
+                                        (ULONG)a2);
+    case SYS_RemoveGadget:
+        return (i64)Croi_RemoveGadget_Impl((struct Window *)(uptr)a0, (struct Gadget *)(uptr)a1);
+    case SYS_ActivateGadget:
+        return (i64)Croi_ActivateGadget_Impl((struct Gadget *)(uptr)a0, (struct Window *)(uptr)a1,
+                                             (struct Requester *)(uptr)a2);
 
     default:
         LOG_WARN("sysc", "unknown syscall a7=%lld", num);
