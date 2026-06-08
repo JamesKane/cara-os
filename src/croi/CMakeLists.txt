@@ -59,6 +59,7 @@ add_executable(croi
     ns16550.c
     platform_init.c
     ramfb.c
+    input_pump.c
 )
 add_dependencies(croi userhello userexec userintuition clar)
 # Make the Phase 9 aggregated lookup table build alongside croi.elf

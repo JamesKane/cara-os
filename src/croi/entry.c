@@ -10,6 +10,7 @@
 // halts. No paging, no scheduler, no IPC yet — those land in following
 // slices.
 
+#include "input_pump.h"
 #include "kernel.h"
 #include "ns16550.h"
 #include "print.h"
@@ -65,6 +66,12 @@ extern const usize exec_lib_vec_count;
 // (entry.c below), so we only need the vec here.
 extern void *intuition_lib_vec[];
 extern const usize intuition_lib_vec_count;
+
+// Clar (the Phase 1 Workbench Gleas) embedded in the .user_elf section
+// (src/croi/CMakeLists.txt user_blob.S). Spawned as the foreground task
+// in the live-demo path once a framebuffer + HID are up.
+extern char __clar_elf_start[];
+extern char __clar_elf_end[];
 
 // Kernel-image extents materialised into upper-half rodata by the
 // linker script's .kernel_extents — see croi.lds. We can't reach the
@@ -315,97 +322,12 @@ static void console_putc(char c)
             // "Console" window via the same emit fn. UART log keeps
             // everything for debugging.
 
-            // ---- Leargas LB + LA boot init. Ride the existing
-            //      banner colours so OpenScreen's Dath_Clear
-            //      doesn't visually flash. The pointer renders
-            //      on top; LC's Drain (after HID poll) drives
-            //      it from IECLASS_RAWMOUSE events on the L0
-            //      ring.
-            if (Dath_AllocBitmap(&g_pointer_save, leargas_pointer_arrow.width,
-                                 leargas_pointer_arrow.height, g_fb.format) == CARA_EOK) {
-                g_screen = Leargas_OpenScreen(&g_fb, "Workbench", bg);
-                if (g_screen) {
-                    // LD: open a sample window centered on the
-                    // screen so the framebuffer shows boot
-                    // chrome (border + title bar + close
-                    // gadget). Order matters — Pointer_Init
-                    // must follow OpenWindow so the pointer's
-                    // save buffer captures the with-window
-                    // pixels at center; otherwise the first
-                    // Pointer_Move would restore stale pre-
-                    // window pixels and corrupt the title bar.
-                    char wb_title[] = "Croi";
-                    i32 win_w = (i32)g_fb.width - 200;
-                    i32 win_h = (i32)g_fb.height - 120;
-                    if (win_w < 120) {
-                        win_w = 120;
-                    }
-                    if (win_h < 60) {
-                        win_h = 60;
-                    }
-                    struct NewWindow nw = {
-                        .LeftEdge = (WORD)(((i32)g_fb.width - win_w) / 2),
-                        .TopEdge = (WORD)(((i32)g_fb.height - win_h) / 2),
-                        .Width = (WORD)win_w,
-                        .Height = (WORD)win_h,
-                        .DetailPen = 0,
-                        .BlockPen = 1,
-                        .IDCMPFlags = IDCMP_CLOSEWINDOW | IDCMP_RAWKEY | IDCMP_MOUSEBUTTONS |
-                                      IDCMP_MOUSEMOVE,
-                        .Flags = WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_CLOSEGADGET |
-                                 WFLG_ACTIVATE | WFLG_SMART_REFRESH,
-                        .Title = (UBYTE *)wb_title,
-                        .Screen = g_screen,
-                        .MinWidth = 120,
-                        .MinHeight = 60,
-                        .MaxWidth = (UWORD)g_fb.width,
-                        .MaxHeight = (UWORD)g_fb.height,
-                        .Type = WBENCHSCREEN,
-                    };
-                    struct Window *win = Leargas_OpenWindow(&nw);
-                    if (win) {
-                        LOG_INFO("larg", "window '%s' at (%d,%d) %dx%d", wb_title,
-                                 (int)win->LeftEdge, (int)win->TopEdge, (int)win->Width,
-                                 (int)win->Height);
-                        // LE — WFLG_ACTIVATE focused the window at
-                        // open; a left-click (via the HID poll →
-                        // Leargas_Input_Drain) re-focuses whichever
-                        // window the pointer is over.
-                        LOG_INFO("larg", "active window: %s",
-                                 Leargas_ActiveWindow() == win ? wb_title : "(none)");
-                    } else {
-                        LOG_WARN("larg", "OpenWindow failed");
-                    }
-
-                    // Pointer fg=white (body), bg=black (outline) so
-                    // both pixel kinds contrast against the dark-blue
-                    // screen pen0. Reusing screen bg as the outline
-                    // colour makes the outline disappear against
-                    // similarly-coloured backgrounds.
-                    DathColor ptr_outline = (g_fb.format == DATH_FMT_RGB565) ? Dath_RGB565(0, 0, 0)
-                                                                             : Dath_RGB(0, 0, 0);
-                    if (Leargas_Pointer_Init(
-                            &g_pointer, &g_fb, &g_pointer_save, &leargas_pointer_arrow, white,
-                            ptr_outline, (i32)g_fb.width / 2, (i32)g_fb.height / 2) == CARA_EOK) {
-                        g_leargas_up = true;
-                        LOG_INFO("larg", "screen %ux%u + pointer at (%d, %d)", (unsigned)g_fb.width,
-                                 (unsigned)g_fb.height, (int)g_pointer.x, (int)g_pointer.y);
-                    } else {
-                        LOG_WARN("larg", "Pointer_Init failed");
-                        if (win) {
-                            Leargas_CloseWindow(win);
-                        }
-                        Leargas_CloseScreen(g_screen);
-                        g_screen = nullptr;
-                    }
-                } else {
-                    LOG_WARN("larg", "OpenScreen failed");
-                }
-            } else {
-                LOG_WARN("larg", "AllocBitmap for pointer save failed");
-            }
+            // The Workbench screen, pointer, input-pump task and Clar
+            // are brought up *after* the in-kernel test suite (the tests
+            // reset Leargas state + open their own screens) — see the
+            // post-test demo block near croi_entry's tail.
         }
-    } // framebuffer + Leargas bring-up
+    } // framebuffer banner
 
     // ---- PCIe enumeration. Discovers the host bridge from the FDT
     //      and walks the bus; subsequent drivers (xHCI, NVMe, …)
@@ -726,6 +648,57 @@ static void console_putc(char c)
 
     // ---- Run the in-kernel test suite. ----
     Test_RunAll();
+
+    // ---- Stage B live demo. If a framebuffer is up (e.g. QEMU ramfb or
+    //      a board's simple-framebuffer), open the Workbench desktop and
+    //      run Clar as the foreground Gleas, fed by a kernel input-pump
+    //      task polling the HID controller. The headless smoke has no
+    //      framebuffer and falls straight through to Halt, so the test
+    //      gate is unaffected. The in-kernel tests reset Leargas state,
+    //      so we bring the desktop up fresh here.
+    if (g_fb_present) {
+        Leargas_Input_Reset();
+        Leargas_Focus_Reset();
+        Leargas_Gadget_Reset();
+
+        DathColor bg = (g_fb.format == DATH_FMT_RGB565) ? Dath_RGB565(0x10, 0x20, 0x40)
+                                                        : Dath_RGB(0x10, 0x20, 0x40);
+        DathColor white = (g_fb.format == DATH_FMT_RGB565) ? Dath_RGB565(0xFF, 0xFF, 0xFF)
+                                                           : Dath_RGB(0xFF, 0xFF, 0xFF);
+        DathColor ptr_outline = (g_fb.format == DATH_FMT_RGB565) ? Dath_RGB565(0, 0, 0)
+                                                                 : Dath_RGB(0, 0, 0);
+
+        g_screen = Leargas_OpenScreen(&g_fb, "Workbench", bg);
+        bool demo_up = g_screen != nullptr &&
+                       Dath_AllocBitmap(&g_pointer_save, leargas_pointer_arrow.width,
+                                        leargas_pointer_arrow.height, g_fb.format) == CARA_EOK &&
+                       Leargas_Pointer_Init(&g_pointer, &g_fb, &g_pointer_save,
+                                            &leargas_pointer_arrow, white, ptr_outline,
+                                            (i32)g_fb.width / 2, (i32)g_fb.height / 2) == CARA_EOK;
+
+        if (demo_up && g_xhci_probed) {
+            g_leargas_up = true;
+            // Input-pump task + Clar run at the same priority so Croi_Yield
+            // round-robins between them; kmain drops below both and idles.
+            static struct InputPumpCfg pump_cfg;
+            pump_cfg.xh = &g_xhci;
+            pump_cfg.pointer = &g_pointer;
+            (void)Croi_SpawnKernelTask("inputd", 5, Croi_InputPump_Task, &pump_cfg);
+
+            usize clar_size = (usize)(__clar_elf_end - __clar_elf_start);
+            struct Task *clar = Croi_SpawnUserTaskFromElf("clar", 5, __clar_elf_start, clar_size);
+            if (clar) {
+                LOG_INFO("boot", "Clar desktop up; input-pump polling HID");
+                Croi_TaskSetSelfPriority(-100);
+                for (;;) {
+                    Croi_Yield();
+                }
+            }
+            LOG_WARN("boot", "spawn Clar failed; halting");
+        } else {
+            LOG_WARN("boot", "live demo unavailable (screen/pointer/HID absent); halting");
+        }
+    }
 
     Croi_Halt();
 }

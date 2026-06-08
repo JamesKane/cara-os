@@ -78,10 +78,20 @@ static u16 g_next_asid = 1;
     }
     pt->asid = g_next_asid++;
 
-    // Mirror the boot-PT kernel mapping shape: 1 GiB device block at
-    // L2[256] (PA 0) + 1 GiB RWX RAM block at L2[258] (PA 0x80000000).
+    // Kernel upper half = a full lower-4 GiB direct map, so kernel driver
+    // code (which runs in whatever task's PT happens to be active) can
+    // reach device MMIO regardless of the current task. Four 1 GiB leaves:
+    //   L2[256] PA 0x0          device RW  (UART, PLIC, fw-cfg, ECAM, …)
+    //   L2[257] PA 0x40000000   device RW  (PCI MEM32 window — xHCI BAR)
+    //   L2[258] PA 0x80000000   RAM    RWX (kernel image + heap)
+    //   L2[259] PA 0xC0000000   device RW  (high MMIO / PCI)
+    // Mirrors the boot PT (_start.S) plus the PCI MEM32 mapping the PCIe
+    // bring-up installs into the boot PT (otherwise only the boot PT could
+    // touch the xHCI doorbell, and the input-pump task would fault).
     pt->root[256] = make_leaf(0x00000000ull, PTE_KERNEL_RW);
+    pt->root[257] = make_leaf(0x40000000ull, PTE_KERNEL_RW);
     pt->root[258] = make_leaf(0x80000000ull, PTE_KERNEL_RWX);
+    pt->root[259] = make_leaf(0xC0000000ull, PTE_KERNEL_RW);
 
     return pt;
 }
@@ -113,8 +123,8 @@ void Croi_DestroyPT(struct PageTable *pt)
         return;
     }
     if (pt->root) {
-        // Don't recurse into kernel-upper-half (256, 258) — those are
-        // 1 GiB leaves shared by every PT. Likewise skip the SASOS shared
+        // The loop only walks the lower (user) half, so the kernel
+        // upper-half 1 GiB leaves (256..259) are never touched. Likewise skip the SASOS shared
         // heap's L2 slot: its L1 subtree is one object shared by every PT
         // (cara/shared.h), so freeing it here would corrupt other tasks.
         for (u32 i = 0; i < 256; i++) {
