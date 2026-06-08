@@ -18,21 +18,6 @@
 #include <cara/xhci.h>
 #include <devices/inputevent.h>
 
-// Per-endpoint spin budget. Croi_Xhci_HidIntReadOnce enqueues a fresh
-// IN transfer and polls the event ring for its completion, so the budget
-// must be long enough that an asynchronously-arriving report lands inside
-// the same call (a too-short budget times out and the report completes
-// against a later call's wait, getting dropped). Clar blocks in WaitPort
-// when idle, so a long busy-wait here doesn't starve it.
-//
-// NOTE: live HID delivery under QEMU is not yet confirmed end-to-end —
-// injected reports (monitor mouse_move / sendkey) don't reach the pump,
-// so this value is provisional until the xHCI interrupt-IN path is
-// debugged (likely needs a persistent outstanding transfer rather than
-// re-enqueue-per-poll). The full Clar interaction is covered meanwhile by
-// the deterministic KERNEL_TEST(clar_smoke).
-#define PUMP_READ_ITERS 50000u
-
 static void post_key(u8 raw, u16 qual)
 {
     struct LeargasInputEvent ev = {
@@ -57,56 +42,48 @@ static void post_mouse(u16 code, u16 qual, i16 dx, i16 dy)
     (void)Leargas_Input_Post(&ev);
 }
 
-static void poll_hid_round(struct XhciController *xh, u8 *prev_buttons)
+static bool iface_is_hid(const struct XhciController *xh, u32 sid, u32 j)
 {
-    for (u32 sid = 1; sid <= CARA_XHCI_MAX_SLOTS; sid++) {
-        if (!xh->slots[sid].in_use) {
-            continue;
-        }
-        for (u32 j = 0; j < xh->slots[sid].n_interfaces; j++) {
-            const auto iface = &xh->slots[sid].interfaces[j];
-            if (iface->dispatch != XHCI_HID_KEYBOARD && iface->dispatch != XHCI_HID_MOUSE) {
-                continue;
-            }
-            u32 got = 0;
-            if (Croi_Xhci_HidIntReadOnce(xh, (u8)sid, j, PUMP_READ_ITERS, &got) != CARA_EOK) {
-                continue; // no new report this round (endpoint idle)
-            }
+    XhciInterfaceDispatch d = xh->slots[sid].interfaces[j].dispatch;
+    return d == XHCI_HID_KEYBOARD || d == XHCI_HID_MOUSE;
+}
 
-            if (iface->dispatch == XHCI_HID_KEYBOARD) {
-                struct CaraHidKeyboardReport kr;
-                if (Croi_Hid_DecodeKeyboardBoot(iface->last_report, iface->last_report_bytes,
-                                                &kr) != CARA_EOK) {
-                    continue;
-                }
-                // Phase 1: post the first pressed key as a down-stroke.
-                // Key-up tracking + N-key rollover arrive with the Phase 3
-                // HID Gleas; editing/Return only need the down-stroke.
-                u8 raw = Croi_Hid_UsageToRawKey(kr.keys[0]);
-                if (raw != CARA_RAWKEY_NONE) {
-                    post_key(raw, kr.ie_qualifier);
-                }
-            } else {
-                struct CaraHidMouseReport mr;
-                if (Croi_Hid_DecodeMouseBoot(iface->last_report, iface->last_report_bytes, &mr) !=
-                    CARA_EOK) {
-                    continue;
-                }
-                // Motion first, so a click lands at the moved-to position.
-                if (mr.dx != 0 || mr.dy != 0) {
-                    post_mouse(IECODE_NOBUTTON, mr.ie_qualifier, (i16)mr.dx, (i16)mr.dy);
-                }
-                // Left-button edges -> SELECTDOWN / SELECTUP.
-                u8 now = (u8)(mr.buttons & HID_MOUSE_BTN_LEFT);
-                u8 was = (u8)(*prev_buttons & HID_MOUSE_BTN_LEFT);
-                if (now && !was) {
-                    post_mouse(IECODE_LBUTTON, mr.ie_qualifier, 0, 0);
-                } else if (!now && was) {
-                    post_mouse((u16)(IECODE_LBUTTON | IECODE_UP_PREFIX), mr.ie_qualifier, 0, 0);
-                }
-                *prev_buttons = mr.buttons;
-            }
+// Translate a freshly-completed HID report into Leargas input events.
+static void emit_report(const struct XhciController *xh, u32 sid, u32 j, u8 *prev_buttons)
+{
+    const auto iface = &xh->slots[sid].interfaces[j];
+    if (iface->dispatch == XHCI_HID_KEYBOARD) {
+        struct CaraHidKeyboardReport kr;
+        if (Croi_Hid_DecodeKeyboardBoot(iface->last_report, iface->last_report_bytes, &kr) !=
+            CARA_EOK) {
+            return;
         }
+        // Phase 1: post the first pressed key as a down-stroke. Key-up
+        // tracking + N-key rollover arrive with the Phase 3 HID Gleas;
+        // editing/Return only need the down-stroke.
+        u8 raw = Croi_Hid_UsageToRawKey(kr.keys[0]);
+        if (raw != CARA_RAWKEY_NONE) {
+            post_key(raw, kr.ie_qualifier);
+        }
+    } else {
+        struct CaraHidMouseReport mr;
+        if (Croi_Hid_DecodeMouseBoot(iface->last_report, iface->last_report_bytes, &mr) !=
+            CARA_EOK) {
+            return;
+        }
+        // Motion first, so a click lands at the moved-to position.
+        if (mr.dx != 0 || mr.dy != 0) {
+            post_mouse(IECODE_NOBUTTON, mr.ie_qualifier, (i16)mr.dx, (i16)mr.dy);
+        }
+        // Left-button edges -> SELECTDOWN / SELECTUP.
+        u8 now = (u8)(mr.buttons & HID_MOUSE_BTN_LEFT);
+        u8 was = (u8)(*prev_buttons & HID_MOUSE_BTN_LEFT);
+        if (now && !was) {
+            post_mouse(IECODE_LBUTTON, mr.ie_qualifier, 0, 0);
+        } else if (!now && was) {
+            post_mouse((u16)(IECODE_LBUTTON | IECODE_UP_PREFIX), mr.ie_qualifier, 0, 0);
+        }
+        *prev_buttons = mr.buttons;
     }
 }
 
@@ -116,10 +93,38 @@ void Croi_InputPump_Task(void *arg)
     if (!cfg || !cfg->xh || !cfg->pointer) {
         Croi_TaskExit();
     }
+    struct XhciController *xh = cfg->xh;
     u8 prev_buttons = 0;
     for (;;) {
-        poll_hid_round(cfg->xh, &prev_buttons);
-        (void)Leargas_Input_Drain(cfg->pointer);
+        // 1. Keep one interrupt-IN transfer outstanding per HID endpoint.
+        for (u32 sid = 1; sid <= CARA_XHCI_MAX_SLOTS; sid++) {
+            if (!xh->slots[sid].in_use) {
+                continue;
+            }
+            for (u32 j = 0; j < xh->slots[sid].n_interfaces; j++) {
+                if (iface_is_hid(xh, sid, j)) {
+                    (void)Croi_Xhci_HidArm(xh, (u8)sid, j);
+                }
+            }
+        }
+
+        // 2. Service the shared event ring; each completed transfer sets
+        //    int_report_ready on its interface. Translate + route those.
+        if (Croi_Xhci_HidServiceEvents(xh) > 0) {
+            for (u32 sid = 1; sid <= CARA_XHCI_MAX_SLOTS; sid++) {
+                if (!xh->slots[sid].in_use) {
+                    continue;
+                }
+                for (u32 j = 0; j < xh->slots[sid].n_interfaces; j++) {
+                    if (iface_is_hid(xh, sid, j) && xh->slots[sid].interfaces[j].int_report_ready) {
+                        xh->slots[sid].interfaces[j].int_report_ready = false;
+                        emit_report(xh, sid, j, &prev_buttons);
+                    }
+                }
+            }
+            (void)Leargas_Input_Drain(cfg->pointer); // move pointer + deliver IDCMP
+        }
+
         Croi_Yield();
     }
 }

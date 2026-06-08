@@ -523,6 +523,17 @@ struct XhciController {
             // populated.
             u8 last_report[HID_BOOT_REPORT_BYTES];
             u32 last_report_bytes;
+            // Continuous-polling state (Croi_Xhci_HidArm /
+            // Croi_Xhci_HidServiceEvents). Exactly one interrupt-IN
+            // transfer is kept outstanding per HID interface; the shared
+            // event ring is serviced centrally and each completion is
+            // matched back to its interface by TRB physical address. This
+            // replaces the per-poll enqueue of Croi_Xhci_HidIntReadOnce
+            // (which drops async reports — the controller completes the
+            // oldest outstanding TRB, not the latest poll's TRB).
+            bool int_outstanding;         // a transfer is queued + undelivered
+            u64 int_outstanding_trb_phys; // its TRB address (event match key)
+            bool int_report_ready;        // last_report holds a fresh report
         } interfaces[CARA_XHCI_MAX_INTERFACES_PER_SLOT];
         u8 n_interfaces;
         // True after a successful USB SET_CONFIGURATION over EP0 (UC.3).
@@ -693,5 +704,23 @@ struct UsbDeviceDescriptor;
 // loop that runs on the interrupter handler.
 [[nodiscard]] int Croi_Xhci_HidIntReadOnce(struct XhciController *c, u8 slot_id, u32 iface_idx,
                                            u32 timeout_iters, u32 *bytes_received_out);
+
+// Continuous-polling interface (used by the input-pump task). Unlike the
+// single-shot read above, these keep exactly one interrupt-IN transfer
+// outstanding per HID interface and service the shared event ring
+// centrally, so asynchronously-arriving reports aren't dropped.
+
+// Ensure an interrupt-IN transfer is outstanding for this HID interface.
+// No-op if one already is. Returns CARA_EOK once a transfer is queued
+// (or was already), CARA_EINVAL for a non-HID/unconfigured interface.
+[[nodiscard]] int Croi_Xhci_HidArm(struct XhciController *c, u8 slot_id, u32 iface_idx);
+
+// Drain all currently-pending events from the shared event ring. Each
+// Transfer Event is matched (by TRB physical address) to the HID
+// interface whose outstanding transfer it completes; on success the
+// payload is cached in that interface's last_report and int_report_ready
+// is set, and the interface is marked no-longer-outstanding (ready to be
+// re-armed). Returns the number of fresh reports made ready.
+u32 Croi_Xhci_HidServiceEvents(struct XhciController *c);
 
 #endif
