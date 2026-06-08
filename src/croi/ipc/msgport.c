@@ -13,6 +13,7 @@
 #include <cara/msgport.h>
 #include <cara/ring.h>
 #include <cara/sched.h>
+#include <cara/shared.h>
 #include <cara/types.h>
 
 #include "msgport_impl.h"
@@ -43,7 +44,11 @@ static void msgport_destroy(struct Kobj *k)
         return nullptr;
     }
 
-    struct CroiMsgPort *p = (struct CroiMsgPort *)Croi_Alloc(sizeof(struct CroiMsgPort));
+    // A V36+ MsgPort is public memory: a window's UserPort must be
+    // U-mode-readable (e.g. Clar reads mp_SigBit to Wait() across several
+    // ports), so allocate the wrapper + ring from the SASOS shared heap.
+    // Croi_Free range-routes both back here.
+    struct CroiMsgPort *p = (struct CroiMsgPort *)Croi_AllocShared(sizeof(struct CroiMsgPort));
     if (!p) {
         return nullptr;
     }
@@ -51,7 +56,7 @@ static void msgport_destroy(struct Kobj *k)
     Kobj_Init(&p->hdr, KOBJ_MSGPORT, msgport_destroy);
 
     usize ring_bytes = sizeof(struct RingHeader) + (usize)capacity * sizeof(struct RingSlot);
-    void *block = Croi_Alloc(ring_bytes);
+    void *block = Croi_AllocShared(ring_bytes);
     if (!block) {
         Croi_Free(p);
         return nullptr;
@@ -61,6 +66,14 @@ static void msgport_destroy(struct Kobj *k)
     p->capacity = capacity;
     p->owner = owner;
     p->signal_bit = signal_bit;
+
+    // Populate the V36+ public MsgPort fields so user code (e.g. Clar)
+    // can read mp_SigBit to build a Wait() mask across several ports,
+    // and so the port reads as a proper PA_SIGNAL port.
+    p->pub.mp_Node.ln_Type = NT_MSGPORT;
+    p->pub.mp_Flags = PA_SIGNAL;
+    p->pub.mp_SigBit = (UBYTE)signal_bit;
+    p->pub.mp_SigTask = owner;
 
     if (Ring_Init(p->ring, capacity, /*signal_kobj=*/0) != CARA_EOK) {
         Croi_Free(block);

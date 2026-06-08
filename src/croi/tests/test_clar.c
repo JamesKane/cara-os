@@ -1,17 +1,21 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
-// KERNEL_TEST(clar_smoke): drives the Clar Workbench Gleas end-to-end.
-// The test plays the role of the input source (the live boot path uses a
-// kernel input-pump task fed by HID): it stands up a screen, spawns Clar
-// as a U-mode task, waits for Clar to open its desktop window + drawer
-// gadget, then injects a click on the drawer through the real input ring
-// + router. Clar receives IDCMP_GADGETUP and exits CLAR_EXIT_OK, which
-// this test asserts.
+// KERNEL_TEST(clar_smoke): drives the Clar Workbench Gleas end-to-end —
+// the Phase 1 success criterion in automated form. The test plays the
+// input source (the live boot path uses a kernel input-pump fed by HID):
+// it stands up a screen, spawns Clar as a U-mode task, then injects, via
+// the real input ring + router:
+//   1. a click on the drawer  -> Clar opens the child "Bosca" window with
+//      a string Inntin and activates it,
+//   2. a few keystrokes + Return -> the Inntin captures the text and Clar
+//      logs it (IDCMP_GADGETUP),
+//   3. a click on the desktop close gadget -> Clar quits.
+// Clar returns CLAR_EXIT_OK only if it actually received typed text, so
+// asserting the exit status proves the whole stack.
 //
-// Concurrency: Clar runs at a higher priority than the test, so after we
-// drop our priority Clar gets the CPU, sets up its window, and blocks in
-// WaitPort. That hands control back to us to inject input; the route
-// signals Clar's UserPort and it wakes to process the message.
+// Concurrency: Clar runs above the test's priority, so after we drop ours
+// Clar gets the CPU, sets up, and blocks in Wait, handing control back to
+// us to inject the next step.
 
 #include <cara/dath.h>
 #include <cara/leargas.h>
@@ -27,11 +31,53 @@ extern char __clar_elf_end[];
 
 #define CLAR_EXIT_OK 0xC1A8
 
-// Drawer-centre in screen-absolute coordinates — must match the geometry
-// hard-coded in src/userland/clar.c (window (10,10), drawer window-rel
-// (20,30) size 60x20 -> centre window-rel (50,40) -> absolute (60,50)).
+// Screen-absolute coordinates, matching the geometry in clar.c:
+//   desktop window (10,10) 160x90, BorderTop 11
+//   drawer gadget window-rel (20,30) 60x20 -> centre absolute (60,50)
+//   desktop close box window-rel [149,160)x[0,11) -> absolute ~(164,15)
 #define CLAR_DRAWER_ABS_X 60
 #define CLAR_DRAWER_ABS_Y 50
+#define CLAR_CLOSE_ABS_X 164
+#define CLAR_CLOSE_ABS_Y 15
+
+static void post_button(struct LeargasPointer *p, u16 code)
+{
+    struct LeargasInputEvent ev = { .ie_class = IECLASS_RAWMOUSE, .ie_code = code };
+    (void)Leargas_Input_Post(&ev);
+    (void)Leargas_Input_Drain(p);
+}
+
+static void post_motion(struct LeargasPointer *p, i16 dx, i16 dy)
+{
+    struct LeargasInputEvent ev = {
+        .ie_class = IECLASS_RAWMOUSE, .ie_code = IECODE_NOBUTTON, .ie_dx = dx, .ie_dy = dy
+    };
+    (void)Leargas_Input_Post(&ev);
+    (void)Leargas_Input_Drain(p);
+}
+
+static void post_key(struct LeargasPointer *p, u16 rawkey)
+{
+    struct LeargasInputEvent ev = { .ie_class = IECLASS_RAWKEY, .ie_code = rawkey };
+    (void)Leargas_Input_Post(&ev);
+    (void)Leargas_Input_Drain(p);
+}
+
+// Yield until `pred` (passed as a 0-arg lambda-ish expression) — spelled
+// out inline at call sites; this helper just bounds the spin.
+static bool wait_until_window_changed(struct Window *was, int limit)
+{
+    for (int i = 0; i < limit; i++) {
+        if (Croi_Syscall_UserExited()) {
+            return false;
+        }
+        if (Leargas_ActiveWindow() != was) {
+            return true;
+        }
+        Croi_Yield();
+    }
+    return false;
+}
 
 KERNEL_TEST(clar_smoke)
 {
@@ -40,8 +86,6 @@ KERNEL_TEST(clar_smoke)
     Leargas_Focus_Reset();
     Leargas_Gadget_Reset();
     Leargas_Screen_SetActive(nullptr);
-    // Install the full router set (the boot path does this too; be
-    // self-contained so the test order doesn't matter).
     Leargas_SetKeyRouter(Leargas_IDCMP_RouteKey);
     Leargas_SetGadgetRouter(Leargas_IDCMP_PostGadgetUp);
     Leargas_SetMouseButtonRouter(Leargas_IDCMP_PostMouseButtons);
@@ -75,12 +119,9 @@ KERNEL_TEST(clar_smoke)
     struct Task *clar = Croi_SpawnUserTaskFromElf("clar", 5, __clar_elf_start, elf_size);
     TEST_ASSERT(ctx, clar != nullptr, "spawn clar");
 
-    // Let Clar run: it opens its window + drawer gadget, then blocks in
-    // WaitPort, returning control to us.
     Croi_TaskSetSelfPriority(-1);
 
-    // Wait until Clar's desktop window + drawer gadget are up (or Clar
-    // died early, in which case the exit-status assert below catches it).
+    // Wait for Clar's desktop window + drawer gadget.
     int spins = 0;
     while (!Croi_Syscall_UserExited()) {
         struct Window *aw = Leargas_ActiveWindow();
@@ -89,28 +130,35 @@ KERNEL_TEST(clar_smoke)
         }
         Croi_Yield();
         if (++spins > 100000) {
-            break; // safety: don't hang the runner
+            break;
         }
     }
+    struct Window *desktop = Leargas_ActiveWindow();
+    TEST_ASSERT(ctx, !Croi_Syscall_UserExited() && desktop && desktop->FirstGadget,
+                "Clar opened its desktop window + drawer gadget");
 
-    if (!Croi_Syscall_UserExited()) {
-        struct Window *aw = Leargas_ActiveWindow();
-        TEST_ASSERT(ctx, aw != nullptr && aw->FirstGadget != nullptr,
-                    "Clar opened its desktop window + drawer gadget");
+    // 1. Click the drawer (pointer already at its centre). The release
+    //    posts IDCMP_GADGETUP; Clar opens the child window + Inntin and
+    //    activates it (the active window flips from desktop to child).
+    post_button(&p, IECODE_LBUTTON);
+    post_button(&p, (u16)(IECODE_LBUTTON | IECODE_UP_PREFIX));
+    TEST_ASSERT(ctx, wait_until_window_changed(desktop, 100000),
+                "drawer click opened the child Bosca window");
 
-        // Inject the drawer click through the real ring + router: a
-        // left-button press then release over the drawer. The release
-        // posts IDCMP_GADGETUP to Clar's UserPort, waking it.
-        struct LeargasInputEvent down = { .ie_class = IECLASS_RAWMOUSE, .ie_code = IECODE_LBUTTON };
-        struct LeargasInputEvent up = { .ie_class = IECLASS_RAWMOUSE,
-                                        .ie_code = (u16)(IECODE_LBUTTON | IECODE_UP_PREFIX) };
-        (void)Leargas_Input_Post(&down);
-        (void)Leargas_Input_Drain(&p);
-        (void)Leargas_Input_Post(&up);
-        (void)Leargas_Input_Drain(&p);
-    }
+    // 2. Type into the now-active Inntin, then Return. The keys route to
+    //    the active string gadget; Return posts IDCMP_GADGETUP with the
+    //    buffer contents, which Clar reads + logs.
+    post_key(&p, 0x20); // 'a'
+    post_key(&p, 0x21); // 's'
+    post_key(&p, 0x44); // Return -> commit
 
-    // Let Clar process the message and exit.
+    // 3. Move to the desktop close gadget and click it to quit Clar.
+    post_motion(&p, (i16)(CLAR_CLOSE_ABS_X - CLAR_DRAWER_ABS_X),
+                (i16)(CLAR_CLOSE_ABS_Y - CLAR_DRAWER_ABS_Y));
+    post_button(&p, IECODE_LBUTTON);
+    post_button(&p, (u16)(IECODE_LBUTTON | IECODE_UP_PREFIX));
+
+    // Let Clar process everything and exit.
     spins = 0;
     while (!Croi_Syscall_UserExited()) {
         Croi_Yield();
@@ -124,7 +172,7 @@ KERNEL_TEST(clar_smoke)
     i64 status = Croi_Syscall_UserExitStatus();
     if (status != CLAR_EXIT_OK) {
         LOG_ERROR("clsm", "clar.elf exited with 0x%llx (expected 0x%x)", (u64)status, CLAR_EXIT_OK);
-        TEST_FAIL(ctx, "Clar did not exit with CLAR_EXIT_OK");
+        TEST_FAIL(ctx, "Clar did not exit with CLAR_EXIT_OK (did the typed text arrive?)");
     }
 
     // ---- Cleanup -----------------------------------------------------------
