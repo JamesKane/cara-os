@@ -18,9 +18,20 @@
 #include <cara/xhci.h>
 #include <devices/inputevent.h>
 
-// Short per-endpoint spin budget: long enough to catch a queued report,
-// short enough that polling N idle endpoints stays responsive.
-#define PUMP_READ_ITERS 2000u
+// Per-endpoint spin budget. Croi_Xhci_HidIntReadOnce enqueues a fresh
+// IN transfer and polls the event ring for its completion, so the budget
+// must be long enough that an asynchronously-arriving report lands inside
+// the same call (a too-short budget times out and the report completes
+// against a later call's wait, getting dropped). Clar blocks in WaitPort
+// when idle, so a long busy-wait here doesn't starve it.
+//
+// NOTE: live HID delivery under QEMU is not yet confirmed end-to-end —
+// injected reports (monitor mouse_move / sendkey) don't reach the pump,
+// so this value is provisional until the xHCI interrupt-IN path is
+// debugged (likely needs a persistent outstanding transfer rather than
+// re-enqueue-per-poll). The full Clar interaction is covered meanwhile by
+// the deterministic KERNEL_TEST(clar_smoke).
+#define PUMP_READ_ITERS 50000u
 
 static void post_key(u8 raw, u16 qual)
 {
