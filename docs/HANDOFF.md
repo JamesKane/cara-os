@@ -1,4 +1,4 @@
-# CaraOS session handoff — 2026-06-07
+# CaraOS session handoff — 2026-06-08
 
 > A pick-up-where-we-left-off note for a fresh session. Captures current
 > state, the non-obvious decisions and gaps from the last sprint, the
@@ -11,29 +11,49 @@
 
 ## 1. Where we are
 
-**Phase 1 Subgoal 6 (Leargas) is COMPLETE.** **Phase 1 Subgoal 7 (Clar)
-is the remaining work to ship Phase 1**, and we are building it the
-"proper" way the user chose: as a real **U-mode Gleas** driven through
-the `intuition.library` LVO surface — which required first building the
-**SASOS shared heap** (now done) and is mid-way through the
-`intuition.library` bridge.
+**Phase 1 Subgoal 6 (Leargas) is COMPLETE.** The **`intuition.library`
+LVO surface (I1–I3) is now COMPLETE and proven end-to-end** — a real
+U-mode Gleas opens the library and a window through the canonical V36+
+LVOs. **Phase 1 Subgoal 7 (Clar) is the remaining work to ship Phase 1**,
+and it now builds directly on this surface as the "proper" U-mode-Gleas
+path the user chose.
 
 Recent commits (newest first), all on `main`:
 
 ```
+d2e8594 phase-3/I3  construct intuition.library + U-mode smoke (userintuition)
+929fa3e tools       lvo-gen proto headers coexist across libraries
+dfa0f16 phase-3/I2  intuition.library trampolines, dispatch + Leargas bridge
 25270ad phase-3/I1  intuition.library conf + generated headers
 25bcebd phase-3/S3  Leargas Screen/Window/IntuiMessage → shared heap
 62d8c06 phase-3/S2  AllocMem → shared heap; userexec derefs it (U-mode proof)
 fd9fd9b phase-3/S1  SASOS shared system heap (RW+U lower-half window)
 87e4281 phase-1/LH  Leargas string Inntin  ← Subgoal 6 complete
-a812011 phase-1/LG  Leargas gadget framework
-9f28567 phase-1/LF  Leargas keyboard IDCMP routing
-f78a359 phase-1/LE  Leargas window focus + activation
-59b80f0 style       clang-format pass (pre-existing tree)
 ```
 
-Status: everything green — host `ctest` 20/20, in-kernel tests 18/18,
-QEMU boot smoke ok, `format-check` clean.
+Status: everything green — host `ctest` 20/20, in-kernel tests
+**19 passed / 0 failed** (added `userintuition_smoke`), QEMU boot smoke
+ok, `format-check` clean.
+
+### What I2/I3 delivered (the intuition.library bridge is done)
+
+- **I2** (`dfa0f16`): `.lib_text.intuition` trampolines folded into the
+  shared `0x4000_0000` RX region (croi.lds), `SYS_AddGadget`..
+  `SYS_ActivateGadget` (16..20) in `cara/sysno.h`, dispatcher arms in
+  `syscall.c`, the five Leargas bridge bodies in
+  `src/croi/intuition_lib/bridge.c`, reserved hooks in
+  `intuition_hooks.c`, and `cara_intuition_lib` whole-archived into croi.
+- **I3** (`d2e8594`): `entry.c` allocates `IntuitionBase` + its vec
+  table in the SASOS shared heap and `Croi_MakeLibrary`s it (MKL_BASE
+  alone — SUM=1 makes kernel and user views one pointer);
+  `src/userland/userintuition.c` + `KERNEL_TEST(userintuition_smoke)`
+  prove the chain (boot log: `registered 'intuition.library' V36.0`,
+  `uintu … userintuition ok`).
+- **lvo-gen fix** (`929fa3e`): `<proto/*.h>` headers now coexist in one
+  TU (drop the `<lib>/lvo.h` include → literal ordinals; skip reserved-
+  slot client stubs). Required because `userintuition.c` includes both
+  `<proto/exec.h>` and `<proto/intuition.h>`. Also made cross-build
+  regen depend on the lvo-gen binary (CaraLvoGen.cmake).
 
 ### Why the roadmap looks "out of order"
 
@@ -133,7 +153,7 @@ Goal: let a U-mode Clar call `OpenWindow`/`CloseWindow`/`AddGadget`/
   `intuition/lvo.h`, `src/croi/intuition_lib/intuition_vec.c`,
   `aistreoir/intuition.inc`. `<proto/intuition.h>` compiles standalone.
 
-**Next — I2 (trampolines + dispatch + bodies):**
+**Done — I2 (`dfa0f16`, trampolines + dispatch + bodies):**
 - `src/croi/intuition_lib/trampolines.S`: section `.lib_text.intuition`,
   one `CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_<Name>, SYS_<Name>` per
   func (copy the macro from `src/croi/exec_lib/trampolines.S`).
@@ -161,7 +181,7 @@ Goal: let a U-mode Clar call `OpenWindow`/`CloseWindow`/`AddGadget`/
   `cara_exec_lib`/`cara_kernel_tests` so the vec/trampolines aren't
   GC'd). Link `cara_intuition_lib` into `croi` (`src/croi/CMakeLists.txt`).
 
-**Next — I3 (construct + smoke):**
+**Done — I3 (`d2e8594`, construct + smoke):**
 - At boot in `entry.c` (after exec.library's `Croi_MakeLibrary`): alloc
   the intuition base in the shared heap, `Croi_MakeLibrary(intuition tags)`
   with the generated `intuition_lib_vec[]`, and register so
