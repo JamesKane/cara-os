@@ -25,6 +25,7 @@ cara_unit_test(test_leargas_focus cara_leargas)
 cara_unit_test(test_leargas_idcmp cara_leargas)
 cara_unit_test(test_leargas_gadget cara_leargas)
 cara_unit_test(test_leargas_string cara_leargas)
+cara_unit_test(test_leargas_button cara_leargas)
 target_compile_definitions(test_fdt_qemu PRIVATE
     CARA_TEST_DATADIR="${CMAKE_SOURCE_DIR}/tests/data"
 )

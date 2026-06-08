@@ -71,6 +71,76 @@ void Leargas_IDCMP_DisposeMsg(struct IntuiMessage *im)
     }
 }
 
+[[nodiscard]] bool Leargas_IDCMP_PostMouseButtons(struct Window *w,
+                                                  const struct LeargasInputEvent *ev)
+{
+    if (!w || !ev || !w->UserPort) {
+        return false;
+    }
+    if (!(w->IDCMPFlags & IDCMP_MOUSEBUTTONS)) {
+        return false; // the window didn't ask for button events
+    }
+
+    struct IntuiMessage *im = (struct IntuiMessage *)Croi_AllocShared(sizeof(struct IntuiMessage));
+    if (!im) {
+        return false;
+    }
+    *im = (struct IntuiMessage){ 0 };
+    // BuildIntuiMessage maps the class (IECLASS_RAWMOUSE → MOUSEBUTTONS)
+    // and copies Code (ie_code is SELECTDOWN/SELECTUP), Qualifier, and
+    // the window-relative MouseX/Y.
+    Leargas_BuildIntuiMessage(im, w, ev);
+
+    struct CroiMsgPort *port = (struct CroiMsgPort *)w->UserPort;
+    struct RingSlot slot = {
+        .kind = IDCMP_MOUSEBUTTONS,
+        .length = (u32)sizeof(struct IntuiMessage),
+        .payload = (uptr)im,
+        .reserved = 0,
+    };
+    if (!Croi_PutMsg(port, slot)) {
+        Croi_Free(im);
+        return false;
+    }
+    return true;
+}
+
+[[nodiscard]] bool Leargas_IDCMP_PostCloseWindow(struct Window *w)
+{
+    if (!w || !w->UserPort) {
+        return false;
+    }
+    if (!(w->IDCMPFlags & IDCMP_CLOSEWINDOW)) {
+        return false; // the window didn't ask for close events
+    }
+
+    struct IntuiMessage *im = (struct IntuiMessage *)Croi_AllocShared(sizeof(struct IntuiMessage));
+    if (!im) {
+        return false;
+    }
+    *im = (struct IntuiMessage){ 0 };
+    im->ExecMessage.mn_Length = (UWORD)sizeof(struct IntuiMessage);
+    im->Class = IDCMP_CLOSEWINDOW;
+    im->IDCMPWindow = w;
+    if (w->WScreen) {
+        im->MouseX = (WORD)(w->WScreen->MouseX - w->LeftEdge);
+        im->MouseY = (WORD)(w->WScreen->MouseY - w->TopEdge);
+    }
+
+    struct CroiMsgPort *port = (struct CroiMsgPort *)w->UserPort;
+    struct RingSlot slot = {
+        .kind = IDCMP_CLOSEWINDOW,
+        .length = (u32)sizeof(struct IntuiMessage),
+        .payload = (uptr)im,
+        .reserved = 0,
+    };
+    if (!Croi_PutMsg(port, slot)) {
+        Croi_Free(im);
+        return false;
+    }
+    return true;
+}
+
 [[nodiscard]] bool Leargas_IDCMP_PostGadgetUp(struct Window *w, struct Gadget *g)
 {
     if (!w || !g || !w->UserPort) {

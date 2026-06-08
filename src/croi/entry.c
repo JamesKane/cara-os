@@ -165,6 +165,12 @@ static void console_putc(char c)
     // LH — install the GADGETUP router so a string Inntin's Return posts
     // IDCMP_GADGETUP to its window's port.
     Leargas_SetGadgetRouter(Leargas_IDCMP_PostGadgetUp);
+    // LI — install the mouse-button + close-gadget routers so plain
+    // clicks reach a window's IDCMP port (IDCMP_MOUSEBUTTONS) and a click
+    // on the close gadget posts IDCMP_CLOSEWINDOW. Harmless before any
+    // window with a UserPort exists.
+    Leargas_SetMouseButtonRouter(Leargas_IDCMP_PostMouseButtons);
+    Leargas_SetCloseWindowRouter(Leargas_IDCMP_PostCloseWindow);
 
     // ---- Physical memory map ----
     u64 kphys_start = _kernel_image_phys_start;

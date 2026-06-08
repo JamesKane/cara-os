@@ -102,6 +102,19 @@ enum : u32 {
     IDCMP_GADGETHELP = 0x04000000u,
 };
 
+// ---- IDCMP_MOUSEBUTTONS Code values (V36+ verbatim) -----------------------
+//
+// The Code field of an IDCMP_MOUSEBUTTONS IntuiMessage. SELECT is the
+// left button, MENU the right; the high bit (IECODE_UP_PREFIX, 0x80)
+// distinguishes release from press — so these are the raw IECODE button
+// values surfaced to the application unchanged.
+enum : u16 {
+    SELECTDOWN = 0x68,
+    SELECTUP = 0xe8,
+    MENUDOWN = 0x69,
+    MENUUP = 0xe9,
+};
+
 // ---- struct Window (V36+ public field set) ---------------------------------
 
 struct Window {

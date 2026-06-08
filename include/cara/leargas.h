@@ -297,6 +297,14 @@ void Leargas_Window_Render(struct LeargasWindow *w);
 // Recover a LeargasWindow pointer from its public Window pointer.
 [[nodiscard]] struct LeargasWindow *Leargas_Window_FromPub(struct Window *pub);
 
+// Hit-test the system close gadget. Returns true when (wx, wy) —
+// window-relative coordinates — fall inside the close-gadget rect drawn
+// by Leargas_Window_Render (top-right of the title bar, a BorderTop-wide
+// square), and only when the window actually has WFLG_DRAGBAR |
+// WFLG_CLOSEGADGET. Pure / dual-target. The router uses this to post
+// IDCMP_CLOSEWINDOW; clients never call it directly.
+[[nodiscard]] bool Leargas_Window_CloseHitTest(struct Window *w, i32 wx, i32 wy);
+
 // Link `w` into the head of its screen's FirstWindow list; safe to
 // call exactly once per Leargas_Window_InitInPlace.
 void Leargas_Window_LinkToScreen(struct LeargasWindow *w);
@@ -512,5 +520,43 @@ void Leargas_SetGadgetRouter(Leargas_GadgetUpFn fn);
 // has no UserPort, didn't request IDCMP_GADGETUP, or the ring is full
 // (freeing the message). Install via Leargas_SetGadgetRouter.
 [[nodiscard]] bool Leargas_IDCMP_PostGadgetUp(struct Window *w, struct Gadget *g);
+
+// ---- LI — Window button + close-gadget IDCMP delivery ---------------------
+//
+// What lets a client (Clar) react to plain mouse clicks and to the
+// system close gadget. On a left button-down/up that doesn't land on an
+// app gadget, the router posts an IDCMP_MOUSEBUTTONS message (Code =
+// SELECTDOWN / SELECTUP, MouseX/Y window-relative) to the focused
+// window so the client can hit-test its own glyphs (e.g. a drawer). A
+// down-stroke on the close gadget instead posts IDCMP_CLOSEWINDOW.
+//
+// Both go through hooks the kernel installs (same pattern as the LF key
+// router and LH gadget router) so the dual-target router stays free of
+// kernel MsgPort dependencies; host builds leave them unset.
+
+// Mouse-button delivery hook. The router calls it for an un-consumed
+// left button event with the focused window and the raw input event.
+typedef bool (*Leargas_MouseButtonFn)(struct Window *w, const struct LeargasInputEvent *ev);
+void Leargas_SetMouseButtonRouter(Leargas_MouseButtonFn fn);
+
+// Close-gadget delivery hook. The router calls it when a button-down
+// lands on the close gadget (Leargas_Window_CloseHitTest) of a window.
+typedef bool (*Leargas_CloseWindowFn)(struct Window *w);
+void Leargas_SetCloseWindowRouter(Leargas_CloseWindowFn fn);
+
+// Kernel-only: the default mouse-button hook. Allocates an IntuiMessage
+// (Class = IDCMP_MOUSEBUTTONS, Code = ev->ie_code, MouseX/Y window-
+// relative) and PutMsg's it to w->UserPort. Returns false when the
+// window has no UserPort, didn't request IDCMP_MOUSEBUTTONS, or the ring
+// is full (freeing the message). Install via Leargas_SetMouseButtonRouter.
+[[nodiscard]] bool Leargas_IDCMP_PostMouseButtons(struct Window *w,
+                                                  const struct LeargasInputEvent *ev);
+
+// Kernel-only: the default close-window hook. Allocates an IntuiMessage
+// (Class = IDCMP_CLOSEWINDOW) and PutMsg's it to w->UserPort. Returns
+// false when the window has no UserPort, didn't request
+// IDCMP_CLOSEWINDOW, or the ring is full (freeing the message). Install
+// via Leargas_SetCloseWindowRouter.
+[[nodiscard]] bool Leargas_IDCMP_PostCloseWindow(struct Window *w);
 
 #endif // CARA_LEARGAS_H

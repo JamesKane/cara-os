@@ -101,15 +101,15 @@ int main(void)
         return fail("SpecialLink not null", 11);
     }
 
-    // ---- Non-RAWKEY class maps to Class 0 (no Phase 1 consumer) -------------
+    // ---- RAWMOUSE button → IDCMP_MOUSEBUTTONS (LI) -------------------------
     struct LeargasInputEvent mev = {
         .ie_class = IECLASS_RAWMOUSE,
         .ie_code = IECODE_LBUTTON,
     };
     struct IntuiMessage im2 = { 0 };
     Leargas_BuildIntuiMessage(&im2, &w.pub, &mev);
-    if (im2.Class != 0) {
-        return fail("non-RAWKEY class didn't map to 0", 12);
+    if (im2.Class != IDCMP_MOUSEBUTTONS) {
+        return fail("RAWMOUSE button didn't map to IDCMP_MOUSEBUTTONS", 12);
     }
 
     // ---- No screen → window-relative coords fall back to origin ------------

@@ -122,3 +122,123 @@ KERNEL_TEST(idcmp_rawkey)
     Leargas_Focus_Reset();
     Leargas_Screen_SetActive(nullptr);
 }
+
+// KERNEL_TEST(idcmp_buttons): the LI mouse-button + close-gadget paths.
+// Covers Leargas_Window_CloseHitTest geometry, the two posters
+// (PostMouseButtons / PostCloseWindow) directly, and the full ring path
+// (Leargas_Input_Post -> Drain -> router -> window UserPort) for both a
+// body click (IDCMP_MOUSEBUTTONS / SELECTDOWN) and a close-gadget click
+// (IDCMP_CLOSEWINDOW).
+KERNEL_TEST(idcmp_buttons)
+{
+    Leargas_Input_Reset();
+    Leargas_Focus_Reset();
+    Leargas_Screen_SetActive(nullptr);
+    Leargas_SetMouseButtonRouter(Leargas_IDCMP_PostMouseButtons);
+    Leargas_SetCloseWindowRouter(Leargas_IDCMP_PostCloseWindow);
+
+    struct DathFramebuffer fb;
+    TEST_ASSERT(ctx, Dath_AllocBitmap(&fb, 200, 120, DATH_FMT_RGBA8888) == CARA_EOK,
+                "framebuffer alloc");
+    struct Screen *scr = Leargas_OpenScreen(&fb, "T", Dath_RGB(0x10, 0x10, 0x20));
+    TEST_ASSERT(ctx, scr != nullptr, "open screen");
+
+    char wtitle[] = "Win";
+    struct NewWindow nw = {
+        .LeftEdge = 10,
+        .TopEdge = 10,
+        .Width = 120,
+        .Height = 70,
+        .Flags = WFLG_DRAGBAR | WFLG_CLOSEGADGET | WFLG_ACTIVATE,
+        .IDCMPFlags = IDCMP_MOUSEBUTTONS | IDCMP_CLOSEWINDOW,
+        .Title = (UBYTE *)wtitle,
+        .Screen = scr,
+    };
+    struct Window *win = Leargas_OpenWindow(&nw);
+    TEST_ASSERT(ctx, win != nullptr, "open window");
+    TEST_ASSERT(ctx, win->UserPort != nullptr, "window got a UserPort");
+
+    // ---- CloseHitTest geometry (window-relative; BorderTop = 11) -----------
+    // Close box spans wx in [Width-BorderTop, Width) = [109,120), wy [0,11).
+    TEST_ASSERT(ctx, Leargas_Window_CloseHitTest(win, 112, 5), "close-hit inside the X box");
+    TEST_ASSERT(ctx, !Leargas_Window_CloseHitTest(win, 20, 5),
+                "title-bar left isn't the close box");
+    TEST_ASSERT(ctx, !Leargas_Window_CloseHitTest(win, 112, 40), "window body isn't the close box");
+
+    struct IntuiMessage *im = nullptr;
+
+    // ---- Direct: PostMouseButtons -----------------------------------------
+    struct LeargasInputEvent down = {
+        .ie_class = IECLASS_RAWMOUSE,
+        .ie_code = IECODE_LBUTTON, // == SELECTDOWN
+        .ie_qualifier = 0,
+    };
+    TEST_ASSERT(ctx, Leargas_IDCMP_PostMouseButtons(win, &down), "PostMouseButtons delivered");
+    TEST_ASSERT(ctx, Leargas_IDCMP_GetMsg(win, &im) && im, "GetMsg returned the button message");
+    TEST_ASSERT(ctx, in_shared(im), "button IntuiMessage in the shared window");
+    TEST_ASSERT(ctx, im->Class == IDCMP_MOUSEBUTTONS, "Class IDCMP_MOUSEBUTTONS");
+    TEST_ASSERT(ctx, im->Code == SELECTDOWN, "Code SELECTDOWN");
+    Leargas_IDCMP_DisposeMsg(im);
+
+    // ---- Direct: PostCloseWindow ------------------------------------------
+    TEST_ASSERT(ctx, Leargas_IDCMP_PostCloseWindow(win), "PostCloseWindow delivered");
+    TEST_ASSERT(ctx, Leargas_IDCMP_GetMsg(win, &im) && im, "GetMsg returned the close message");
+    TEST_ASSERT(ctx, im->Class == IDCMP_CLOSEWINDOW, "Class IDCMP_CLOSEWINDOW");
+    Leargas_IDCMP_DisposeMsg(im);
+
+    // ---- Full ring path: body click -> SELECTDOWN to the window -----------
+    struct DathFramebuffer save;
+    TEST_ASSERT(ctx,
+                Dath_AllocBitmap(&save, leargas_pointer_arrow.width, leargas_pointer_arrow.height,
+                                 fb.format) == CARA_EOK,
+                "pointer save alloc");
+    struct LeargasPointer p;
+    // Start the pointer in the window body (abs (30,50) -> window-rel
+    // (20,40), below the BorderTop title bar, clear of any gadget).
+    TEST_ASSERT(ctx,
+                Leargas_Pointer_Init(&p, &fb, &save, &leargas_pointer_arrow,
+                                     Dath_RGB(0xFF, 0xFF, 0xFF), Dath_RGB(0, 0, 0), 30,
+                                     50) == CARA_EOK,
+                "pointer init");
+
+    struct LeargasInputEvent ring_down = {
+        .ie_class = IECLASS_RAWMOUSE,
+        .ie_code = IECODE_LBUTTON,
+        .ie_qualifier = 0,
+    };
+    TEST_ASSERT(ctx, Leargas_Input_Post(&ring_down), "post body LBUTTON-down");
+    (void)Leargas_Input_Drain(&p);
+    TEST_ASSERT(ctx, Leargas_IDCMP_GetMsg(win, &im) && im, "body click reached the window");
+    TEST_ASSERT(ctx, im->Class == IDCMP_MOUSEBUTTONS, "ring body click Class MOUSEBUTTONS");
+    TEST_ASSERT(ctx, im->MouseX == 20 && im->MouseY == 40,
+                "ring body click window-relative MouseX/Y");
+    Leargas_IDCMP_DisposeMsg(im);
+
+    // ---- Full ring path: close-gadget click -> IDCMP_CLOSEWINDOW ----------
+    // Move the pointer onto the close box (abs (122,15)) via a motion
+    // event, then click. delta from (30,50): dx=+92, dy=-35.
+    struct LeargasInputEvent move = {
+        .ie_class = IECLASS_RAWMOUSE,
+        .ie_code = IECODE_NOBUTTON,
+        .ie_dx = 92,
+        .ie_dy = -35,
+    };
+    TEST_ASSERT(ctx, Leargas_Input_Post(&move), "post motion onto close box");
+    (void)Leargas_Input_Drain(&p);
+    TEST_ASSERT(ctx, p.x == 122 && p.y == 15, "pointer moved onto the close box");
+    TEST_ASSERT(ctx, Leargas_Input_Post(&ring_down), "post close-box LBUTTON-down");
+    (void)Leargas_Input_Drain(&p);
+    TEST_ASSERT(ctx, Leargas_IDCMP_GetMsg(win, &im) && im, "close click reached the window");
+    TEST_ASSERT(ctx, im->Class == IDCMP_CLOSEWINDOW, "ring close click Class CLOSEWINDOW");
+    Leargas_IDCMP_DisposeMsg(im);
+    TEST_ASSERT(ctx, !Leargas_IDCMP_GetMsg(win, &im), "no spurious extra message");
+
+    // ---- Cleanup -----------------------------------------------------------
+    Leargas_CloseWindow(win);
+    Leargas_CloseScreen(scr);
+    Dath_FreeBitmap(&save);
+    Dath_FreeBitmap(&fb);
+    Leargas_Input_Reset();
+    Leargas_Focus_Reset();
+    Leargas_Screen_SetActive(nullptr);
+}

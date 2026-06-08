@@ -24,6 +24,22 @@ void Leargas_SetKeyRouter(Leargas_KeyRouteFn fn)
     g_key_router = fn;
 }
 
+// LI — mouse-button + close-gadget delivery hooks (kernel installs the
+// IDCMP posters; host builds leave them unset so the router unit test
+// can install fakes / observe the pre-LI "no delivery" behaviour).
+static Leargas_MouseButtonFn g_mousebtn_router = nullptr;
+static Leargas_CloseWindowFn g_closewin_router = nullptr;
+
+void Leargas_SetMouseButtonRouter(Leargas_MouseButtonFn fn)
+{
+    g_mousebtn_router = fn;
+}
+
+void Leargas_SetCloseWindowRouter(Leargas_CloseWindowFn fn)
+{
+    g_closewin_router = fn;
+}
+
 static i32 clamp_i32(i32 v, i32 lo, i32 hi)
 {
     if (v < lo) {
@@ -65,25 +81,64 @@ u32 Leargas_Input_Drain(struct LeargasPointer *p)
             continue;
         }
 
-        // LE + LG — left button. The down-stroke (no IECODE_UP_PREFIX)
+        // Compute the post-event pointer position from the deltas and
+        // clamp to the active screen, mirroring it into the public Screen
+        // *before* any IDCMP message is posted below — so a button event
+        // delivers the click's actual window-relative MouseX/Y (the
+        // posters read screen->MouseX/Y via Leargas_BuildIntuiMessage).
+        struct Screen *screen = Leargas_ActiveScreen();
+        i32 nx = p->x + (i32)ev.ie_dx;
+        i32 ny = p->y + (i32)ev.ie_dy;
+        if (screen) {
+            i32 max_x = (i32)(u16)screen->Width - 1;
+            i32 max_y = (i32)(u16)screen->Height - 1;
+            if (max_x < 0) {
+                max_x = 0;
+            }
+            if (max_y < 0) {
+                max_y = 0;
+            }
+            nx = clamp_i32(nx, 0, max_x);
+            ny = clamp_i32(ny, 0, max_y);
+            screen->MouseX = (WORD)nx;
+            screen->MouseY = (WORD)ny;
+        }
+
+        // LE + LG + LI — left button. The down-stroke (no IECODE_UP_PREFIX)
         // re-focuses the window under the pointer and presses any gadget
         // there; the up-stroke releases the pressed gadget. Each redraw
         // happens under a hidden pointer so the cursor stays on top.
         if (ev.ie_code == IECODE_LBUTTON) {
-            struct Screen *screen = Leargas_ActiveScreen();
-            struct Window *hit = Leargas_Window_HitTest(screen, p->x, p->y);
+            struct Window *hit = Leargas_Window_HitTest(screen, nx, ny);
             if (hit) {
                 Leargas_Pointer_Hide(p);
                 if (hit != Leargas_ActiveWindow()) {
                     Leargas_SetActiveWindow(hit); // LE — focus + title-bar redraw
                 }
-                // LG — gadget hit-test in window-relative coordinates.
-                struct Gadget *g = Leargas_Gadget_HitTest(hit, p->x - (i32)hit->LeftEdge,
-                                                          p->y - (i32)hit->TopEdge);
-                if (g) {
-                    g->Flags |= GFLG_SELECTED;
-                    Leargas_SetActiveGadget(g);
-                    Leargas_Gadget_Render(hit, g);
+                i32 wx = nx - (i32)hit->LeftEdge;
+                i32 wy = ny - (i32)hit->TopEdge;
+                if (Leargas_Window_CloseHitTest(hit, wx, wy)) {
+                    // LI — system close gadget: post IDCMP_CLOSEWINDOW.
+                    // (Phase 1 acts on the down-stroke; V36+ waits for a
+                    // release over the gadget.)
+                    if (g_closewin_router) {
+                        (void)g_closewin_router(hit);
+                    }
+                } else {
+                    // LG — gadget hit-test in window-relative coordinates.
+                    struct Gadget *g = Leargas_Gadget_HitTest(hit, wx, wy);
+                    if (g) {
+                        g->Flags |= GFLG_SELECTED;
+                        Leargas_SetActiveGadget(g);
+                        Leargas_Gadget_Render(hit, g);
+                    } else if (g_mousebtn_router) {
+                        // LI — a click not consumed by a gadget or the
+                        // close box is delivered to the window so the
+                        // client can hit-test its own surface (e.g. a
+                        // drawer glyph). Phase 1 delivers the down-stroke
+                        // (SELECTDOWN) only; SELECTUP/drag is deferred.
+                        (void)g_mousebtn_router(hit, &ev);
+                    }
                 }
                 Leargas_Pointer_Show(p);
             }
@@ -105,28 +160,6 @@ u32 Leargas_Input_Drain(struct LeargasPointer *p)
                 }
                 Leargas_Pointer_Show(p);
             }
-        }
-
-        i32 nx = p->x + (i32)ev.ie_dx;
-        i32 ny = p->y + (i32)ev.ie_dy;
-
-        struct Screen *screen = Leargas_ActiveScreen();
-        if (screen) {
-            i32 max_x = (i32)(u16)screen->Width - 1;
-            i32 max_y = (i32)(u16)screen->Height - 1;
-            if (max_x < 0) {
-                max_x = 0;
-            }
-            if (max_y < 0) {
-                max_y = 0;
-            }
-            nx = clamp_i32(nx, 0, max_x);
-            ny = clamp_i32(ny, 0, max_y);
-            // Reflect the (possibly-clamped) position back into the
-            // V36+ public Screen for any consumer that reads it
-            // (Clar's hit-testing in LE-onwards will).
-            screen->MouseX = (WORD)nx;
-            screen->MouseY = (WORD)ny;
         }
 
         Leargas_Pointer_Move(p, nx, ny);

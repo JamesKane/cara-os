@@ -285,6 +285,28 @@ void Leargas_Window_Render(struct LeargasWindow *w)
     Leargas_Window_RenderGadgets(&w->pub);
 }
 
+// ---- LI — close-gadget hit-test (dual-target, pure) -----------------------
+
+bool Leargas_Window_CloseHitTest(struct Window *w, i32 wx, i32 wy)
+{
+    if (!w) {
+        return false;
+    }
+    // The close gadget is only drawn when both flags are set (see
+    // Leargas_Window_Render): a BorderTop-wide square at the top-right
+    // of the title bar.
+    if ((w->Flags & (WFLG_DRAGBAR | WFLG_CLOSEGADGET)) != (WFLG_DRAGBAR | WFLG_CLOSEGADGET)) {
+        return false;
+    }
+    i32 bar_h = w->BorderTop;
+    i32 ww = w->Width;
+    if (bar_h <= 0 || ww <= 0) {
+        return false;
+    }
+    i32 cg_x0 = ww - bar_h; // window-relative left edge of the close box
+    return wx >= cg_x0 && wx < ww && wy >= 0 && wy < bar_h;
+}
+
 // ---- LF — IntuiMessage translation (dual-target, pure) --------------------
 
 void Leargas_BuildIntuiMessage(struct IntuiMessage *im, struct Window *w,
@@ -294,11 +316,15 @@ void Leargas_BuildIntuiMessage(struct IntuiMessage *im, struct Window *w,
         return;
     }
 
-    // Map the flat input class to its IDCMP class. Phase 1 routes
-    // RAWKEY; other classes resolve to 0 until their epics land.
+    // Map the flat input class to its IDCMP class. RAWKEY → IDCMP_RAWKEY
+    // (LF); a RAWMOUSE button event → IDCMP_MOUSEBUTTONS while pure
+    // motion → IDCMP_MOUSEMOVE (LI). Other classes resolve to 0 until
+    // their epics land.
     ULONG cls = 0;
     if (ev->ie_class == IECLASS_RAWKEY) {
         cls = IDCMP_RAWKEY;
+    } else if (ev->ie_class == IECLASS_RAWMOUSE) {
+        cls = (ev->ie_code == IECODE_NOBUTTON) ? IDCMP_MOUSEMOVE : IDCMP_MOUSEBUTTONS;
     }
 
     im->ExecMessage.mn_Length = (UWORD)sizeof(struct IntuiMessage);
