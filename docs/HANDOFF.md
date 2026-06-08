@@ -11,62 +11,76 @@
 
 ## 1. Where we are
 
-**Phase 1 Subgoal 6 (Leargas) is COMPLETE.** The **`intuition.library`
-LVO surface (I1–I3) is COMPLETE**. **Phase 1 Subgoal 7 (Clar) now meets
-its success criterion in automated form** — a real U-mode Clar Gleas
-opens a desktop window with a drawer, clicking the drawer opens a child
-window with a text Inntin, and typing into it + Return logs the text,
-all through the canonical V36+ LVO surface + IDCMP. `KERNEL_TEST(clar_smoke)`
-drives the whole interaction and asserts it.
+**PHASE 1 SHIPS.** Subgoal 6 (Leargas), the `intuition.library` LVO
+surface (I1–I3), and Subgoal 7 (Clar) are all COMPLETE, and the Phase 1
+success criterion is met **both** automatically and **live, interactively
+on a real framebuffer with real mouse + keyboard**: boot CaraOS, see the
+Workbench desktop, move the mouse onto the drawer, click it → a child
+"Bosca" window opens with a text Inntin → type into it → the text is
+captured. Stage B (the live demo) is done end-to-end:
+- **B1 (`a62648f`)**: `src/croi/ramfb.c` — QEMU ramfb framebuffer over
+  fw-cfg (qemu virt has no simple-framebuffer node).
+- **B2/B3 (`b1bf779`)**: `src/croi/input_pump.c` — the kernel
+  `Croi_InputPump_Task` (the chosen architecture). `entry.c` brings the
+  desktop up after the in-kernel tests and spawns the pump + Clar at equal
+  priority (kmain idles). Also fixed `Croi_NewKernelPT` to map the full
+  lower-4 GiB direct map (L2[256..259]) — task PTs were missing L2[257],
+  the PCI MEM32 / xHCI-doorbell window, so the pump faulted.
+- **B4 (`e36957f`) — live HID, now WORKING**: the pump was dropping every
+  injected report. Root cause (confirmed by instrumenting the event ring):
+  QEMU *does* deliver reports, but `Croi_Xhci_HidIntReadOnce` re-enqueued a
+  fresh TRB per poll and waited only for *that* TRB, while the controller
+  completes the *oldest* outstanding TRB first — so each poll discarded the
+  real completion. Fix: a **persistent-outstanding-transfer** model —
+  `Croi_Xhci_HidArm` keeps one interrupt-IN transfer queued per HID
+  endpoint, `Croi_Xhci_HidServiceEvents` drains the shared event ring once
+  and dispatches each Transfer Event to the matching interface (by TRB
+  phys). Removed the boot one-shot HID poll (it left a dangling TRB per EP
+  that ate the first real report). Verified live: `mouse_move` onto the
+  drawer + click opens the child window; `sendkey h i ret` →
+  `clar: gadget got 'hi'` (full string); `screendump` shows the child
+  window + Inntin.
 
-**Stage B (the live demo) is mostly built and visually verified; one
-gap remains.** Clar now runs at *boot* against a real framebuffer, fed by
-a kernel input-pump task:
-- **B1 (done, `a62648f`)**: `src/croi/ramfb.c` — a QEMU ramfb framebuffer
-  over fw-cfg (qemu virt has no simple-framebuffer node). Verified by
-  `screendump`.
-- **B2/B3 (done, `b1bf779`)**: `src/croi/input_pump.c` — the kernel
-  `Croi_InputPump_Task` (poll xHCI HID → decode → ring → drain → route).
-  `entry.c` brings the desktop up *after* the in-kernel tests and spawns
-  the pump + Clar at equal priority (kmain idles). Also fixed
-  `Croi_NewKernelPT` to map the full lower-4 GiB direct map (L2[256..259])
-  — task PTs were missing L2[257], the PCI MEM32 / xHCI-doorbell window,
-  so the pump faulted. Verified by `screendump`: booting with
-  `-device ramfb` shows the Workbench desktop + Clar's window + the drawer
-  gadget + pointer (7 colors), no fault.
-- **B4 (BLOCKED — the remaining gap)**: driving the *live* boot Clar via
-  QEMU monitor input (`mouse_move`/`mouse_button`/`sendkey`) does **not**
-  reach the pump — the pointer never moves. Root-cause candidates: (a)
-  `Croi_Xhci_HidIntReadOnce` re-enqueues a transfer every poll and only
-  waits briefly, so an async report completes against a stale TRB and is
-  dropped — it needs a *persistent outstanding* interrupt-IN transfer
-  consumed event-ring-driven, not re-enqueue-per-poll; and/or (b) QEMU
-  monitor input routing to usb-kbd/usb-mouse under `-display none`. The
-  boot one-shot poll has only ever logged "int-IN idle (no input)", so
-  real HID-report delivery through this xHCI driver is genuinely
-  unverified — that's the next session's first task. The full Clar
-  interaction (click → child window → type → log) is meanwhile proven
-  deterministically by `KERNEL_TEST(clar_smoke)`.
+The `clar_smoke` KERNEL_TEST still drives the whole interaction
+deterministically (the headless test gate).
 
-How to repro the live demo + B4 attempt:
+### See / drive it yourself
+
+Headless automated verification (no window; captures a PPM):
 ```
-(sleep 7; for i in 1 2 3 4 5 6; do printf 'mouse_move -90 -64\n'; sleep .5; done; \
- printf 'mouse_button 1\nmouse_button 0\n'; sleep 1; \
+(sleep 7; for i in $(seq 1 8); do printf 'mouse_move -127 -127\n'; sleep .4; done; \
+ printf 'mouse_move 60 50\n'; sleep .6; printf 'mouse_button 1\n'; sleep .5; \
+ printf 'mouse_button 0\n'; sleep 1.2; printf 'sendkey h\nsendkey i\nsendkey ret\n'; sleep 1.2; \
  printf 'screendump /tmp/s.ppm\n'; sleep 1; printf 'quit\n') | \
- qemu-system-riscv64 -M virt -m 256 -display none -serial file:/tmp/s.log \
-   -monitor stdio -kernel build-rv64/src/croi/croi.elf \
-   -device qemu-xhci -device usb-kbd -device usb-mouse -device ramfb
+ qemu-system-riscv64 -M virt -m 256 -display none -serial file:/tmp/s.log -monitor stdio \
+   -kernel build-rv64/src/croi/croi.elf -device qemu-xhci -device usb-kbd -device usb-mouse -device ramfb
+# expect "clar: gadget got 'hi'" in /tmp/s.log
 ```
+
+**To actually SEE the window** (the reason you'd never seen it: every run
+above uses `-display none`). On macOS use the Cocoa UI and drive it with a
+real mouse + keyboard:
+```
+qemu-system-riscv64 -M virt -m 256 -display cocoa -serial stdio \
+  -kernel build-rv64/src/croi/croi.elf \
+  -device qemu-xhci -device usb-kbd -device usb-mouse -device ramfb
+```
+A QEMU window opens showing the Workbench desktop; click the "Bosca"
+drawer, then type into the field that appears. (`Cmd` releases the mouse
+grab.) The cmake target `qemu-virt-kernel` still boots headless; a
+`qemu-virt-clar` display target would be a nice convenience to add.
 
 Recent commits (newest first), all on `main`:
 
 ```
+e36957f phase-1/B4    live HID works — persistent-transfer xHCI polling
+b1bf779 phase-1/B2-B3 kernel input-pump task + boot Clar live on the framebuffer
+a62648f phase-1/B1    QEMU ramfb framebuffer bring-up over fw-cfg
 e00a3c7 phase-1/CE-CG Clar drawer opens child window + text Inntin (type to log)
 41c9365 phase-1/CA-CD Clar Workbench Gleas skeleton + drawer-click loop
 865eb9f phase-1/LJ    boolean-gadget GADGETUP on release
 c703e86 phase-1/LI    window mouse-button + close-gadget IDCMP delivery
 d2e8594 phase-3/I3    construct intuition.library + U-mode smoke (userintuition)
-929fa3e tools         lvo-gen proto headers coexist across libraries
 dfa0f16 phase-3/I2    intuition.library trampolines, dispatch + Leargas bridge
 25270ad phase-3/I1    intuition.library conf + generated headers
 fd9fd9b phase-3/S1    SASOS shared system heap (RW+U lower-half window)
@@ -77,6 +91,27 @@ Status: everything green — host `ctest` **21/21**, in-kernel tests
 **22 passed / 0 failed** (added `idcmp_buttons`, `idcmp_boolgadget`,
 `userintuition_smoke`, `clar_smoke`), QEMU boot smoke ok, `format-check`
 clean.
+
+### What's next (Phase 1 is done)
+
+Phase 1's success criterion is met, automated + live. Candidate next
+directions, roughly in priority order — pick per `docs/ROADMAP.md`:
+
+1. **Phase 2 — NVMe + CaraFS** (the roadmap's next phase). Clar's single
+   hard-coded drawer becomes a filesystem-backed directory listing; the
+   one-Bosca/one-Inntin structure generalises to a Bosca per FS entry.
+2. **Clar / Leargas polish** (small, high-value): a `qemu-virt-clar`
+   cmake target for the `-display cocoa` demo; window dragging (the
+   DRAGBAR is drawn but inert); re-focus the desktop after the child
+   closes; a real drawer glyph instead of a labelled button; key-up
+   tracking + N-key rollover (the pump posts only the first pressed key).
+3. **xHCI HID hardening**: the pump busy-polls (Phase 1). Phase 3's HID
+   Gleas should move to interrupt-driven reads on the interrupter handler
+   (the persistent-transfer plumbing from B4 is the foundation).
+4. **Real-hardware slice** (Subgoal 1): Splanc.efi UEFI boot so the same
+   Clar Gleas runs on RV2 silicon (same xHCI + ramfb-vs-simple-fb paths).
+
+No known regressions or loose ends blocking a fresh start.
 
 ### Clar so far (Subgoal 7) — what's built and how it works
 
@@ -257,33 +292,26 @@ Goal: let a U-mode Clar call `OpenWindow`/`CloseWindow`/`AddGadget`/
 
 ---
 
-## 4. Known gaps that block Clar specifically (resolve during Clar)
+## 4. Clar's once-blocking gaps — ALL RESOLVED (historical)
 
-These were noted in passing and are NOT yet done — a fresh session must
-handle them when wiring Clar:
+These were the gaps flagged before Clar was wired; all are now done:
 
-1. **No boolean-gadget `IDCMP_GADGETUP`.** LG delivers `GADGETUP` only
-   for the string Inntin on Return (LH). A "drawer" `BOOLGADGET` clicked
-   to open the drawer needs `GACT_RELVERIFY` → `GADGETUP`-on-release
-   wired into the router's button-up path (reuse `Leargas_IDCMP_PostGadgetUp`).
-2. **Close gadget doesn't post `IDCMP_CLOSEWINDOW`.** The window close
-   gadget is drawn as chrome (LD) but not hit-tested/wired. Clar needs a
-   click on it → `IDCMP_CLOSEWINDOW` on the window's UserPort to close
-   the drawer window.
-3. **Boot is one-shot; Clar needs a persistent event loop.** `entry.c`
-   today: HID poll (pre-`Sched_Init`) → bring up scheduler → run tests →
-   `Croi_Halt()`. A U-mode Clar `WaitPort`s its UserPort, so there must
-   be an input-producer path (HID poll → `Leargas_Input_Drain`, which
-   posts IDCMP that signals Clar) running concurrently with Clar. Decide
-   the model: e.g. an input/poll kernel task + Clar as a U-mode task, or
-   restructure the boot loop. This is the main structural piece for Clar.
-4. **Clar must `AllocMem` its own gadgets/StringInfo/buffer** (shared
-   heap) so the kernel router can dereference them from any task context.
+1. ~~No boolean-gadget `IDCMP_GADGETUP`~~ → **LJ** (`865eb9f`):
+   `GACT_RELVERIFY` `BOOLGADGET` release posts `IDCMP_GADGETUP`.
+2. ~~Close gadget doesn't post `IDCMP_CLOSEWINDOW`~~ → **LI** (`c703e86`):
+   `Leargas_Window_CloseHitTest` + the close-window router.
+3. ~~Boot is one-shot; Clar needs a persistent event loop~~ → **B2/B3**
+   (`b1bf779`): the kernel input-pump task + the post-test demo block in
+   `entry.c` spawn the pump + Clar concurrently; B4 (`e36957f`) made the
+   pump actually deliver live HID.
+4. ~~Clar must `AllocMem` its own gadgets/StringInfo/buffer~~ → done in
+   `src/userland/clar.c`; also window UserPorts now live in the shared
+   heap (`e00a3c7`) so U-mode Clar can read `mp_SigBit`.
 
-`docs/PHASE1_CLAR.md` has the original (pre-shared-heap) plan; its
-"Clar is a U-mode Gleas via intuition LVOs" framing is now the actual
-path. Its CA.1 (`.incbin clar.elf`) / CB / CC / CD / CE / CF / CG tiers
-still apply, adjusted for the gaps above.
+`docs/PHASE1_CLAR.md` has the original plan; the implementation took the
+"Clar is a U-mode Gleas via intuition LVOs" path with the drawer realised
+as a labelled `BOOLGADGET` (a real glyph is a polish item — see §1
+"What's next").
 
 ---
 
