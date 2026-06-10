@@ -22,7 +22,14 @@ if [[ ! -f "${KERNEL}" ]]; then
 fi
 
 LOG="$(mktemp)"
-trap 'rm -f "${LOG}"' EXIT
+NVME_IMG="$(mktemp)"
+trap 'rm -f "${LOG}" "${NVME_IMG}"' EXIT
+
+# Throwaway 16 MiB raw disk for the NVMe bring-up + write/readback
+# kernel tests (docs/PHASE2_NVME.md). Recreated per run, so the
+# nvme_io test's pattern writes are never persisted anywhere real.
+dd if=/dev/zero of="${NVME_IMG}" bs=1m count=16 2>/dev/null \
+    || dd if=/dev/zero of="${NVME_IMG}" bs=1M count=16 2>/dev/null
 
 # 8s ought to be plenty for a single-hart hello-world; the kernel WFIs
 # after printing so qemu won't exit on its own — we kill it via timeout.
@@ -37,6 +44,8 @@ timeout --foreground -s TERM 10 "${QEMU}" \
     -device qemu-xhci \
     -device usb-kbd \
     -device usb-mouse \
+    -drive "file=${NVME_IMG},if=none,format=raw,id=nvme0" \
+    -device nvme,drive=nvme0,serial=cara-nvme-0 \
     > "${LOG}" 2>&1 || true
 
 # Required magic strings, in order.

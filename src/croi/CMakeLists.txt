@@ -88,6 +88,7 @@ target_link_libraries(croi PRIVATE
     cara_dath
     cara_pci
     cara_xhci
+    cara_nvme
     cara_hid
     cara_leargas
     # cara_exec_lib is whole-archived so trampolines.S.obj isn't
