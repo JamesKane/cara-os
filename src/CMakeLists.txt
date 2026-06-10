@@ -46,6 +46,11 @@ add_subdirectory(croi/pci)
 # the decode invariants; the kernel substrate links the same .o.
 add_subdirectory(croi/hid)
 
+# Always-on: the CaraFS core (Phase 2). Pure logic behind the
+# CarafsBdev seam; host build feeds the unit tests + mkfs/fsck tools,
+# kernel build mounts over the NVMe driver.
+add_subdirectory(logaic/carafs)
+
 # Always-on: Leargas substrate. L0 is just the input event ring
 # (pure atomics + flat storage); LA/LB pull in framebuffer code
 # and may need to gate on CARA_TARGET like cara_dath does.
