@@ -1,387 +1,266 @@
-# CaraOS session handoff — 2026-06-08
+# CaraOS session handoff — 2026-06-11
 
-> A pick-up-where-we-left-off note for a fresh session. Captures current
-> state, the non-obvious decisions and gaps from the last sprint, the
+> A pick-up-where-we-left-off note for a fresh session. Captures
+> current state, the non-obvious decisions from the last sprint, the
 > concrete next steps, and the build/test/commit workflow. Pairs with
-> `docs/ROADMAP.md` (the phase plan), `docs/PHASE1_LEARGAS.md` and
-> `docs/PHASE1_CLAR.md` (per-epic detail), and `docs/ARCHITECTURE.md`
-> (the design).
+> `docs/ROADMAP.md` (the phase plan), `docs/CARAFS.md` (the filesystem
+> design — the current work), and `docs/ARCHITECTURE.md` (the system
+> design).
 
 ---
 
 ## 1. Where we are
 
-**PHASE 1 SHIPS.** Subgoal 6 (Leargas), the `intuition.library` LVO
-surface (I1–I3), and Subgoal 7 (Clar) are all COMPLETE, and the Phase 1
-success criterion is met **both** automatically and **live, interactively
-on a real framebuffer with real mouse + keyboard**: boot CaraOS, see the
-Workbench desktop, move the mouse onto the drawer, click it → a child
-"Bosca" window opens with a text Inntin → type into it → the text is
-captured. Stage B (the live demo) is done end-to-end:
-- **B1 (`a62648f`)**: `src/croi/ramfb.c` — QEMU ramfb framebuffer over
-  fw-cfg (qemu virt has no simple-framebuffer node).
-- **B2/B3 (`b1bf779`)**: `src/croi/input_pump.c` — the kernel
-  `Croi_InputPump_Task` (the chosen architecture). `entry.c` brings the
-  desktop up after the in-kernel tests and spawns the pump + Clar at equal
-  priority (kmain idles). Also fixed `Croi_NewKernelPT` to map the full
-  lower-4 GiB direct map (L2[256..259]) — task PTs were missing L2[257],
-  the PCI MEM32 / xHCI-doorbell window, so the pump faulted.
-- **B4 (`e36957f`) — live HID, now WORKING**: the pump was dropping every
-  injected report. Root cause (confirmed by instrumenting the event ring):
-  QEMU *does* deliver reports, but `Croi_Xhci_HidIntReadOnce` re-enqueued a
-  fresh TRB per poll and waited only for *that* TRB, while the controller
-  completes the *oldest* outstanding TRB first — so each poll discarded the
-  real completion. Fix: a **persistent-outstanding-transfer** model —
-  `Croi_Xhci_HidArm` keeps one interrupt-IN transfer queued per HID
-  endpoint, `Croi_Xhci_HidServiceEvents` drains the shared event ring once
-  and dispatches each Transfer Event to the matching interface (by TRB
-  phys). Removed the boot one-shot HID poll (it left a dangling TRB per EP
-  that ate the first real report). Verified live: `mouse_move` onto the
-  drawer + click opens the child window; `sendkey h i ret` →
-  `clar: gadget got 'hi'` (full string); `screendump` shows the child
-  window + Inntin.
-
-The `clar_smoke` KERNEL_TEST still drives the whole interaction
-deterministically (the headless test gate).
-
-### See / drive it yourself
-
-Headless automated verification (no window; captures a PPM):
-```
-(sleep 7; for i in $(seq 1 8); do printf 'mouse_move -127 -127\n'; sleep .4; done; \
- printf 'mouse_move 60 50\n'; sleep .6; printf 'mouse_button 1\n'; sleep .5; \
- printf 'mouse_button 0\n'; sleep 1.2; printf 'sendkey h\nsendkey i\nsendkey ret\n'; sleep 1.2; \
- printf 'screendump /tmp/s.ppm\n'; sleep 1; printf 'quit\n') | \
- qemu-system-riscv64 -M virt -m 256 -display none -serial file:/tmp/s.log -monitor stdio \
-   -kernel build-rv64/src/croi/croi.elf -device qemu-xhci -device usb-kbd -device usb-mouse -device ramfb
-# expect "clar: gadget got 'hi'" in /tmp/s.log
-```
-
-**To actually SEE the window** (the reason you'd never seen it: every run
-above uses `-display none`). On macOS use the Cocoa UI and drive it with a
-real mouse + keyboard:
-```
-qemu-system-riscv64 -M virt -m 256 -display cocoa -serial stdio \
-  -kernel build-rv64/src/croi/croi.elf \
-  -device qemu-xhci -device usb-kbd -device usb-mouse -device ramfb
-```
-A QEMU window opens showing the Workbench desktop; click the "Bosca"
-drawer, then type into the field that appears. (`Cmd` releases the mouse
-grab.) The cmake target `qemu-virt-kernel` still boots headless; a
-`qemu-virt-clar` display target would be a nice convenience to add.
+**Phase 1 shipped** (see §5 for the live demo recipe). **Phase 2 is in
+flight**: the NVMe driver and the CaraFS core through epic F2 are
+done; F3 (directories) is next.
 
 Recent commits (newest first), all on `main`:
 
 ```
+591d1d3 phase-2/F2    CaraFS cnodes, files, allocator
+a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
+16b5265 phase-2/F0    CaraFS format foundation
+b0463ae docs          CaraFS design (Phase 2 Subgoal 2)
+5cb4c0c phase-2/N1-N5 NVMe driver — probe to write/readback under QEMU
+21e8774 docs          session handoff (Phase 1 close-out)
 e36957f phase-1/B4    live HID works — persistent-transfer xHCI polling
-b1bf779 phase-1/B2-B3 kernel input-pump task + boot Clar live on the framebuffer
-a62648f phase-1/B1    QEMU ramfb framebuffer bring-up over fw-cfg
-e00a3c7 phase-1/CE-CG Clar drawer opens child window + text Inntin (type to log)
-41c9365 phase-1/CA-CD Clar Workbench Gleas skeleton + drawer-click loop
-865eb9f phase-1/LJ    boolean-gadget GADGETUP on release
-c703e86 phase-1/LI    window mouse-button + close-gadget IDCMP delivery
-d2e8594 phase-3/I3    construct intuition.library + U-mode smoke (userintuition)
-dfa0f16 phase-3/I2    intuition.library trampolines, dispatch + Leargas bridge
-25270ad phase-3/I1    intuition.library conf + generated headers
-fd9fd9b phase-3/S1    SASOS shared system heap (RW+U lower-half window)
-87e4281 phase-1/LH    Leargas string Inntin  ← Subgoal 6 complete
 ```
 
-Status: everything green — host `ctest` **21/21**, in-kernel tests
-**22 passed / 0 failed** (added `idcmp_buttons`, `idcmp_boolgadget`,
-`userintuition_smoke`, `clar_smoke`), QEMU boot smoke ok, `format-check`
-clean.
+Status: everything green — host ctest **24/24**, in-kernel tests
+**25 passed / 0 failed**, QEMU boot smoke ok, `format-check` clean.
 
-### What's next (Phase 1 is done)
+### Phase 2 so far
 
-Phase 1's success criterion is met, automated + live. Candidate next
-directions, roughly in priority order — pick per `docs/ROADMAP.md`:
-
-1. **Phase 2 — NVMe + CaraFS** (the roadmap's next phase). Clar's single
-   hard-coded drawer becomes a filesystem-backed directory listing; the
-   one-Bosca/one-Inntin structure generalises to a Bosca per FS entry.
-2. **Clar / Leargas polish** (small, high-value): a `qemu-virt-clar`
-   cmake target for the `-display cocoa` demo; window dragging (the
-   DRAGBAR is drawn but inert); re-focus the desktop after the child
-   closes; a real drawer glyph instead of a labelled button; key-up
-   tracking + N-key rollover (the pump posts only the first pressed key).
-3. **xHCI HID hardening**: the pump busy-polls (Phase 1). Phase 3's HID
-   Gleas should move to interrupt-driven reads on the interrupter handler
-   (the persistent-transfer plumbing from B4 is the foundation).
-4. **Real-hardware slice** (Subgoal 1): Splanc.efi UEFI boot so the same
-   Clar Gleas runs on RV2 silicon (same xHCI + ramfb-vs-simple-fb paths).
-
-No known regressions or loose ends blocking a fresh start.
-
-### Clar so far (Subgoal 7) — what's built and how it works
-
-- **LI** (`c703e86`): the router now posts `IDCMP_MOUSEBUTTONS`
-  (SELECTDOWN, window-relative MouseX/Y) and `IDCMP_CLOSEWINDOW` (close-
-  gadget hit) to window UserPorts, via install-able hooks; `SELECTDOWN/UP`
-  constants + `Leargas_Window_CloseHitTest`.
-- **LJ** (`865eb9f`): a `GACT_RELVERIFY` `GTYP_BOOLGADGET` released over
-  itself posts `IDCMP_GADGETUP` — the drawer-open mechanism. The gadget-up
-  hook moved to `gadget.c` (`Leargas_Gadget_RouteUp`, shared with LH).
-- **Clar** (`41c9365`, `e00a3c7`): `src/userland/clar.c`, a U-mode Gleas.
-  Opens a desktop window + a drawer `BOOLGADGET` ("Bosca"); the drawer
-  click opens a child window with a string Inntin (StringInfo + buffer +
-  gadget, all `AllocMem`'d in the shared heap) and `ActivateGadget`'s it;
-  the V36+ multi-window IDCMP loop `Wait()`s on the union of the desktop +
-  child UserPort signal bits, drains the child first, logs the typed text
-  on Return, closes the drawer on child-close, quits on desktop-close.
-- **msgport** change (`e00a3c7`): window UserPorts (CroiMsgPort + ring)
-  now live in the SASOS shared heap and expose `mp_SigBit`/`mp_SigTask`,
-  so U-mode Clar can read `mp_SigBit` to build the multi-port `Wait()`
-  mask (a V36+ MsgPort is public memory).
-
-### What I2/I3 delivered (the intuition.library bridge is done)
-
-- **I2** (`dfa0f16`): `.lib_text.intuition` trampolines folded into the
-  shared `0x4000_0000` RX region (croi.lds), `SYS_AddGadget`..
-  `SYS_ActivateGadget` (16..20) in `cara/sysno.h`, dispatcher arms in
-  `syscall.c`, the five Leargas bridge bodies in
-  `src/croi/intuition_lib/bridge.c`, reserved hooks in
-  `intuition_hooks.c`, and `cara_intuition_lib` whole-archived into croi.
-- **I3** (`d2e8594`): `entry.c` allocates `IntuitionBase` + its vec
-  table in the SASOS shared heap and `Croi_MakeLibrary`s it (MKL_BASE
-  alone — SUM=1 makes kernel and user views one pointer);
-  `src/userland/userintuition.c` + `KERNEL_TEST(userintuition_smoke)`
-  prove the chain (boot log: `registered 'intuition.library' V36.0`,
-  `uintu … userintuition ok`).
-- **lvo-gen fix** (`929fa3e`): `<proto/*.h>` headers now coexist in one
-  TU (drop the `<lib>/lvo.h` include → literal ordinals; skip reserved-
-  slot client stubs). Required because `userintuition.c` includes both
-  `<proto/exec.h>` and `<proto/intuition.h>`. Also made cross-build
-  regen depend on the lvo-gen binary (CaraLvoGen.cmake).
-
-### Why the roadmap looks "out of order"
-
-We are doing `phase-3/*` work (shared heap, intuition.library) *before*
-Phase 1 fully ships, on purpose. Clar's success criterion ("type into a
-text Inntin") is most faithfully met by a U-mode Clar using
-`intuition.library`, and the user chose to build that foundation now
-rather than ship an in-kernel stand-in. Phase discipline
-(`PRINCIPLES.md` §6) is intentionally relaxed here per that decision.
+- **NVMe (Subgoal 1, `5cb4c0c`)**: `include/cara/nvme.h` +
+  `src/croi/nvme/` — probe → admin queues → Identify → polled I/O
+  queue pair (QID 1) → `Croi_Nvme_Read/Write` (PRP1+PRP2, ≤ 8 KiB per
+  command). Cleanroom from NVMe Base Spec 1.4. Parked follow-ons
+  (PRP lists, MSI-X, `Croi_Nvme_Flush`, nvme.device) are listed in
+  `docs/PHASE2_NVME.md`. The boot smoke harness attaches a throwaway
+  16 MiB NVMe image; booting *without* it fails the 3 nvme
+  KERNEL_TESTs (expected, same caveat as missing usb-kbd/usb-mouse).
+- **CaraFS design (`b0463ae`, `docs/CARAFS.md`)**: metadata journaling
+  over CoW (decision recorded in §3.9); cnode-id == block-number; TLV
+  cnode items; FNV-1a-64 folded-name hash; shared B+tree for dirs +
+  extents; AG bitmaps; circular WAL with ordered data. Epic plan in
+  §6: F0 format → F1 mkfs/fsck → F2 files → F3 dirs → F4 journal
+  (format freezes after F4) → F5 kernel mount → F6 boot path.
+- **CaraFS F0–F2**: see §2. The core lives in `src/logaic/carafs/`
+  behind the `CarafsBdev` seam (host file / mem bdev now, kernel NVMe
+  binding in F5), with hosted `mkfs.carafs` / `fsck.carafs` tools in
+  `tools/carafs/` and host unit tests driving everything.
 
 ---
 
-## 2. The two milestones from this sprint (read before touching MM/IPC)
+## 2. CaraFS: what exists and the internals you need (F0–F2)
 
-### 2.1 SASOS shared heap — the keystone (S1–S3)
+All on-disk structs live in `include/cara/carafs.h` — the
+authoritative byte layout, every offset static_asserted, LE-host
+compile gate. Public API so far: `Carafs_Mkfs`, `Carafs_Fsck`,
+`Carafs_Mount/Unmount/Sync`, `Carafs_CnodeCreate/Delete/Stat`,
+`Carafs_FileRead/Write`.
 
-`include/cara/shared.h`, `src/croi/mm/shared.c`. ARCHITECTURE §4.3/§4.4.
+Per-file map of `src/logaic/carafs/`:
 
-- A lower-half **RW+U** window at **`0x1_0000_0000`** (Sv39 `L2[4]`),
-  backed by a fixed **8 MiB physical arena**, mapped via a single
-  **shared L1 subtree**. Installing that one L2 entry into a page-table
-  root exposes the whole window — done for the boot PT in
-  `Croi_Shared_Init` and for every task PT in the `sched.c` spawn paths
-  (`Croi_Shared_InstallMapping`). `Croi_DestroyPT` skips `L2[4]`.
-- **`sstatus.SUM=1`** is set in `_start.S` (line ~58). This is the
-  load-bearing fact: a single lower-half SASOS pointer is dereferenceable
-  by **both** the kernel (S-mode) and U-mode. Don't remove SUM.
-- `Croi_AllocShared(size)` allocates from a slab `Heap` over the arena
-  (`Heap_InitArena` gives it the fixed phys↔VA window offset).
-  `Croi_Free(ptr)` **range-routes**: a pointer in the shared window goes
-  to the shared heap, everything else to the kernel heap. So a single
-  `Croi_Free` works for both.
-- **`AllocMem` (exec.library) now allocates from the shared heap** (S2),
-  so library pointers are U-dereferenceable. Internal kernel code still
-  uses `Croi_Alloc` (upper-half kernel heap). **Leargas
-  Screen/Window/IntuiMessage allocate shared** (S3).
-- **Proven end-to-end**: `userexec` (a real U-mode Gleas) `AllocMem`s,
-  writes, and reads back shared memory — `KERNEL_TEST(userexec_smoke)`
-  passing means U-mode SASOS access works.
-- Phase-1 limitations (fine for now, noted for later): fixed 8 MiB arena
-  (growable via more L2 slots / lazy mapping); no per-owner isolation —
-  the window is globally RW+U (acceptable under the "total trust" model);
-  `KERNEL_TEST(shared_heap)` covers it.
+- `format.c` — CRC-32C, block-crc (field-zeroed convention), ASCII
+  fold, FNV-1a-64 name hash, name validation.
+- `bdev.c` — memory-backed bdev (the unit-test workhorse).
+- `cache.c` — fixed-capacity write-back block cache over the
+  caller-supplied arena (LRU + bucket index + pinning) and the
+  transaction bracket (`carafs_txn_begin/dirty/commit/abort`).
+- `mount.c` — mount/unmount/sync, superblock validation, CLEAN↔DIRTY
+  state machine, and the **per-operation bracket**
+  `carafs_op_begin/commit/abort` (mark-dirty + txn + sb snapshot).
+- `alloc.c` — AG bitmap allocator: first free run from the per-AG
+  rotor, round-robin AG fallback, exact per-AG free counts.
+- `cnode.c` — cnode get/put/dirty (verify on cache-miss), create /
+  delete / stat, TLV item area (find/resize/remove, 8-byte stride).
+- `btree.c` — **extent-flavour** B+tree: floor/next, insert with
+  predecessor merge + splits + root growth, spill-from-inline,
+  post-order free-all.
+- `file.c` — read/write with the storage escalation INLINE_DATA item
+  → 16 inline extents → extent tree; sparse holes.
+- `mkfs.c` / `fsck.c` — as of F1; fsck cross-checks AG free counts
+  vs popcounts and the advisory sb total on clean volumes.
 
-### 2.2 Leargas (Subgoal 6, complete)
+**Non-obvious internals (read before touching the core):**
 
-Kernel-side window-system substrate, all in `src/croi/leargas/`, driven
-today from the boot path + HID poll in `entry.c`. The brand-namespace
-`Leargas_*` API is what `intuition.library` LVO bodies will bridge onto
-(see `docs/PHASE1_LEARGAS.md` for the full L0–LH writeup):
-
-- Pointer, screen, window primitives + decoration render.
-- **LE** focus/activation (`Leargas_ActiveWindow`/`SetActiveWindow`,
-  hit-test).
-- **LF** keyboard IDCMP routing: per-window `UserPort` (a
-  `KOBJ_MSGPORT`), `struct IntuiMessage`, RAWKEY → focused window via a
-  router hook (`Leargas_SetKeyRouter` → `Leargas_IDCMP_RouteKey`).
-- **LG** gadgets: `struct Gadget`, `AddGadget`/`RemoveGadget`, hit-test,
-  render, press/select in the router.
-- **LH** string Inntin: `struct StringInfo`, a built-in US keymap
-  (`Leargas_RawkeyToAscii`), editing, render w/ cursor, Return →
-  `IDCMP_GADGETUP` via `Leargas_SetGadgetRouter`.
-
----
-
-## 3. The intuition.library bridge — plan & decisions
-
-Goal: let a U-mode Clar call `OpenWindow`/`CloseWindow`/`AddGadget`/
-`RemoveGadget`/`ActivateGadget` (canonical V36+ LVOs) that bridge to the
-`Leargas_*` substrate. Mirrors the existing `exec.library` machinery.
-
-**Key design decisions already made (don't relitigate):**
-
-1. **Clar runs on the boot-opened Workbench screen** — it does NOT call
-   `OpenScreen`. So no `NewScreen`/`OpenScreen` LVO needed; windows open
-   with `NewWindow.Screen = nullptr` → Leargas active screen.
-2. **Reuse the user-RX trampoline region** — add a `.lib_text.intuition`
-   input section to the existing `.exec_lib` output section in
-   `src/croi/croi.lds` (it's already mapped `RX+U` into every task PT).
-   **Do not** create a second linker library region / image module.
-3. **The intuition base + vec table live in the SASOS shared heap.**
-   Unlike exec (fixed VA `0x4000_0800`, bootstrapped by libcara),
-   `IntuitionBase` is discovered at runtime via
-   `OpenLibrary("intuition.library")`. Allocate the
-   `lib_NegSize + lib_PosSize` block with `Croi_AllocShared`; since
-   `SUM=1`, the kernel writes it directly (so `MKL_BASE` and
-   `MKL_BASE_KERNEL_WRITE` are the same shared VA — no separate kernel
-   view as exec needs).
-
-**Done — I1 (`25270ad`):**
-- `tools/lvo-gen/intuition.conf` (reserved + pads + the 5 funcs at
-  canonical LVOs; `syscall` flavour → `Cara_Trampoline_<Name>`).
-- `include/intuition/intuitionbase.h` (`struct IntuitionBase`).
-- `src/croi/intuition_lib/CMakeLists.txt` (gen-only) wired into the
-  rv64 build; `croi` depends on `cara_intuition_lib_gen`.
-- Generates (in `build-rv64/gen/`): `proto/intuition.h`,
-  `intuition/lvo.h`, `src/croi/intuition_lib/intuition_vec.c`,
-  `aistreoir/intuition.inc`. `<proto/intuition.h>` compiles standalone.
-
-**Done — I2 (`dfa0f16`, trampolines + dispatch + bodies):**
-- `src/croi/intuition_lib/trampolines.S`: section `.lib_text.intuition`,
-  one `CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_<Name>, SYS_<Name>` per
-  func (copy the macro from `src/croi/exec_lib/trampolines.S`).
-- `src/croi/croi.lds`: add `KEEP(*(.lib_text.intuition))` next to the
-  existing `KEEP(*(.lib_text.exec))` in the `.exec_lib` section.
-- `include/cara/sysno.h`: add `SYS_OpenWindow` … `SYS_ActivateGadget`
-  (continue numbering from 15).
-- `src/croi/syscall/syscall.c`: dispatcher `case` arms →
-  `Croi_<Name>_Impl`.
-- `src/croi/intuition_lib/*.c`: the bodies (signature: V36+ args +
-  trailing `struct IntuitionBase *`, which `local`/`syscall` bodies
-  ignore). Bridges:
-  - `OpenWindow(nw, base)` → `Leargas_OpenWindow(nw)`
-  - `CloseWindow(w, base)` → `Leargas_CloseWindow(w)`
-  - `AddGadget(w, g, pos, base)` → `Leargas_AddGadget(w, g)` (pos: Phase 1
-    appends; honor position later) then re-render the gadget
-  - `RemoveGadget(w, g, base)` → `Leargas_RemoveGadget(w, g)`
-  - `ActivateGadget(g, w, req, base)` → `Leargas_SetActiveGadget(g)` +
-    render; return TRUE
-  - reserved `Open/Close/Expunge/ExtFunc` → hooks like
-    `src/croi/exec_lib/exec_hooks.c`
-- `src/croi/intuition_lib/CMakeLists.txt`: build a `cara_intuition_lib`
-  static lib from the bodies + trampolines.S + the generated
-  `intuition_vec.c` (whole-archive it into `croi` like
-  `cara_exec_lib`/`cara_kernel_tests` so the vec/trampolines aren't
-  GC'd). Link `cara_intuition_lib` into `croi` (`src/croi/CMakeLists.txt`).
-
-**Done — I3 (`d2e8594`, construct + smoke):**
-- At boot in `entry.c` (after exec.library's `Croi_MakeLibrary`): alloc
-  the intuition base in the shared heap, `Croi_MakeLibrary(intuition tags)`
-  with the generated `intuition_lib_vec[]`, and register so
-  `OpenLibrary("intuition.library")` resolves it.
-- A U-mode smoke (new `userintuition.elf` or extend `userexec`): set
-  `IntuitionBase = OpenLibrary("intuition.library", 0)`, `OpenWindow` a
-  window on the active screen, assert non-null, `CloseWindow`. Add a
-  `KERNEL_TEST` that spawns it and checks the exit code.
+1. **The op bracket.** Every public mutator is exactly one
+   `carafs_op_begin → mutate → carafs_op_commit` (abort on any error).
+   begin = writability check + durable CLEAN→DIRTY flip + txn_begin +
+   in-memory superblock snapshot; commit = `carafs_sb_write` (block 0
+   joins the txn) + txn_commit; abort = txn_abort + sb restore.
+   Pre-F4, txn_commit writes the txn's blocks home and flushes — F4
+   replaces that body with a WAL append.
+2. **Metadata vs data in the cache.** Metadata blocks join the open
+   txn via `carafs_txn_dirty` (TXN entries are never evicted; abort
+   drops them wholesale). File **data** blocks are plain dirty
+   entries (`carafs_cache_dirty`) written back on eviction, sync, or
+   unmount — they never consume txn capacity
+   (`CARAFS_TXN_MAX_BLOCKS` is 64). F4's ordered-data discipline will
+   sequence data before commit.
+3. **Allocator ↔ cache invariant.** `alloc.c` invalidates every
+   granted block from the cache (`carafs_cache_invalidate`): a stale
+   cached image of a previously freed block must never satisfy a
+   later `CARAFS_GET_ZERO` hit. Don't remove this.
+4. **Verify-on-miss only.** Typed getters (cnode/AG/btree) check
+   magic + self-address always but crc only when `carafs_cache_get`
+   reports the data was freshly read from the bdev — a dirty cached
+   block legitimately has a stale crc until its `*_dirty` finalize
+   (`carafs_put_crc`) runs.
+5. **Inline extents have no file offsets.** The cnode's 16 inline
+   extents are concatenated runs; `start == 0` encodes a hole (block
+   0 is the superblock, never a valid start); the last inline extent
+   is never a hole. The tree (`tree_root != 0`) keys by file offset
+   and encodes holes as absent keys; spilling drops hole runs. A file
+   is inline-data XOR extent-mapped, never both.
+6. **Generation tombstones.** Delete rewrites the freed cnode block
+   with generation+1 and link_count 0; create reads its granted block
+   and resumes a legible tombstone's sequence. Best-effort by design
+   — reuse as a data block destroys the tombstone.
+7. **Single-threaded by contract.** One mounter, no locks; at most a
+   handful of pins live at once (the cache floor is
+   `CARAFS_CACHE_MIN_BLOCKS` = 16). The Phase 3 home is an AmigaDOS
+   handler Gleas which serialises by construction.
 
 ---
 
-## 4. Clar's once-blocking gaps — ALL RESOLVED (historical)
+## 3. What's next: F3 — directories (then F4, F5)
 
-These were the gaps flagged before Clar was wired; all are now done:
+Per `docs/CARAFS.md` §6 / §3.6:
 
-1. ~~No boolean-gadget `IDCMP_GADGETUP`~~ → **LJ** (`865eb9f`):
-   `GACT_RELVERIFY` `BOOLGADGET` release posts `IDCMP_GADGETUP`.
-2. ~~Close gadget doesn't post `IDCMP_CLOSEWINDOW`~~ → **LI** (`c703e86`):
-   `Leargas_Window_CloseHitTest` + the close-window router.
-3. ~~Boot is one-shot; Clar needs a persistent event loop~~ → **B2/B3**
-   (`b1bf779`): the kernel input-pump task + the post-test demo block in
-   `entry.c` spawn the pump + Clar concurrently; B4 (`e36957f`) made the
-   pump actually deliver live HID.
-4. ~~Clar must `AllocMem` its own gadgets/StringInfo/buffer~~ → done in
-   `src/userland/clar.c`; also window UserPorts now live in the shared
-   heap (`e00a3c7`) so U-mode Clar can read `mp_SigBit`.
+- **Dirent flavour on the shared btree.** `btree.c` is currently
+  extent-flavoured throughout (`bt_get` hard-checks
+  `CARAFS_BT_EXTENT`; records are fixed 24 B at both levels). Dirs
+  keep the same node format and interior records but need
+  **variable-stride leaf records** (`CarafsDirent`, stride =
+  `Carafs_Align8(CARAFS_DIRENT_BASE + name_len)`) and the composite
+  key `(name_hash u64, collision_seq u8)` — that's `key_hi`/`key_lo`
+  in `CarafsBtInteriorRec`, already sized for it. Generalise the node
+  helpers rather than forking the file.
+- **Three directory sizes, transparently promoted**: INLINE_DIRENTS
+  item in the cnode → single leaf block → tree. Mirrors file.c's
+  escalation.
+- **Operations**: lookup, insert, remove, iterate — case-insensitive
+  via `Carafs_NameHash`/`Carafs_NameEq` (fold is ASCII-only, §3.5);
+  equal hashes get ascending `seq`, lookups compare folded names
+  within the run. Iteration order is key order; `ExNext()`-style
+  cursors are `(hash, seq)` pairs — stable under concurrent mutation.
+- **Cnode glue**: dirents carry `(cnode, type)`; the child's NAME
+  item and `parent_cnode` are set on link; `link_count` accounting
+  moves to the directory layer (`Carafs_CnodeCreate` seeds it at 1).
+  Hard links bump it; soft links are `CARAFS_T_SYMLINK` with a
+  SYMLINK_TARGET item. Directory `size_bytes` = entry count.
+- **The 10^6-entry scale test** asserts on `stat_bdev_reads` (the
+  counters on `CarafsMount` exist for this), not wall time. Expect
+  lookup = 3–4 block reads through a 2-level tree.
+- **fsck growth**: directory structure checks (dirent cnode ranges,
+  link counts vs dirents on a full walk) are fair game in F3.
 
-`docs/PHASE1_CLAR.md` has the original plan; the implementation took the
-"Clar is a U-mode Gleas via intuition LVOs" path with the drawer realised
-as a labelled `BOOLGADGET` (a real glyph is a polish item — see §1
-"What's next").
+Then **F4 — journal**: replace `carafs_txn_commit`'s body with a WAL
+append (DESC | images | COMMIT, chained CRC), replay on DIRTY mount,
+checkpoint, ordered-data flush discipline, and the crash-injection
+harness (record the write stream, replay every prefix, mount + fsck
+each — `docs/CARAFS.md` §4). **The on-disk format freezes after F4.**
+
+Then **F5 — kernel mount**: `Croi_Nvme_Flush` (NVMe Flush command,
+admin path exists), a `CarafsBdev` over `Croi_Nvme_*` (one FS block =
+block_size/512 LBAs), mount at boot when a CaraFS superblock is
+found, `KERNEL_TEST(carafs_mount)` + a write/reboot-persist smoke
+stage. The smoke harness already provisions an NVMe scratch image.
+
+Phase 2's success criterion: Clar's drawer is a CaraFS directory
+listing (replacing the hard-coded Bosca), edit → write → reboot →
+still there.
 
 ---
 
-## 5. Build / test / commit workflow
+## 4. Build / test / commit workflow
 
 **Two build dirs** (`CARA_TARGET` fixed per dir). The rv64 build needs
 the host-built `lvo-gen`; build host first, rv64 auto-detects it.
 
 ```bash
-# Host: tool + portable modules + unit tests
+# Host: tools + portable modules + unit tests
 cmake -S . -B build-host
-cmake --build build-host -j4
-(cd build-host && ctest)                 # 20/20 expected
+cmake --build build-host -j8
+ctest --test-dir build-host                       # 24/24 expected
 
 # RV64 kernel (auto-detects build-host/tools/lvo-gen/lvo-gen)
 cmake -S . -B build-rv64 -DCARA_TARGET=riscv64 \
       -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64.cmake
-cmake --build build-rv64 -j4             # -Werror; produces src/croi/croi.elf
+cmake --build build-rv64 -j8                      # -Werror; produces src/croi/croi.elf
 ```
 
-**The "green" gate before any commit** (the user's standing rule —
-commit automatically at the end of a green epic; see the project memory
+**The "green" gate before any commit** (the standing rule — commit
+automatically at the end of a green epic; project memory
 `commit-at-green-epic-end`):
 
 ```bash
-# 1. host unit tests
-(cd build-host && ctest)                                   # 20/20, 0 failed
-# 2. kernel boot smoke (MUST pass the -device flags; the harness does)
+ctest --test-dir build-host                                # 24/24, 0 failed
 bash tests/boot/smoke_qemu_kernel.sh "$(command -v qemu-system-riscv64)" \
      build-rv64/src/croi/croi.elf                          # "smoke_qemu_kernel: ok"
-# 3. format-check (uses Homebrew LLVM 22 clang-format)
 cmake --build build-host --target format-check             # PASS
 ```
 
 Gotchas:
-- **Run the kernel WITH USB devices** for an accurate test count:
-  `qemu-system-riscv64 -M virt -m 256 -nographic -bios default -kernel
-  build-rv64/src/croi/croi.elf -device qemu-xhci -device usb-kbd
-  -device usb-mouse`. Without them, the xHCI/PCI tests fail (2 failures)
-  — that's expected, not a regression. The smoke harness includes them.
-- **clang-format version skew**: the tree was reformatted to Homebrew
-  LLVM 22 (`/opt/homebrew/opt/llvm/bin/clang-format`). Format new/edited
-  C files with that exact binary. Keep cosmetic churn in a separate
-  `style:` commit (see project memory `clang-format-version-skew`).
-- The LSP diagnostics in-editor show `'cara/types.h' file not found`
-  etc. — that's the standalone LSP missing `-Iinclude`; ignore. The
-  CMake build has the include paths.
-- Commit style: subject `phase-N/<Epic>: <short>`, bullet body, end with
-  `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
+
+- **Run the kernel WITH its devices** for an accurate test count: the
+  xHCI tests need `-device qemu-xhci -device usb-kbd -device
+  usb-mouse`, the nvme tests need a `-device nvme,...` with a backing
+  image. The smoke harness wires all of it (including a throwaway
+  NVMe image); missing devices = those tests fail, which is expected,
+  not a regression. Full incantation: see `tests/boot/smoke_qemu_kernel.sh`.
+- **clang-format**: format with Homebrew LLVM 22's clang-format
+  (`cmake --build build-host --target format`); the tree was
+  reformatted to it. Keep cosmetic churn on *pre-existing* files in a
+  separate `style:` commit (project memory `clang-format-version-skew`).
+- The in-editor LSP shows `'cara/types.h' file not found` etc. —
+  standalone LSP missing `-Iinclude`; ignore. The CMake build has the
+  include paths.
+- Commit style: subject `phase-N/<Epic>: <short>`, bullet body, end
+  with `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.
   Commit to `main` (linear, trunk-based history).
-- **Do not commit** `amiga_docs/` (large reference PDFs, incl. the
-  Internet-Archive devcon PDF) or `CLAUDE.md` unless asked.
+- **Do not commit** `amiga_docs/` (large reference PDFs) or
+  `CLAUDE.md` unless asked.
+
+---
+
+## 5. Phase 1 demo (kept for reference)
+
+The Phase 1 success criterion is met live: boot, see the Workbench
+desktop, click the "Bosca" drawer → child window with a text Inntin →
+type → captured. To see it on macOS:
+
+```bash
+qemu-system-riscv64 -M virt -m 256 -display cocoa -serial stdio \
+  -kernel build-rv64/src/croi/croi.elf \
+  -device qemu-xhci -device usb-kbd -device usb-mouse -device ramfb
+```
+
+Click the drawer, type into the field (`Cmd` releases the mouse
+grab). The `clar_smoke` KERNEL_TEST drives the same interaction
+headlessly. A `qemu-virt-clar` cmake target for this incantation is
+still an open polish item, along with window dragging, desktop
+re-focus after child close, a real drawer glyph, and key-up/N-key
+rollover in the input pump.
 
 ---
 
 ## 6. Quick orientation map
 
-- `docs/ARCHITECTURE.md` — the design (SASOS §4, Kobj/Handles §5, IPC
-  §6, libraries/LVO §7). `docs/LVO.md` — the library-bridge model.
-- `include/cara/shared.h`, `src/croi/mm/shared.c` — SASOS shared heap.
-- `src/croi/leargas/` — the window system (Subgoal 6).
-- `src/croi/exec_lib/` + `tools/lvo-gen/exec.conf` — the reference the
-  intuition bridge mirrors (`trampolines.S`, `make_library.c`,
-  `image.c`, `exec_hooks.c`, `mem.c`).
-- `src/croi/intuition_lib/` + `tools/lvo-gen/intuition.conf` — the
-  in-progress intuition bridge.
-- `src/croi/syscall/syscall.c` — the `a7` dispatcher (add arms here).
-- `include/cara/sysno.h` — syscall numbers (add intuition's here).
-- `src/croi/entry.c` — boot path (MakeLibrary calls, Leargas demo,
-  where Clar gets spawned).
-- `src/croi/croi.lds` — linker layout (the `.exec_lib` region to extend).
-- `src/croi/tests/` — in-kernel `KERNEL_TEST()`s; `tests/unit/` — host
-  unit tests; `tests/boot/smoke_qemu_kernel.sh` — the boot gate.
+- `docs/CARAFS.md` — the filesystem design + epic plan (current work).
+- `docs/ARCHITECTURE.md` — system design (SASOS §4, Kobj/Handles §5,
+  IPC §6, libraries/LVO §7). `docs/LVO.md` — the library-bridge model.
+- `include/cara/carafs.h` — CaraFS on-disk format + public API.
+- `src/logaic/carafs/` — the CaraFS core (see §2 for the file map);
+  `internal.h` is the internal seam catalogue.
+- `tools/carafs/` — hosted mkfs.carafs / fsck.carafs.
+- `tests/unit/test_carafs_*.c` — format / mkfs-fsck / file suites.
+- `include/cara/nvme.h`, `src/croi/nvme/` — the NVMe driver (F5 binds
+  CaraFS to it).
+- `src/croi/leargas/`, `src/userland/clar.c` — the Phase 1 window
+  system + Workbench Gleas (Phase 2's success criterion touches Clar).
+- `src/croi/tests/` — in-kernel `KERNEL_TEST()`s; `tests/boot/` — the
+  boot smoke gate.
