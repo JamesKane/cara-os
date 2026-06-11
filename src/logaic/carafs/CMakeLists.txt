@@ -8,6 +8,10 @@
 
 add_library(cara_carafs STATIC
     format.c
+    bdev.c
+    cache.c
+    mkfs.c
+    fsck.c
 )
 
 if(CARA_TARGET STREQUAL "riscv64")

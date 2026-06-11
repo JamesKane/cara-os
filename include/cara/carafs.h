@@ -323,4 +323,136 @@ static_assert(sizeof(struct CarafsXattrBlock) == 32);
     return (n + 7u) & ~7u;
 }
 
+// ---- Block device seam (CARAFS.md §4) ----------------------------------------
+//
+// One bdev block == one filesystem block: whoever constructs the bdev
+// does the LBA math (the kernel NVMe binding maps one FS block to
+// block_size/512 LBAs; the host file binding maps it to a file
+// offset). The core does no I/O except through these calls.
+
+struct CarafsBdev {
+    void *ctx;
+    u32 block_size; // == the volume's filesystem block size
+    u64 n_blocks;
+    int (*read)(void *ctx, u64 block, u32 n, void *buf);
+    int (*write)(void *ctx, u64 block, u32 n, const void *buf);
+    int (*flush)(void *ctx); // durability barrier (NVMe Flush / fsync)
+};
+
+// Memory-backed bdev — the unit-test workhorse (a 16 MiB volume is
+// just a 16 MiB host allocation; also usable from kernel tests).
+// `mem` must hold n_blocks × block_size bytes; flush is a no-op.
+struct CarafsMemBdev {
+    u8 *mem;
+    u32 block_size;
+    u64 n_blocks;
+};
+void Carafs_MemBdev_Init(struct CarafsBdev *out, struct CarafsMemBdev *state, void *mem,
+                         u32 block_size, u64 n_blocks);
+
+// ---- mkfs / fsck (epic F1) ---------------------------------------------------
+
+struct CarafsMkfsOpts {
+    u32 block_size_log2; // 0 → CARAFS_DEF_BLOCK_LOG2
+    const void *name;    // volume name (UTF-8); required
+    u32 name_len;        // 1..63
+    const u8 *uuid;      // 16 bytes, or nullptr → derived from name+now
+    u64 now_ns;          // CaraFS-epoch timestamp for created_ns
+};
+
+// Build an empty volume on the bdev: superblock, journal (JSB at
+// journal_start, log idle), AG bitmap chain, empty root directory
+// cnode, backup superblock. `scratch` must hold >= 1 filesystem
+// block (the core never allocates). Returns CARA_EINVAL for bad
+// geometry / name / scratch, CARA_ERANGE if the device is too small
+// (~1 MiB + journal), or the bdev's error code on I/O failure.
+[[nodiscard]] int Carafs_Mkfs(struct CarafsBdev *bdev, const struct CarafsMkfsOpts *opts,
+                              void *scratch, usize scratch_bytes);
+
+struct CarafsFsckReport {
+    u32 errors;
+    u32 warnings;
+    u64 blocks_checked;
+    // First error, as a short static string + the block it hit.
+    const char *first_error; // nullptr if errors == 0
+    u64 first_error_block;
+};
+
+// Read-only structural check: superblock (+ backup), JSB, every AG
+// header (magic / crc / self-address / exact free_count vs popcount),
+// root cnode sanity. Grows cross-checks in later epics. `scratch`
+// must hold at least 2 filesystem blocks. Returns CARA_EOK when the
+// volume was checkable (rep->errors may still be nonzero); CARA_EIO /
+// CARA_EINVAL when it couldn't even read the superblock.
+[[nodiscard]] int Carafs_Fsck(struct CarafsBdev *bdev, void *scratch, usize scratch_bytes,
+                              struct CarafsFsckReport *rep);
+
+// ---- Mount (epics F2+) -------------------------------------------------------
+
+// Cache entry flags (internal, exposed for sizing math only).
+constexpr u32 CARAFS_CACHE_MIN_BLOCKS = 16;
+constexpr u32 CARAFS_TXN_MAX_BLOCKS = 64;
+
+struct CarafsCacheEnt {
+    u64 block; // ~0ull = empty slot
+    u32 flags;
+    u32 pins;
+    u32 lru_prev, lru_next;
+    u32 hash_next; // bucket chain, ~0u = end
+    u32 rsvd;
+    u8 *data;
+};
+
+struct CarafsMountOpts {
+    void *cache_mem;   // caller-owned arena; the core never allocates
+    usize cache_bytes; // must fit >= CARAFS_CACHE_MIN_BLOCKS blocks + overhead
+    bool readonly;
+    u64 (*now_ns)(void *ctx); // CaraFS-epoch clock; nullptr → timestamps stay 0
+    void *now_ctx;
+};
+
+struct CarafsMount {
+    struct CarafsBdev *bdev;
+    u32 block_size;
+    bool readonly;
+    bool mounted;
+    struct CarafsSuperblock sb; // in-memory copy; block 0 rewritten via txns
+
+    // Block cache (carved from the mount arena).
+    u32 n_ents;
+    struct CarafsCacheEnt *ents;
+    u32 *buckets;
+    u32 n_buckets;
+    u32 lru_head, lru_tail;
+    u8 *block_mem;
+
+    // Current transaction (metadata blocks awaiting commit).
+    bool in_txn;
+    u32 txn_n;
+    u64 txn_blocks[CARAFS_TXN_MAX_BLOCKS];
+
+    // Clock.
+    u64 (*now_ns)(void *ctx);
+    void *now_ctx;
+
+    // Stats — the million-entry test asserts on block reads, not time.
+    u64 stat_bdev_reads;
+    u64 stat_bdev_writes;
+    u64 stat_cache_hits;
+};
+
+// Mount: validate superblock (magic, crc, version, incompat mask,
+// geometry vs bdev), set state DIRTY on the first write (not at
+// mount). Journal replay lands in F4. Returns CARA_EBADMAGIC /
+// CARA_EBADVERSION / CARA_EINVAL / CARA_ENOMEM (arena too small).
+[[nodiscard]] int Carafs_Mount(struct CarafsMount *m, struct CarafsBdev *bdev,
+                               const struct CarafsMountOpts *opts);
+
+// Flush everything, mark the superblock CLEAN, detach.
+[[nodiscard]] int Carafs_Unmount(struct CarafsMount *m);
+
+// Write back all dirty metadata + flush (durability point without
+// unmounting).
+[[nodiscard]] int Carafs_Sync(struct CarafsMount *m);
+
 #endif

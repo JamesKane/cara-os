@@ -138,6 +138,13 @@ include(CaraLvoGen)
 # (gated inside src/CMakeLists.txt by CARA_TARGET).
 add_subdirectory(src)
 
+# tools/carafs: hosted mkfs.carafs / fsck.carafs shells around the
+# shared cara_carafs core (Phase 2 Subgoal 4). After src/ so the core
+# library target exists.
+if(CARA_TARGET STREQUAL "host")
+    add_subdirectory(tools/carafs)
+endif()
+
 # --- Phase 9 / aistreoir aggregator -----------------------------------------
 # After every cara_lvo_gen_library() call has appended its fragment to the
 # pending-list, aggregate them into the single
