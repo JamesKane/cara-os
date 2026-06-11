@@ -36,9 +36,21 @@ enum : u32 {
 };
 
 // Look up / load `block`, pin it, hand back its data pointer. Pairs
-// with cache_put. Pinned entries never move or evict.
-[[nodiscard]] int carafs_cache_get(struct CarafsMount *m, u64 block, u32 mode, u8 **data_out);
+// with cache_put. Pinned entries never move or evict. *fresh_out
+// (nullable) reports whether the data was (re)loaded from the bdev
+// this call — typed getters verify magic/crc only then.
+[[nodiscard]] int carafs_cache_get(struct CarafsMount *m, u64 block, u32 mode, u8 **data_out,
+                                   bool *fresh_out);
 void carafs_cache_put(struct CarafsMount *m, u64 block);
+
+// Mark a cached block dirty WITHOUT joining the open txn — file data
+// blocks only (lazy writeback; metadata goes through txn_dirty).
+void carafs_cache_dirty(struct CarafsMount *m, u64 block);
+
+// Drop an unpinned, non-txn entry. Called by the allocator on every
+// block it grants: a stale cached image of a previously freed block
+// must not satisfy a later CARAFS_GET_ZERO hit.
+void carafs_cache_invalidate(struct CarafsMount *m, u64 block);
 
 // Write back every dirty entry + bdev flush.
 [[nodiscard]] int carafs_cache_sync(struct CarafsMount *m);
@@ -59,10 +71,85 @@ void carafs_txn_abort(struct CarafsMount *m);
 // any other metadata write of this mount touches disk.
 [[nodiscard]] int carafs_mark_dirty(struct CarafsMount *m);
 
+// Mutating-operation bracket: begin = writability check +
+// mark_dirty + txn_begin + sb snapshot; commit = sb_write +
+// txn_commit; abort = txn_abort + sb restore. Every public mutator
+// is exactly one bracket.
+[[nodiscard]] int carafs_op_begin(struct CarafsMount *m);
+[[nodiscard]] int carafs_op_commit(struct CarafsMount *m);
+void carafs_op_abort(struct CarafsMount *m);
+
+// ---- Allocator (alloc.c) -----------------------------------------------------
+
+// Allocate up to `want` contiguous blocks: first free run from the
+// rotor of the AG containing `hint` (0 → AG 0), round-robin to the
+// other AGs when full. Grants a single run (callers loop); updates
+// the AG header (txn) and the advisory sb free count, and
+// invalidates stale cache entries for the granted blocks. Returns
+// CARA_ENOMEM when the volume is full.
+[[nodiscard]] int carafs_alloc_extent(struct CarafsMount *m, u64 hint, u32 want, u64 *start_out,
+                                      u32 *count_out);
+[[nodiscard]] int carafs_alloc_block(struct CarafsMount *m, u64 hint, u64 *block_out);
+[[nodiscard]] int carafs_free_extent(struct CarafsMount *m, u64 start, u32 count);
+
+// ---- Cnodes (cnode.c) --------------------------------------------------------
+
+// Pin + verify a cnode block (magic, crc-on-load, self-address).
+// CARA_ENOENT for a tombstone (link_count 0), CARA_EBADMAGIC for a
+// non-cnode. Pairs with cnode_put; dirty = re-crc + txn_dirty.
+[[nodiscard]] int carafs_cnode_get(struct CarafsMount *m, u64 block, struct CarafsCnode **out);
+void carafs_cnode_put(struct CarafsMount *m, struct CarafsCnode *cn);
+[[nodiscard]] int carafs_cnode_dirty(struct CarafsMount *m, struct CarafsCnode *cn);
+
+// TLV item area. resize creates/grows/shrinks `kind` in place
+// (growth zero-filled, later records repacked) and returns the
+// payload; CARA_EOVERFLOW when the area is full.
+[[nodiscard]] u8 *carafs_item_find(struct CarafsCnode *cn, u32 bs, u16 kind, u16 *len_out);
+[[nodiscard]] int carafs_item_resize(struct CarafsCnode *cn, u32 bs, u16 kind, u16 new_len,
+                                     u8 **payload_out);
+void carafs_item_remove(struct CarafsCnode *cn, u32 bs, u16 kind);
+[[nodiscard]] u32 carafs_item_room(const struct CarafsCnode *cn, u32 bs);
+
+// ---- Extent B+tree (btree.c) -------------------------------------------------
+//
+// CARAFS_BT_EXTENT flavour: fixed 24-byte records at every level
+// (CarafsExtentRec leaves, CarafsBtInteriorRec interior), keyed by
+// file block offset. F3 grows the DIR flavour onto the same nodes.
+
+// Move the cnode's inline extents into a fresh tree root leaf
+// (holes — start == 0 runs — are dropped; the tree encodes holes as
+// absent keys). Sets cn->tree_root, clears the inline array.
+[[nodiscard]] int carafs_etree_spill(struct CarafsMount *m, struct CarafsCnode *cn);
+
+// Greatest record with file_off <= fblk / smallest with
+// file_off > fblk. CARA_ENOTFOUND when no such record.
+[[nodiscard]] int carafs_etree_floor(struct CarafsMount *m, u64 root, u64 fblk,
+                                     struct CarafsExtentRec *out);
+[[nodiscard]] int carafs_etree_next(struct CarafsMount *m, u64 root, u64 fblk,
+                                    struct CarafsExtentRec *out);
+
+// Insert a record (merges with a physically-adjacent predecessor;
+// splits leaves/interiors and grows the root as needed — may update
+// cn->tree_root).
+[[nodiscard]] int carafs_etree_insert(struct CarafsMount *m, struct CarafsCnode *cn,
+                                      const struct CarafsExtentRec *rec);
+
+// Free every extent the tree maps plus the tree's own node blocks;
+// clears cn->tree_root.
+[[nodiscard]] int carafs_etree_free_all(struct CarafsMount *m, struct CarafsCnode *cn);
+
 // Geometry helpers shared by mkfs / fsck / allocator.
 [[nodiscard]] static inline u32 carafs_ag_size(u32 block_size)
 {
     return 8u * (block_size - CARAFS_AG_BITS_OFF);
+}
+
+// Recompute and store a metadata block's crc — call after the last
+// mutation, before txn_dirty / bdev write.
+static inline void carafs_put_crc(u8 *block, u32 bs, u32 crc_off)
+{
+    u32 crc = Carafs_BlockCrc(block, bs, crc_off);
+    memcpy(block + crc_off, &crc, 4);
 }
 
 struct CarafsGeometry {

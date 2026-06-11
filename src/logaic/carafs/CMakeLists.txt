@@ -12,6 +12,11 @@ add_library(cara_carafs STATIC
     cache.c
     mkfs.c
     fsck.c
+    mount.c
+    alloc.c
+    cnode.c
+    btree.c
+    file.c
 )
 
 if(CARA_TARGET STREQUAL "riscv64")

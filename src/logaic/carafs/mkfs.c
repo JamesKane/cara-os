@@ -11,12 +11,6 @@
 
 #include "internal.h"
 
-static void put_block_crc(u8 *block, u32 bs, u32 crc_off)
-{
-    u32 crc = Carafs_BlockCrc(block, bs, crc_off);
-    memcpy(block + crc_off, &crc, 4);
-}
-
 static void fill_superblock(struct CarafsSuperblock *sb, const struct CarafsGeometry *g,
                             const struct CarafsMkfsOpts *opts, u64 free_blocks)
 {
@@ -89,7 +83,7 @@ static void fill_superblock(struct CarafsSuperblock *sb, const struct CarafsGeom
     jsb->magic = CARAFS_MAGIC_JSB;
     jsb->seq = 1;
     jsb->head = 1;
-    put_block_crc(blk, bs, offsetof(struct CarafsJsb, crc32c));
+    carafs_put_crc(blk, bs, offsetof(struct CarafsJsb, crc32c));
     rc = bdev->write(bdev->ctx, g.journal_start, 1, blk);
     if (rc != CARA_EOK) {
         return rc;
@@ -123,7 +117,7 @@ static void fill_superblock(struct CarafsSuperblock *sb, const struct CarafsGeom
         agh->free_count = covered - used;
         agh->rotor = 0;
         free_total += agh->free_count;
-        put_block_crc(blk, bs, offsetof(struct CarafsAgHeader, crc32c));
+        carafs_put_crc(blk, bs, offsetof(struct CarafsAgHeader, crc32c));
         rc = bdev->write(bdev->ctx, start, 1, blk);
         if (rc != CARA_EOK) {
             return rc;
@@ -141,7 +135,7 @@ static void fill_superblock(struct CarafsSuperblock *sb, const struct CarafsGeom
     root->created_ns = opts->now_ns;
     root->modified_ns = opts->now_ns;
     root->changed_ns = opts->now_ns;
-    put_block_crc(blk, bs, offsetof(struct CarafsCnode, crc32c));
+    carafs_put_crc(blk, bs, offsetof(struct CarafsCnode, crc32c));
     rc = bdev->write(bdev->ctx, g.root_cnode, 1, blk);
     if (rc != CARA_EOK) {
         return rc;
@@ -151,7 +145,7 @@ static void fill_superblock(struct CarafsSuperblock *sb, const struct CarafsGeom
     memset(blk, 0, bs);
     struct CarafsSuperblock *sb = (struct CarafsSuperblock *)blk;
     fill_superblock(sb, &g, opts, free_total);
-    put_block_crc(blk, bs, offsetof(struct CarafsSuperblock, crc32c));
+    carafs_put_crc(blk, bs, offsetof(struct CarafsSuperblock, crc32c));
     rc = bdev->write(bdev->ctx, g.backup_sb, 1, blk);
     if (rc != CARA_EOK) {
         return rc;

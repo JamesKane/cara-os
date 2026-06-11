@@ -134,15 +134,18 @@ static int ent_obtain(struct CarafsMount *m, u32 *idx_out)
     return CARA_ENOMEM;
 }
 
-[[nodiscard]] int carafs_cache_get(struct CarafsMount *m, u64 block, u32 mode, u8 **data_out)
+[[nodiscard]] int carafs_cache_get(struct CarafsMount *m, u64 block, u32 mode, u8 **data_out,
+                                   bool *fresh_out)
 {
     if (block >= m->bdev->n_blocks) {
         return CARA_ERANGE;
     }
+    bool fresh = false;
     u32 idx = index_find(m, block);
     if (idx != CARAFS_ENT_NONE) {
         m->stat_cache_hits++;
     } else {
+        fresh = true;
         int rc = ent_obtain(m, &idx);
         if (rc != CARA_EOK) {
             return rc;
@@ -166,6 +169,9 @@ static int ent_obtain(struct CarafsMount *m, u32 *idx_out)
     lru_unlink(m, idx);
     lru_push_mru(m, idx);
     *data_out = e->data;
+    if (fresh_out) {
+        *fresh_out = fresh;
+    }
     return CARA_EOK;
 }
 
@@ -175,6 +181,29 @@ void carafs_cache_put(struct CarafsMount *m, u64 block)
     if (idx != CARAFS_ENT_NONE && m->ents[idx].pins > 0) {
         m->ents[idx].pins--;
     }
+}
+
+void carafs_cache_dirty(struct CarafsMount *m, u64 block)
+{
+    u32 idx = index_find(m, block);
+    if (idx != CARAFS_ENT_NONE) {
+        m->ents[idx].flags |= CARAFS_ENT_DIRTY;
+    }
+}
+
+void carafs_cache_invalidate(struct CarafsMount *m, u64 block)
+{
+    u32 idx = index_find(m, block);
+    if (idx == CARAFS_ENT_NONE) {
+        return;
+    }
+    struct CarafsCacheEnt *e = &m->ents[idx];
+    if (e->pins > 0 || (e->flags & CARAFS_ENT_TXN)) {
+        return; // in active use — caller logic error; never drop those
+    }
+    index_remove(m, idx);
+    e->block = CARAFS_BLOCK_NONE;
+    e->flags = 0;
 }
 
 [[nodiscard]] int carafs_cache_sync(struct CarafsMount *m)

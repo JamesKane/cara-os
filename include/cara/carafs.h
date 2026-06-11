@@ -430,6 +430,7 @@ struct CarafsMount {
     bool in_txn;
     u32 txn_n;
     u64 txn_blocks[CARAFS_TXN_MAX_BLOCKS];
+    struct CarafsSuperblock sb_at_txn; // snapshot; restored on abort
 
     // Clock.
     u64 (*now_ns)(void *ctx);
@@ -454,5 +455,53 @@ struct CarafsMount {
 // Write back all dirty metadata + flush (durability point without
 // unmounting).
 [[nodiscard]] int Carafs_Sync(struct CarafsMount *m);
+
+// ---- Cnodes and file content (epic F2) ---------------------------------------
+//
+// A cnode id IS its block number (§3.4). F2 exposes anonymous cnode
+// and file-content operations; F3's directory layer links names to
+// them. Every mutating call brackets its own transaction and is
+// durable when it returns (pre-F4 commit = write home + flush).
+
+struct CarafsStat {
+    u64 cnode;
+    u64 generation;
+    u16 type; // CARAFS_T_*
+    u32 link_count;
+    u64 size_bytes;
+    u64 blocks_used;
+    u64 parent_cnode;
+    u64 created_ns;
+    u64 modified_ns;
+    u64 changed_ns;
+    u32 fib_protection;
+    u32 flags;
+};
+
+// Allocate and initialise a cnode of `type`. `hint` is a block
+// number steering AG locality (0 → volume start); F3 passes the
+// parent directory's cnode. link_count starts at 1 — real link
+// accounting belongs to the directory layer.
+[[nodiscard]] int Carafs_CnodeCreate(struct CarafsMount *m, u16 type, u64 hint, u64 *cnode_out);
+
+// Free the cnode and all its storage (inline data, extents, extent
+// tree). The block is rewritten as a tombstone — generation bumped,
+// link_count 0 — so stale references are detectable (best-effort:
+// reuse as a data block destroys the tombstone).
+[[nodiscard]] int Carafs_CnodeDelete(struct CarafsMount *m, u64 cnode);
+
+// CARA_ENOENT for a tombstone, CARA_EBADMAGIC for a block that is
+// not a valid cnode.
+[[nodiscard]] int Carafs_CnodeStat(struct CarafsMount *m, u64 cnode, struct CarafsStat *st);
+
+// File content. Read returns min(len, size - off) bytes via
+// *read_out (0 at or past EOF); holes and UNWRITTEN extents read as
+// zeros. Write extends the file (sparse when off > size), promoting
+// inline data → inline extents → extent tree transparently; a
+// failed write aborts its whole transaction.
+[[nodiscard]] int Carafs_FileRead(struct CarafsMount *m, u64 cnode, u64 off, void *buf, usize len,
+                                  usize *read_out);
+[[nodiscard]] int Carafs_FileWrite(struct CarafsMount *m, u64 cnode, u64 off, const void *buf,
+                                   usize len);
 
 #endif
