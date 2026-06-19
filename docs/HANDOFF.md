@@ -12,23 +12,25 @@
 ## 1. Where we are
 
 **Phase 1 shipped** (see §5 for the live demo recipe). **Phase 2 is in
-flight**: the NVMe driver and the CaraFS core through epic F2 are
-done; F3 (directories) is next.
+flight**: the NVMe driver and the CaraFS core through epic F3 are
+done; F4 (journal) is next.
 
 Recent commits (newest first), all on `main`:
 
 ```
+0af45f8 phase-2/F3    CaraFS directories — inline→leaf→tree, links, scale
 591d1d3 phase-2/F2    CaraFS cnodes, files, allocator
 a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 16b5265 phase-2/F0    CaraFS format foundation
 b0463ae docs          CaraFS design (Phase 2 Subgoal 2)
 5cb4c0c phase-2/N1-N5 NVMe driver — probe to write/readback under QEMU
 21e8774 docs          session handoff (Phase 1 close-out)
-e36957f phase-1/B4    live HID works — persistent-transfer xHCI polling
 ```
 
-Status: everything green — host ctest **24/24**, in-kernel tests
+Status: everything green — host ctest **25/25**, in-kernel tests
 **25 passed / 0 failed**, QEMU boot smoke ok, `format-check` clean.
+(The new `test_carafs_dir` includes the 10^6-entry scale test, so the
+host suite now runs ~40 s.)
 
 ### Phase 2 so far
 
@@ -126,39 +128,47 @@ Per-file map of `src/logaic/carafs/`:
 
 ---
 
-## 3. What's next: F3 — directories (then F4, F5)
+## 3. What's next: F4 — journal (then F5)
 
-Per `docs/CARAFS.md` §6 / §3.6:
+### F3 shipped (`0af45f8`) — directories
 
-- **Dirent flavour on the shared btree.** `btree.c` is currently
-  extent-flavoured throughout (`bt_get` hard-checks
-  `CARAFS_BT_EXTENT`; records are fixed 24 B at both levels). Dirs
-  keep the same node format and interior records but need
-  **variable-stride leaf records** (`CarafsDirent`, stride =
-  `Carafs_Align8(CARAFS_DIRENT_BASE + name_len)`) and the composite
-  key `(name_hash u64, collision_seq u8)` — that's `key_hi`/`key_lo`
-  in `CarafsBtInteriorRec`, already sized for it. Generalise the node
-  helpers rather than forking the file.
-- **Three directory sizes, transparently promoted**: INLINE_DIRENTS
-  item in the cnode → single leaf block → tree. Mirrors file.c's
-  escalation.
-- **Operations**: lookup, insert, remove, iterate — case-insensitive
-  via `Carafs_NameHash`/`Carafs_NameEq` (fold is ASCII-only, §3.5);
-  equal hashes get ascending `seq`, lookups compare folded names
-  within the run. Iteration order is key order; `ExNext()`-style
-  cursors are `(hash, seq)` pairs — stable under concurrent mutation.
-- **Cnode glue**: dirents carry `(cnode, type)`; the child's NAME
-  item and `parent_cnode` are set on link; `link_count` accounting
-  moves to the directory layer (`Carafs_CnodeCreate` seeds it at 1).
-  Hard links bump it; soft links are `CARAFS_T_SYMLINK` with a
-  SYMLINK_TARGET item. Directory `size_bytes` = entry count.
-- **The 10^6-entry scale test** asserts on `stat_bdev_reads` (the
-  counters on `CarafsMount` exist for this), not wall time. Expect
-  lookup = 3–4 block reads through a 2-level tree.
-- **fsck growth**: directory structure checks (dirent cnode ranges,
-  link counts vs dirents on a full walk) are fair game in F3.
+The directory layer is live; the internals a fresh session needs:
 
-Then **F4 — journal**: replace `carafs_txn_commit`'s body with a WAL
+- **Shared btree is now two-flavour** (`btree.c`). The node helpers
+  (`bt_get`/`bt_new`/`bt_idescend`/`node_min_key`/`node_split_fixed`)
+  take a `flavour` and a **composite key** `(hi, lo)`; the EXTENT tree
+  is the degenerate `(file_off, 0)` case. The old per-insert "carry +
+  separate separator repair" pair is replaced by one integrated upward
+  pass, **`bt_propagate`**, that fixes subtree-minimum separators *and*
+  threads split-carries to the root in a single walk — this is what
+  makes interior splits in deep trees correct (the extent suite never
+  exercised them; the 10^6 dir test does). Touch `bt_propagate` with
+  care: both flavours' inserts/removes depend on it.
+- **DIR leaves are variable-stride** `CarafsDirent` keyed by
+  `(name_hash, collision_seq)`. `carafs_dtree_*` (scan, lookup, next,
+  insert, remove, spill, free_all) live in `btree.c`; the equal-hash
+  run scan crosses leaves via re-descend (collisions are negligible but
+  handled). Remove collapses emptied nodes; there's **no borrow/merge
+  rebalancing** of partially-full nodes (a deliberate Phase-2 scope cut
+  — space refills, and dir delete frees everything via free_all).
+- **`dir.c` is the layer**: inline `INLINE_DIRENTS` item → single leaf
+  → tree promotion (mirrors `file.c`); public
+  `Carafs_DirLookup/Create/Symlink/Link/Remove/Next` + `SymlinkRead`;
+  cnode glue (NAME item, `parent_cnode`, `link_count` refcounting,
+  empty-dir `ENOTEMPTY`). Directory `size_bytes` = entry count.
+- **cnode.c** now exposes `carafs_cnode_alloc` / `carafs_cnode_free_locked`
+  (op-bracket-free) so `dir.c` links a child + its dirent in one txn.
+- **fsck** walks the root directory (ranges, target type, subdir parent
+  linkage). A *full recursive* walk with link-count reconciliation is
+  still open — fair game in F4+.
+- **Collision/seq path is effectively untested**: forging two names
+  with the same FNV-1a-64 hash is infeasible, so the `seq`/equal-hash-run
+  code is exercised only by construction, not by a test. If F4 touches
+  it, reason carefully.
+
+### F4 — journal (the current epic)
+
+Replace `carafs_txn_commit`'s body with a WAL
 append (DESC | images | COMMIT, chained CRC), replay on DIRTY mount,
 checkpoint, ordered-data flush discipline, and the crash-injection
 harness (record the write stream, replay every prefix, mount + fsck
