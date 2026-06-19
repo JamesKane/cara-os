@@ -116,6 +116,11 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_FreeMem:
         Croi_FreeMem_Impl((APTR)(uptr)a0, (ULONG)a1);
         return 0;
+    case SYS_AllocVec:
+        return (i64)(uptr)Croi_AllocVec_Impl((ULONG)a0, (ULONG)a1);
+    case SYS_FreeVec:
+        Croi_FreeVec_Impl((APTR)(uptr)a0);
+        return 0;
 
     // ---- exec.library signals ----
     case SYS_Wait:

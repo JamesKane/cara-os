@@ -22,6 +22,8 @@
 
 APTR Croi_AllocMem_Impl(ULONG size, ULONG flags);
 void Croi_FreeMem_Impl(APTR addr, ULONG size);
+APTR Croi_AllocVec_Impl(ULONG size, ULONG flags);
+void Croi_FreeVec_Impl(APTR mem);
 
 // ---- Signals --------------------------------------------------------
 

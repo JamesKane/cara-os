@@ -45,6 +45,8 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_CloseLibrary,    SYS_CloseLibrary
 // ---- Memory ----
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AllocMem,        SYS_AllocMem
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_FreeMem,         SYS_FreeMem
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AllocVec,        SYS_AllocVec
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_FreeVec,         SYS_FreeVec
 
 // ---- Signals ----
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Wait,            SYS_Wait

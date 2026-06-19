@@ -194,6 +194,27 @@ int main(void)
         return (int)USEREXEC_EXIT_LIST_FAIL;
     }
 
+    // 4b. AllocVec/FreeVec — size-tracked alloc, freed by pointer alone.
+    UBYTE *vec = (UBYTE *)AllocVec(100, MEMF_CLEAR);
+    if (!vec) {
+        CloseLibrary(lib);
+        return (int)USEREXEC_EXIT_ALLOC_FAILED;
+    }
+    for (int i = 0; i < 100; i++) {
+        if (vec[i] != 0) {
+            FreeVec(vec);
+            CloseLibrary(lib);
+            return (int)USEREXEC_EXIT_NOT_ZEROED;
+        }
+        vec[i] = (UBYTE)(i + 1);
+    }
+    if (vec[0] != 1 || vec[99] != 100) {
+        FreeVec(vec);
+        CloseLibrary(lib);
+        return (int)USEREXEC_EXIT_NOT_ZEROED;
+    }
+    FreeVec(vec);
+
     // 5. Balance the open. Note: libcara also opened exec.library
     //    at startup, so OpenCnt is still > 0 after this close.
     CloseLibrary(lib);

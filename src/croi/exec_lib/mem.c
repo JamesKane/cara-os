@@ -91,3 +91,31 @@ void Croi_FreeMem_Impl(APTR addr, ULONG size)
         Croi_Free(addr);
     }
 }
+
+// V36+ AllocVec/FreeVec: AllocMem plus an 8-byte size header so FreeVec
+// needs only the pointer. The header also keeps the returned pointer
+// 8-aligned. MEMF_CLEAR zeroes the whole block including the header,
+// which we overwrite — the user region stays cleared.
+APTR Croi_AllocVec_Impl(ULONG size, ULONG flags)
+{
+    if (size == 0 || size > 0xFFFFFFF0u) {
+        return nullptr;
+    }
+    ULONG total = size + 8;
+    void *base = Croi_AllocMem_Impl(total, flags);
+    if (!base) {
+        return nullptr;
+    }
+    *(u64 *)base = total;
+    return (APTR)((u8 *)base + 8);
+}
+
+void Croi_FreeVec_Impl(APTR mem)
+{
+    if (!mem) {
+        return;
+    }
+    u8 *base = (u8 *)mem - 8;
+    u64 total = *(u64 *)base;
+    Croi_FreeMem_Impl(base, (ULONG)total);
+}

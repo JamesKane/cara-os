@@ -54,6 +54,10 @@ enum {
     // §4). A Phase-2 stopgap until dos.library (Phase 3) owns file I/O.
     SYS_Fs_Read = 21,
     SYS_Fs_Write = 22,
+
+    // Phase 3 L1 — more exec.library (docs/PHASE3.md).
+    SYS_AllocVec = 23,
+    SYS_FreeVec = 24,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -85,6 +89,10 @@ enum {
 // Phase 2 Subgoal 3 — thin CaraFS access for Clar.
 #define SYS_Fs_Read 21
 #define SYS_Fs_Write 22
+
+// Phase 3 L1 — more exec.library.
+#define SYS_AllocVec 23
+#define SYS_FreeVec 24
 #endif
 
 #endif
