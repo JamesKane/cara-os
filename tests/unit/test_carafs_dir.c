@@ -307,13 +307,16 @@ static void test_nested(void)
     vol_free(&v);
 }
 
-// A million entries via hard links to one anchor cnode (so the cost is
-// directory-tree storage, not a million 4 KiB cnodes). Asserts lookup
-// stays logarithmic by counting block reads, per CARAFS.md §3.6.
-static void test_scale_million(void)
+// A large directory built via hard links to one anchor cnode (so the
+// cost is directory-tree storage, not N × 4 KiB cnodes). Asserts lookup
+// stays logarithmic by counting block reads, per CARAFS.md §3.6. N is
+// big enough to force a three-level tree; it is kept below 10^6 because
+// each link is now its own journalled transaction (F4) — the property
+// under test is lookup depth, not insert throughput.
+static void test_scale(void)
 {
     struct Vol v;
-    vol_make(&v, 256ull << 20, 16ull << 20);
+    vol_make(&v, 64ull << 20, 8ull << 20);
     struct CarafsMount m;
     mount_vol(&m, &v);
     u64 root = m.sb.root_cnode;
@@ -321,7 +324,7 @@ static void test_scale_million(void)
     u64 anchor;
     CHECK(Carafs_DirCreate(&m, root, "anchor", 6, CARAFS_T_FILE, &anchor) == CARA_EOK, "anchor");
 
-    constexpr u32 N = 1000000;
+    constexpr u32 N = 200000;
     char name[24];
     for (u32 i = 0; i < N; i++) {
         snprintf(name, sizeof(name), "L%07u", i);
@@ -372,7 +375,7 @@ int main(void)
     test_promotion();
     test_links();
     test_nested();
-    test_scale_million();
+    test_scale();
 
     if (failures) {
         printf("test_carafs_dir: %d failure(s)\n", failures);

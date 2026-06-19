@@ -39,7 +39,9 @@ static bool carve(struct CarafsMount *m, void *mem, usize bytes, u32 n)
     // chooses to pass (F5).
     p = align_up(p + (usize)n_buckets * sizeof(u32), 64);
     u8 *frames = p;
-    if (p + (usize)n * m->block_size > end) {
+    // n cache frames + two journal scratch blocks (DESC/COMMIT build,
+    // replay image reads).
+    if (p + (usize)(n + 2) * m->block_size > end) {
         return false;
     }
     m->n_ents = n;
@@ -47,6 +49,8 @@ static bool carve(struct CarafsMount *m, void *mem, usize bytes, u32 n)
     m->n_buckets = n_buckets;
     m->buckets = buckets;
     m->block_mem = frames;
+    m->j_scratch = frames + (usize)n * m->block_size;
+    m->j_image = frames + (usize)(n + 1) * m->block_size;
     return true;
 }
 
@@ -153,12 +157,41 @@ static int sb_write_direct(struct CarafsMount *m)
     if (sb->ro_compat != 0) {
         m->readonly = true; // unknown ro_compat feature: read, don't write
     }
-    // sb->state == DIRTY here means an unclean detach; F4 replays the
-    // journal at this point. Pre-F4 the journal is always idle (every
-    // commit writes home + flushes), so mounting proceeds as-is.
     memcpy(&m->sb, sb, sizeof(m->sb));
+    carafs_cache_put(m, 0);
+    carafs_cache_invalidate(m, 0); // replay/init reread block 0 fresh
+    m->j_log_blocks = m->sb.journal_blocks - 1;
+
+    // A DIRTY state is an unclean detach: replay the journal (§3.9).
+    // Replay needs to write, so a read-only mount of a dirty volume
+    // skips it and yields the (possibly stale) pre-crash home image —
+    // the documented dev/disaster path; the normal route is RW replay.
+    if (m->sb.state == CARAFS_STATE_DIRTY && !m->readonly) {
+        rc = carafs_journal_replay(m);
+        if (rc != CARA_EOK) {
+            return rc;
+        }
+        // Reload the recovered superblock, then mark the volume clean.
+        u8 *b2;
+        rc = carafs_cache_get(m, 0, CARAFS_GET_READ, &b2, nullptr);
+        if (rc != CARA_EOK) {
+            return rc;
+        }
+        memcpy(&m->sb, b2, sizeof(m->sb));
+        carafs_cache_put(m, 0);
+        m->sb.state = CARAFS_STATE_CLEAN;
+        rc = sb_write_direct(m);
+        if (rc != CARA_EOK) {
+            return rc;
+        }
+    } else {
+        rc = carafs_journal_init(m);
+        if (rc != CARA_EOK) {
+            return rc;
+        }
+    }
     m->mounted = true;
-    rc = CARA_EOK;
+    return CARA_EOK;
 out:
     carafs_cache_put(m, 0);
     return rc;
@@ -169,7 +202,11 @@ out:
     if (!m || !m->mounted) {
         return CARA_EINVAL;
     }
-    return carafs_cache_sync(m);
+    if (m->readonly) {
+        return carafs_cache_sync(m);
+    }
+    // Checkpoint: home-write every committed image and empty the log.
+    return carafs_journal_checkpoint(m);
 }
 
 [[nodiscard]] int Carafs_Unmount(struct CarafsMount *m)
@@ -177,11 +214,21 @@ out:
     if (!m || !m->mounted) {
         return CARA_EINVAL;
     }
-    int rc = carafs_cache_sync(m);
+    if (m->readonly) {
+        int rc = carafs_cache_sync(m);
+        if (rc != CARA_EOK) {
+            return rc;
+        }
+        m->mounted = false;
+        return CARA_EOK;
+    }
+    // Flush every committed image home and empty the log, then drop the
+    // DIRTY flag — a clean volume needs no replay on the next mount.
+    int rc = carafs_journal_checkpoint(m);
     if (rc != CARA_EOK) {
         return rc;
     }
-    if (!m->readonly && m->sb.state == CARAFS_STATE_DIRTY) {
+    if (m->sb.state == CARAFS_STATE_DIRTY) {
         m->sb.state = CARAFS_STATE_CLEAN;
         u64 now = carafs_now(m);
         if (now) {
@@ -245,7 +292,14 @@ out:
         carafs_op_abort(m);
         return rc;
     }
-    return carafs_txn_commit(m);
+    rc = carafs_txn_commit(m);
+    if (rc != CARA_EOK) {
+        // The WAL append failed before the transaction became durable;
+        // roll it back wholesale (drops the txn images, restores the sb).
+        carafs_op_abort(m);
+        return rc;
+    }
+    return CARA_EOK;
 }
 
 void carafs_op_abort(struct CarafsMount *m)

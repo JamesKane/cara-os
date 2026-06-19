@@ -250,32 +250,53 @@ void carafs_txn_begin(struct CarafsMount *m)
     return CARA_EOK;
 }
 
+// Ordered-data barrier: write every dirty file-data block (dirty but
+// not in the txn) home and flush, so a committed transaction's metadata
+// never references unwritten data (§3.9 data=ordered).
+static int writeback_data(struct CarafsMount *m)
+{
+    bool any = false;
+    for (u32 i = 0; i < m->n_ents; i++) {
+        struct CarafsCacheEnt *e = &m->ents[i];
+        if (e->block != CARAFS_BLOCK_NONE && (e->flags & CARAFS_ENT_DIRTY) &&
+            !(e->flags & CARAFS_ENT_TXN)) {
+            int rc = ent_writeback(m, i);
+            if (rc != CARA_EOK) {
+                return rc;
+            }
+            any = true;
+        }
+    }
+    return any ? m->bdev->flush(m->bdev->ctx) : CARA_EOK;
+}
+
 [[nodiscard]] int carafs_txn_commit(struct CarafsMount *m)
 {
-    // Pre-journal commit (F1–F3): write the txn's blocks home, then a
-    // durability barrier. F4 replaces the body of this function with
-    // a WAL append + lazy home writes.
-    int rc = CARA_EOK;
+    // 1. Ordered data on disk before the commit record.
+    int rc = writeback_data(m);
+    if (rc != CARA_EOK) {
+        return rc; // txn untouched — the caller's op_abort cleans up
+    }
+    // 2. Append DESC | images | COMMIT to the WAL and flush.
+    rc = carafs_journal_append(m);
+    if (rc != CARA_EOK) {
+        return rc; // txn untouched — the caller's op_abort cleans up
+    }
+    // 3. Committed: release TXN pinning. Images stay dirty in cache for
+    //    lazy home writeback; a later checkpoint flushes them and
+    //    advances the journal past them.
     for (u32 i = 0; i < m->txn_n; i++) {
         u32 idx = index_find(m, m->txn_blocks[i]);
-        if (idx == CARAFS_ENT_NONE) {
-            rc = CARA_EINVAL;
-            break;
-        }
-        m->ents[idx].flags &= ~CARAFS_ENT_TXN;
-        if (m->ents[idx].flags & CARAFS_ENT_DIRTY) {
-            rc = ent_writeback(m, idx);
-            if (rc != CARA_EOK) {
-                break;
-            }
+        if (idx != CARAFS_ENT_NONE) {
+            m->ents[idx].flags &= ~CARAFS_ENT_TXN;
         }
     }
     m->in_txn = false;
     m->txn_n = 0;
-    if (rc != CARA_EOK) {
-        return rc;
-    }
-    return m->bdev->flush(m->bdev->ctx);
+    // 4. Opportunistic checkpoint when the log crosses half full. The
+    //    commit is already durable, so a checkpoint hiccup is not fatal.
+    (void)carafs_journal_maybe_checkpoint(m);
+    return CARA_EOK;
 }
 
 void carafs_txn_abort(struct CarafsMount *m)

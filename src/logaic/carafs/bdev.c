@@ -62,10 +62,20 @@ void Carafs_MemBdev_Init(struct CarafsBdev *out, struct CarafsMemBdev *state, vo
     g->total_blocks = total_blocks;
 
     // Journal log: clamp(total/64, 1 MiB, 64 MiB) in blocks, +1 JSB
-    // (CARAFS.md §3.9).
+    // (CARAFS.md §3.9). The floor is also forced above one maximal
+    // transaction (CARAFS_TXN_MAX_BLOCKS images + DESC + COMMIT) so a
+    // single commit can always be appended after a checkpoint — this
+    // only binds for tiny large-block volumes; at 4 KiB the 1 MiB floor
+    // already dominates.
     u64 jlog = total_blocks / 64;
     u64 jmin = (1ull << 20) / block_size;
+    if (jmin < CARAFS_TXN_MAX_BLOCKS + 4) {
+        jmin = CARAFS_TXN_MAX_BLOCKS + 4;
+    }
     u64 jmax = (64ull << 20) / block_size;
+    if (jmax < jmin) {
+        jmax = jmin;
+    }
     if (jlog < jmin) {
         jlog = jmin;
     }

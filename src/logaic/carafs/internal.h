@@ -67,6 +67,32 @@ void carafs_txn_abort(struct CarafsMount *m);
 // Serialize m->sb into the cached block 0 and add it to the txn.
 [[nodiscard]] int carafs_sb_write(struct CarafsMount *m);
 
+// ---- Journal / WAL (journal.c, §3.9) -----------------------------------------
+//
+// A circular write-ahead log over the journal region. txn_commit (in
+// cache.c) flushes ordered data, then calls carafs_journal_append to
+// write DESC | images | COMMIT and flush; home writes stay lazy until a
+// checkpoint (carafs_cache_sync) flushes them and advances the JSB.
+
+// Initialise in-memory journal state from the JSB (clean mount: the log
+// is empty, head == tail).
+[[nodiscard]] int carafs_journal_init(struct CarafsMount *m);
+
+// Recover a DIRTY volume: apply every complete transaction's images
+// home in order, discard the first incomplete one, advance the JSB.
+[[nodiscard]] int carafs_journal_replay(struct CarafsMount *m);
+
+// Append the open transaction (m->txn_blocks[0..txn_n]) to the log and
+// flush; checkpoints first if the record would not fit.
+[[nodiscard]] int carafs_journal_append(struct CarafsMount *m);
+
+// Flush all dirty blocks home, advance the JSB tail past the whole log
+// (the log becomes empty), and flush. A durability point.
+[[nodiscard]] int carafs_journal_checkpoint(struct CarafsMount *m);
+
+// Checkpoint when the log is at least half full (opportunistic).
+[[nodiscard]] int carafs_journal_maybe_checkpoint(struct CarafsMount *m);
+
 // First-write hook: flip the superblock CLEAN → DIRTY durably before
 // any other metadata write of this mount touches disk.
 [[nodiscard]] int carafs_mark_dirty(struct CarafsMount *m);

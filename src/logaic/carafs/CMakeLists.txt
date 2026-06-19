@@ -18,6 +18,7 @@ add_library(cara_carafs STATIC
     btree.c
     file.c
     dir.c
+    journal.c
 )
 
 if(CARA_TARGET STREQUAL "riscv64")

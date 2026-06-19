@@ -391,7 +391,13 @@ struct CarafsFsckReport {
 
 // Cache entry flags (internal, exposed for sizing math only).
 constexpr u32 CARAFS_CACHE_MIN_BLOCKS = 16;
-constexpr u32 CARAFS_TXN_MAX_BLOCKS = 64;
+// One transaction's metadata blocks. Bounded so a DESC record's target
+// list fits in a single block at the smallest supported block size
+// (512 B): CARAFS_JDESC_TARGETS_OFF + N*8 <= 512. A real op touches far
+// fewer (a deep tree split is ~25 blocks).
+constexpr u32 CARAFS_TXN_MAX_BLOCKS = 60;
+static_assert(CARAFS_JDESC_TARGETS_OFF + CARAFS_TXN_MAX_BLOCKS * sizeof(u64) <=
+              (1u << CARAFS_MIN_BLOCK_LOG2));
 
 struct CarafsCacheEnt {
     u64 block; // ~0ull = empty slot
@@ -432,6 +438,21 @@ struct CarafsMount {
     u64 txn_blocks[CARAFS_TXN_MAX_BLOCKS];
     struct CarafsSuperblock sb_at_txn; // snapshot; restored on abort
 
+    // Journal (F4, §3.9): a circular WAL over the journal region. Log
+    // offsets are 1..journal_blocks-1 (offset 0 is the JSB); physical
+    // block = journal_start + offset. [j_head, j_tail) holds committed
+    // but un-checkpointed transactions; j_head/j_head_seq mirror the
+    // JSB. j_scratch builds DESC/COMMIT records, j_image reads images
+    // during replay — both carved from the mount arena.
+    u32 j_log_blocks; // journal_blocks - 1 (usable log offsets)
+    u32 j_head;       // oldest un-checkpointed txn (== JSB head)
+    u64 j_head_seq;   // its sequence number (== JSB seq)
+    u32 j_tail;       // write cursor (where the next txn goes)
+    u64 j_next_seq;   // sequence number for the next txn
+    u8 *j_scratch;
+    u8 *j_image;
+    u64 stat_checkpoints; // checkpoints performed (test/observability)
+
     // Clock.
     u64 (*now_ns)(void *ctx);
     void *now_ctx;
@@ -461,7 +482,8 @@ struct CarafsMount {
 // A cnode id IS its block number (§3.4). F2 exposes anonymous cnode
 // and file-content operations; F3's directory layer links names to
 // them. Every mutating call brackets its own transaction and is
-// durable when it returns (pre-F4 commit = write home + flush).
+// durable when it returns (the commit appends the metadata images to
+// the WAL and flushes; home writes are lazy, §3.9).
 
 struct CarafsStat {
     u64 cnode;
