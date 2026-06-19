@@ -9,6 +9,7 @@
 add_library(cara_exec_lib STATIC
     mem.c
     signal.c
+    list_ops.c
     ipc.c
     library_registry.c
     make_library.c

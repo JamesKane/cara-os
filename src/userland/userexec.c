@@ -25,7 +25,9 @@
 #include <cara/sysno.h>
 #include <exec/execbase.h>
 #include <exec/libraries.h>
+#include <exec/lists.h>
 #include <exec/memory.h>
+#include <exec/nodes.h>
 #include <exec/types.h>
 #include <proto/exec.h>
 
@@ -35,6 +37,7 @@
 #define USEREXEC_EXIT_BASE_MISMATCH 0xBAD3
 #define USEREXEC_EXIT_ALLOC_FAILED 0xBAD4
 #define USEREXEC_EXIT_NOT_ZEROED 0xBAD5
+#define USEREXEC_EXIT_LIST_FAIL 0xBAD6
 
 // Inline ecall for SYS_LOG_WRITE — used to surface progress markers
 // in the kernel log alongside the existing kernel-side messages so
@@ -52,6 +55,75 @@ static void log_msg(int level, const char *tag, const char *msg)
     register long a3 __asm__("a3") = len;
     register long a7 __asm__("a7") = SYS_LOG_WRITE;
     __asm__ volatile("ecall" ::"r"(a0), "r"(a1), "r"(a2), "r"(a3), "r"(a7) : "memory");
+}
+
+// Exercise the L1 exec.library list LVOs (local flavour) through the
+// <proto/exec.h> stubs — the U-mode dispatch into the RX-page impls
+// (src/croi/exec_lib/list_ops.c). Returns true if every op behaves.
+static void le_newlist(struct List *l)
+{
+    l->lh_Head = (struct Node *)(void *)&l->lh_Tail;
+    l->lh_Tail = nullptr;
+    l->lh_TailPred = (struct Node *)(void *)&l->lh_Head;
+}
+
+static bool le_order(struct List *l, const char *want)
+{
+    int i = 0;
+    for (struct Node *p = l->lh_Head; p->ln_Succ != nullptr; p = p->ln_Succ, i++) {
+        if (want[i] == 0 || p->ln_Name[0] != want[i]) {
+            return false;
+        }
+    }
+    return want[i] == 0;
+}
+
+static bool list_ops_ok(void)
+{
+    struct List l;
+    struct Node a = { .ln_Name = (char *)"a" };
+    struct Node b = { .ln_Name = (char *)"b" };
+    struct Node c = { .ln_Name = (char *)"c" };
+    struct Node x = { .ln_Name = (char *)"x" };
+
+    le_newlist(&l);
+    AddTail(&l, &a);
+    AddTail(&l, &b);
+    AddTail(&l, &c);
+    if (!le_order(&l, "abc")) {
+        return false;
+    }
+    if (FindName(&l, (STRPTR) "b") != &b || FindName(&l, (STRPTR) "z") != nullptr) {
+        return false;
+    }
+    AddHead(&l, &x);
+    if (!le_order(&l, "xabc")) {
+        return false;
+    }
+    if (RemHead(&l) != &x || RemTail(&l) != &c || !le_order(&l, "ab")) {
+        return false;
+    }
+    Remove(&a);
+    if (!le_order(&l, "b")) {
+        return false;
+    }
+
+    le_newlist(&l);
+    AddTail(&l, &a);
+    AddTail(&l, &c);
+    Insert(&l, &b, &a); // after a
+    if (!le_order(&l, "abc")) {
+        return false;
+    }
+
+    struct Node hi = { .ln_Name = (char *)"H", .ln_Pri = 10 };
+    struct Node mid = { .ln_Name = (char *)"M", .ln_Pri = 5 };
+    struct Node lo = { .ln_Name = (char *)"L", .ln_Pri = 0 };
+    le_newlist(&l);
+    Enqueue(&l, &mid);
+    Enqueue(&l, &lo);
+    Enqueue(&l, &hi);
+    return le_order(&l, "HML");
 }
 
 int main(void);
@@ -116,7 +188,13 @@ int main(void)
     }
     FreeMem(mem, 64);
 
-    // 4. Balance the open. Note: libcara also opened exec.library
+    // 4. Exercise the L1 list LVOs (local flavour) through their stubs.
+    if (!list_ops_ok()) {
+        CloseLibrary(lib);
+        return (int)USEREXEC_EXIT_LIST_FAIL;
+    }
+
+    // 5. Balance the open. Note: libcara also opened exec.library
     //    at startup, so OpenCnt is still > 0 after this close.
     CloseLibrary(lib);
 
