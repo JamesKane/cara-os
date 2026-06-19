@@ -78,6 +78,39 @@ KERNEL_TEST(carafs_io)
                 "ktest gone");
 }
 
+// The G3 filesystem syscall backends (Croi_Fs_Read/Write_Impl), driven
+// with kernel buffers — the same path Clar reaches via SYS_Fs_*.
+KERNEL_TEST(carafs_fs_syscall)
+{
+    TEST_ASSERT(ctx, g_carafs_mounted, "CaraFS not mounted");
+
+    // A missing file reads as zero bytes.
+    static u8 rbuf[64];
+    TEST_ASSERT(ctx, Croi_Fs_Read_Impl("fssys", 5, rbuf, sizeof(rbuf)) == 0, "absent reads empty");
+
+    // Write then read back.
+    const char *payload = "carafs syscall payload";
+    u32 plen = 22;
+    TEST_ASSERT(ctx, Croi_Fs_Write_Impl("fssys", 5, payload, plen) == 0, "write");
+    i64 got = Croi_Fs_Read_Impl("fssys", 5, rbuf, sizeof(rbuf));
+    TEST_ASSERT(ctx, got == (i64)plen, "read back length");
+    bool match = true;
+    for (u32 i = 0; i < plen; i++) {
+        if (rbuf[i] != (u8)payload[i]) {
+            match = false;
+        }
+    }
+    TEST_ASSERT(ctx, match, "read back content");
+
+    // Overwrite replaces (shorter content, no stale tail).
+    TEST_ASSERT(ctx, Croi_Fs_Write_Impl("fssys", 5, "x", 1) == 0, "overwrite");
+    got = Croi_Fs_Read_Impl("fssys", 5, rbuf, sizeof(rbuf));
+    TEST_ASSERT(ctx, got == 1 && rbuf[0] == 'x', "overwrite shortened the file");
+
+    TEST_ASSERT(ctx, Carafs_DirRemove(&g_carafs, g_carafs.sb.root_cnode, "fssys", 5) == CARA_EOK,
+                "cleanup fssys");
+}
+
 // Reboot persistence: seed on the first boot, verify on the next. Both
 // outcomes pass the test; the smoke harness distinguishes them by the
 // log line and asserts the verify line appears on the second boot.

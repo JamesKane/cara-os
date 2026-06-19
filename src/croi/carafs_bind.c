@@ -239,3 +239,88 @@ static int gpt_write(void *ctx, u64 lba, u32 n, const void *buf)
              (unsigned)KFS_BLOCK_SIZE, (unsigned long long)g_carafs.sb.free_blocks);
     return CARA_EOK;
 }
+
+// ---- Thin filesystem syscall backends (G3) ----------------------------------
+
+// Copy a filesystem name (≤ CARAFS_NAME_MAX) out of a possibly-user
+// pointer into a kernel buffer; returns the length or 0 on a bad name.
+static u32 copy_name(char *dst, const char *src, u32 len)
+{
+    if (len == 0 || len > CARAFS_NAME_MAX) {
+        return 0;
+    }
+    for (u32 i = 0; i < len; i++) {
+        dst[i] = src[i];
+    }
+    return len;
+}
+
+[[nodiscard]] i64 Croi_Fs_Read_Impl(const char *name, u32 name_len, void *buf, u32 buf_len)
+{
+    if (!g_carafs_mounted || !name || !buf) {
+        return -CARA_EINVAL;
+    }
+    char nm[CARAFS_NAME_MAX];
+    u32 nl = copy_name(nm, name, name_len);
+    if (nl == 0) {
+        return -CARA_EINVAL;
+    }
+    u64 cnode;
+    u16 type;
+    int rc = Carafs_DirLookup(&g_carafs, g_carafs.sb.root_cnode, nm, nl, &cnode, &type);
+    if (rc == CARA_ENOENT) {
+        return 0; // absent → zero bytes (the caller treats it as empty)
+    }
+    if (rc != CARA_EOK) {
+        return rc;
+    }
+    if (type != CARAFS_T_FILE) {
+        return -CARA_EINVAL;
+    }
+    usize got = 0;
+    rc = Carafs_FileRead(&g_carafs, cnode, 0, buf, buf_len, &got);
+    if (rc != CARA_EOK) {
+        return rc;
+    }
+    return (i64)got;
+}
+
+[[nodiscard]] i64 Croi_Fs_Write_Impl(const char *name, u32 name_len, const void *buf, u32 buf_len)
+{
+    if (!g_carafs_mounted || !name || (!buf && buf_len)) {
+        return -CARA_EINVAL;
+    }
+    char nm[CARAFS_NAME_MAX];
+    u32 nl = copy_name(nm, name, name_len);
+    if (nl == 0) {
+        return -CARA_EINVAL;
+    }
+    u64 root = g_carafs.sb.root_cnode;
+    // Replace semantics: drop any existing file, then create + fill it
+    // (CaraFS has no truncate; this is the Phase-2 "save" path).
+    u64 cnode;
+    u16 type;
+    int rc = Carafs_DirLookup(&g_carafs, root, nm, nl, &cnode, &type);
+    if (rc == CARA_EOK) {
+        if (type != CARAFS_T_FILE) {
+            return -CARA_EINVAL;
+        }
+        rc = Carafs_DirRemove(&g_carafs, root, nm, nl);
+        if (rc != CARA_EOK) {
+            return rc;
+        }
+    } else if (rc != CARA_ENOENT) {
+        return rc;
+    }
+    rc = Carafs_DirCreate(&g_carafs, root, nm, nl, CARAFS_T_FILE, &cnode);
+    if (rc != CARA_EOK) {
+        return rc;
+    }
+    if (buf_len) {
+        rc = Carafs_FileWrite(&g_carafs, cnode, 0, buf, buf_len);
+        if (rc != CARA_EOK) {
+            return rc;
+        }
+    }
+    return 0;
+}

@@ -90,12 +90,22 @@ if ! grep -qF "persist marker seeded" "${LOG1}"; then
     echo "smoke_qemu_kernel: FAIL (boot1): CaraFS marker was not seeded" >&2
     fail=1
 fi
+if ! grep -qF "saved note" "${LOG1}"; then
+    echo "smoke_qemu_kernel: FAIL (boot1): Clar did not save its drawer file" >&2
+    fail=1
+fi
 
 # Boot 2: same image → CaraFS mounts the persisted volume and verifies.
 run_boot "${LOG2}"
 check_boot "${LOG2}" "boot2"
 if ! grep -qF "persist marker verified across reboot" "${LOG2}"; then
     echo "smoke_qemu_kernel: FAIL (boot2): CaraFS marker did not persist across reboot" >&2
+    fail=1
+fi
+# Phase 2 success criterion: Clar saved "as" into its drawer's CaraFS
+# file on boot 1; boot 2 must read it back. (clar_smoke types 'a','s'.)
+if ! grep -qF "drawer note='as'" "${LOG2}"; then
+    echo "smoke_qemu_kernel: FAIL (boot2): Clar's drawer file did not persist across reboot" >&2
     fail=1
 fi
 
@@ -108,4 +118,4 @@ if [[ ${fail} -ne 0 ]]; then
     exit 1
 fi
 
-echo "smoke_qemu_kernel: ok (CaraFS persisted across reboot)"
+echo "smoke_qemu_kernel: ok (CaraFS + Clar's drawer file persisted across reboot)"

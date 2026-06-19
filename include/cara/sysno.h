@@ -49,6 +49,11 @@ enum {
     SYS_OpenWindow = 18,
     SYS_RemoveGadget = 19,
     SYS_ActivateGadget = 20,
+
+    // Phase 2 Subgoal 3 — thin CaraFS access for Clar (docs/LOGAIC_BOOT.md
+    // §4). A Phase-2 stopgap until dos.library (Phase 3) owns file I/O.
+    SYS_Fs_Read = 21,
+    SYS_Fs_Write = 22,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -76,6 +81,10 @@ enum {
 #define SYS_OpenWindow 18
 #define SYS_RemoveGadget 19
 #define SYS_ActivateGadget 20
+
+// Phase 2 Subgoal 3 — thin CaraFS access for Clar.
+#define SYS_Fs_Read 21
+#define SYS_Fs_Write 22
 #endif
 
 #endif

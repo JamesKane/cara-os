@@ -62,18 +62,40 @@ static struct Gadget *g_inntin;
 static struct StringInfo *g_si;
 static UBYTE *g_buf;
 
+// Raw 4-argument syscall (a7 = number, a0..a3 = args, a0 = return).
+static long ecall4(long num, long a0_, long a1_, long a2_, long a3_)
+{
+    register long a0 __asm__("a0") = a0_;
+    register long a1 __asm__("a1") = a1_;
+    register long a2 __asm__("a2") = a2_;
+    register long a3 __asm__("a3") = a3_;
+    register long a7 __asm__("a7") = num;
+    __asm__ volatile("ecall" : "+r"(a0) : "r"(a1), "r"(a2), "r"(a3), "r"(a7) : "memory");
+    return a0;
+}
+
 static void log_msg(int level, const char *tag, const char *msg)
 {
     long len = 0;
     while (msg[len]) {
         len++;
     }
-    register long a0 __asm__("a0") = level;
-    register long a1 __asm__("a1") = (long)tag;
-    register long a2 __asm__("a2") = (long)msg;
-    register long a3 __asm__("a3") = len;
-    register long a7 __asm__("a7") = SYS_LOG_WRITE;
-    __asm__ volatile("ecall" ::"r"(a0), "r"(a1), "r"(a2), "r"(a3), "r"(a7) : "memory");
+    (void)ecall4(SYS_LOG_WRITE, level, (long)tag, (long)msg, len);
+}
+
+// The drawer is backed by one CaraFS file, "note" (F6/G3,
+// docs/LOGAIC_BOOT.md §4). These wrap the thin Croi_Fs_* syscalls.
+#define CLAR_NOTE_NAME "note"
+#define CLAR_NOTE_NAMELEN 4
+
+static long note_read(void *buf, long buf_len)
+{
+    return ecall4(SYS_Fs_Read, (long)CLAR_NOTE_NAME, CLAR_NOTE_NAMELEN, (long)buf, buf_len);
+}
+
+static long note_write(const void *buf, long len)
+{
+    return ecall4(SYS_Fs_Write, (long)CLAR_NOTE_NAME, CLAR_NOTE_NAMELEN, (long)buf, len);
 }
 
 // Open the drawer's child window with a string Inntin and activate it.
@@ -92,6 +114,33 @@ static bool open_drawer(void)
     g_si->Buffer = g_buf;
     g_si->MaxChars = CLAR_INNTIN_BUF;
     g_si->BufferPos = 0;
+
+    // Load the drawer's CaraFS file and report its contents. On a fresh
+    // volume this is empty; after a save + reboot it holds what was last
+    // typed — the Phase 2 success criterion, proven by this log line on
+    // the next boot. Read into a private buffer so the Inntin's own
+    // buffer stays clean for fresh input.
+    {
+        char note[CLAR_INNTIN_BUF];
+        long got = note_read(note, sizeof(note) - 1);
+        if (got < 0) {
+            got = 0;
+        }
+        note[got] = 0;
+        char line[16 + CLAR_INNTIN_BUF];
+        int n = 0;
+        const char *pfx = "drawer note='";
+        while (pfx[n]) {
+            line[n] = pfx[n];
+            n++;
+        }
+        for (int i = 0; note[i] && n < (int)sizeof(line) - 2; i++) {
+            line[n++] = note[i];
+        }
+        line[n++] = '\'';
+        line[n] = 0;
+        log_msg(2, "clar", line);
+    }
 
     g_inntin->LeftEdge = 10;
     g_inntin->TopEdge = 28;
@@ -226,6 +275,16 @@ int main(void)
                     log_msg(2, "clar", line);
                     if (g_buf[0]) {
                         typed_ok = true;
+                    }
+                    // Save the edit to the drawer's CaraFS file — it
+                    // survives reboot (the next boot's "drawer note='…'"
+                    // line proves it).
+                    long blen = 0;
+                    while (g_buf[blen]) {
+                        blen++;
+                    }
+                    if (note_write(g_buf, blen) == 0) {
+                        log_msg(2, "clar", "saved note");
                     }
                     // Re-activate so further keystrokes keep reaching it.
                     ActivateGadget(g_inntin, g_child, nullptr);
