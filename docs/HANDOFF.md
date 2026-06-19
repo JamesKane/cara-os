@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+7c173b3 phase-3/L1    exec.library FindTask + CopyMem/CopyMemQuick (slice 4)
 1763f81 phase-3/L1    exec.library CreateMsgPort/DeleteMsgPort/ReplyMsg (slice 3)
 5d0dce6 phase-3/L1    exec.library AllocVec / FreeVec (slice 2)
 92b4557 phase-3/L1    exec.library list primitives (slice 1, first local LVOs)
@@ -271,13 +272,21 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `DeleteMsgPort`, `ReplyMsg`. The V36 message cycle is now complete;
   `userexec.c` does a full PutMsg→GetMsg→ReplyMsg→GetMsg round-trip.
   Confirmed lvo-gen accepts a no-arg `()` LVO.
-- **Slice 4+ (next):** `FindTask(NULL)` (self, via `Sched_Current()`),
-  semaphores (`ObtainSemaphore`/`ReleaseSemaphore`/…), libraries
-  (`MakeLibrary`/`SetFunction`/`SumLibrary`), and the `OpenDevice`/
-  `DoIO`/`SendIO`/`CheckIO`/`WaitIO`/`AbortIO` device primitives (L6
-  builds on them). Kernel-state → syscall; pure → local. Then the
-  **stub-coverage report** + widening the conf toward the full Exec
-  autodoc (still `##pad_run`s).
+- **Slice 4 shipped (`7c173b3`): `FindTask` + `CopyMem`/`CopyMemQuick`.**
+  FindTask (syscall): NULL→`Sched_Current()` (the kernel Task *is* the
+  public `struct Task`); named lookup self-only (no global named-task
+  registry). **Gotcha: the returned `Task` is kernel-resident → opaque
+  to U-mode (don't dereference it).** Tasks aren't in the SASOS shared
+  heap, unlike MsgPorts — a real Phase-3 gap (move Task/Process to shared
+  memory, or hand out a shared shadow, before programs read `tc_*`).
+  CopyMem/CopyMemQuick are `local` (copy_ops.c, RX page).
+- **Slice 5+ (next):** semaphores (`InitSemaphore`/`ObtainSemaphore`/
+  `ReleaseSemaphore`/`AttemptSemaphore` — needs a new `<exec/semaphores.h>`
+  + `struct SignalSemaphore`; for the cooperative single-hart kernel the
+  blocking is simple), libraries (`MakeLibrary`/`SetFunction`), then the
+  `OpenDevice`/`DoIO`/… device primitives (L6). Kernel-state → syscall;
+  pure → local. Then the **stub-coverage report** + widening the conf
+  toward the full Exec autodoc (still `##pad_run`s).
 - **Still TODO in L1:** the **stub-coverage report** (PHASE3.md §7 Q4)
   — a check listing which declared LVOs are unimplemented stubs. Not
   built yet; settle its format as the per-library precedent. The conf
