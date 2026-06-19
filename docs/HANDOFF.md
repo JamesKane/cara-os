@@ -12,26 +12,28 @@
 ## 1. Where we are
 
 **Phase 1 shipped** (see §5 for the live demo recipe). **Phase 2 is in
-flight**: the NVMe driver and the CaraFS core through epic F4 are
-done; F5 (kernel mount over NVMe) is next. **The on-disk format is now
-frozen** (F4 boundary) — bump `incompat` for any later change.
+flight**: the NVMe driver and the CaraFS core through epic F5 are done —
+CaraFS now mounts on NVMe at boot and survives reboot. **F6 (Subgoal-3
+boot path) is next**, and it carries Phase 2's success criterion. The
+on-disk format is frozen (F4 boundary) — bump `incompat` for any change.
 
 Recent commits (newest first), all on `main`:
 
 ```
+0da9d95 phase-2/F5    CaraFS kernel mount over NVMe + reboot persistence
 d941883 phase-2/F4    CaraFS journal — WAL, ordered data, replay, crash test
 0af45f8 phase-2/F3    CaraFS directories — inline→leaf→tree, links, scale
 591d1d3 phase-2/F2    CaraFS cnodes, files, allocator
 a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 16b5265 phase-2/F0    CaraFS format foundation
-b0463ae docs          CaraFS design (Phase 2 Subgoal 2)
 5cb4c0c phase-2/N1-N5 NVMe driver — probe to write/readback under QEMU
 ```
 
 Status: everything green — host ctest **26/26**, in-kernel tests
-**25 passed / 0 failed**, QEMU boot smoke ok, `format-check` clean.
-(The host suite runs ~20–25 s: `test_carafs_dir`'s scale test and
-`test_carafs_journal`'s crash-injection harness dominate.)
+**28 passed / 0 failed**, QEMU boot smoke ok (CaraFS persists across a
+reboot), `format-check` clean. (Host suite ~20–25 s: `test_carafs_dir`'s
+scale test + `test_carafs_journal`'s crash-injection harness dominate.
+The boot smoke now boots QEMU **twice** against one NVMe image.)
 
 ### Phase 2 so far
 
@@ -129,58 +131,51 @@ Per-file map of `src/logaic/carafs/`:
 
 ---
 
-## 3. What's next: F5 — kernel mount (then F6)
+## 3. What's next: F6 — Subgoal-3 boot path (closes Phase 2)
 
-### F4 shipped (`d941883`) — journal. **Format frozen.**
+### F5 shipped (`0da9d95`) — kernel mount over NVMe
 
-The metadata WAL is live; the internals a fresh session needs:
+CaraFS runs on device storage now; the kernel-side internals:
 
-- **`journal.c` is the WAL.** A commit (`carafs_txn_commit`, in
-  `cache.c`) now: (1) flushes dirty file-data home (ordered-data
-  barrier), (2) `carafs_journal_append` writes one txn —
-  `DESC | image[] | COMMIT` — to the circular log and flushes (the
-  durability point), (3) releases TXN pinning, leaving images dirty for
-  **lazy** home writeback, (4) opportunistically checkpoints. Home
-  writes therefore lag the log; `carafs_journal_checkpoint`
-  (`carafs_cache_sync` + advance the JSB past the whole log) is the only
-  thing that makes them durable + reclaims log space. Sync/Unmount
-  checkpoint; Unmount then clears DIRTY.
-- **Replay** (`carafs_journal_replay`, on a DIRTY RW mount) applies
-  every complete txn home in order — validated by per-block CRCs, a
-  chained image CRC, and a contiguous seq — and stops at the first torn
-  txn. Then it reloads the recovered superblock and marks the volume
-  clean. Bounded by journal size. (A read-only mount of a DIRTY volume
-  skips replay → stale view; documented dev/disaster path.)
-- **Log geometry.** Offsets `1..journal_blocks-1`, physical block =
-  `journal_start + offset`; txns may wrap (all addressing via `j_adv`).
-  `CARAFS_TXN_MAX_BLOCKS` is now **60** (DESC target list must fit a
-  512 B block, static_asserted); geometry floors the log above one
-  maximal txn. Two arena-carved scratch blocks (`j_scratch`, `j_image`)
-  build records / read images — the core still never allocates.
-- **Crash-injection harness** (`test_carafs_journal.c`, §4): a recording
-  bdev captures every block write of a workload; then *every prefix* of
-  that stream is replayed into a fresh image and checked (fsck clean +
-  no torn objects), with the full stream recovering the complete state.
-  This is the strongest correctness lever in the FS — extend the
-  workload there when touching commit/replay.
-- **Still open** (fair game in F5+): full recursive fsck with
-  link-count reconciliation; the collision/`seq` path remains
-  test-by-construction only (FNV-1a-64 collisions can't be forged).
+- **`src/croi/carafs_bind.c` is the binding.** A kernel `CarafsBdev`
+  (`g_carafs_bdev`) over `Croi_Nvme_Read/Write/Flush`; one global mount
+  `g_carafs` (extern in `cara/carafs_bind.h`), gated by
+  `g_carafs_mounted`. `Croi_Carafs_BringUp()` (called from `entry.c`
+  right after the I/O queue pair is up) mounts NSID 1, formatting first
+  on `EBADMAGIC`/`EBADVERSION`. The FS block size is the 4 KiB default;
+  one FS block = `block_size / LBA-size` contiguous LBAs.
+- **DMA bounce.** `Croi_Nvme_Read/Write` need a page-aligned direct-map
+  buffer ≤ 8 KiB (PRP1+PRP2); cache frames are only 64-byte aligned, so
+  every transfer bounces through a `Page_Alloc`'d 2-page buffer in
+  ≤8 KiB chunks. The cache arena is 256 KiB of plain BSS (no DMA).
+- **`Croi_Nvme_Flush`** (io.c) issues NVM Flush on the I/O queue;
+  `bdev->flush` maps to it so the WAL's ordering/commit barriers hold on
+  real media. `Carafs_Sync` (checkpoint) before the kernel WFIs is what
+  makes a write durable for the next boot.
+- **Tests.** `test_carafs.c`: `carafs_mount`, `carafs_io`
+  (create/write/read-back/delete on device), `carafs_persist`
+  (seed-or-verify a marker). The boot smoke (`smoke_qemu_kernel.sh`)
+  now boots QEMU **twice** on one NVMe image and asserts the marker
+  seeds on boot 1, verifies on boot 2.
+- **Gotchas for next time.** The kernel `LOG` formatter has no `%.*s`
+  (and is `%llu`-for-u64); keep new log lines to `%u`/`%llu`/`%x`. The
+  existing `nvme_io` test scribbles the namespace tail every boot, which
+  clobbers CaraFS's *backup* superblock + a couple of high data blocks —
+  harmless because mount uses the primary sb and the persist marker
+  lives in low (AG 0) blocks, but don't put anything load-bearing there.
 
-### F5 — kernel mount (the current epic)
+### F6 — Subgoal-3 boot path (the current epic; carries the Phase 2 criterion)
 
-`Croi_Nvme_Flush` (NVMe Flush command; the admin path exists), a
-`CarafsBdev` over `Croi_Nvme_*` (one FS block = block_size/512 LBAs),
-mount at boot when a CaraFS superblock is found, `KERNEL_TEST(carafs_mount)`
-+ a write/reboot-persist smoke stage. The smoke harness already
-provisions an NVMe scratch image. The CarafsBdev `flush` must map to the
-new `Croi_Nvme_Flush` so the WAL's ordering/durability holds on real
-hardware. Then **F6** hands off to Subgoal 3 (GPT/UUID discovery, root
-volume selection, Startup-Sequence) in the Logaic boot-path doc.
-
-Phase 2's success criterion: Clar's drawer is a CaraFS directory
-listing (replacing the hard-coded Bosca), edit → write → reboot →
-still there.
+Scoped in the Logaic boot-path doc (to be written), not in CARAFS.md:
+GPT/UUID partition discovery, root-volume selection (the superblock UUID
+is the key), and an `S:Startup-Sequence` analogue executed at boot. The
+payoff and **Phase 2's success criterion**: Clar's drawer becomes a live
+CaraFS directory listing (replacing the Phase 1 hard-coded Bosca), and
+edit → write → reboot → still there. That likely needs a first slice of
+`dos.library`/Logaic (locks/Open/Read/Write over the CaraFS handler) so
+Clar talks to the FS through the AmigaDOS surface rather than calling
+`Carafs_*` directly — confirm scoping before starting (it brushes up
+against Phase 3).
 
 ---
 
