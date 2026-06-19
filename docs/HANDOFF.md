@@ -17,14 +17,16 @@ Subgoal-3 finished by G4+G2): Clar edits a file in its drawer and the
 change persists across reboot, on a CaraFS volume mounted from an
 NVMe-resident GPT partition, with `S/Startup-Sequence` run at boot. The
 on-disk format is frozen (F4). ROADMAP reserves a `STATUS: complete`
-line for the same demo on real hardware (no RV2 board yet). **Next:
-Phase 3 — the AmigaOS V36+ library surface** (`exec`/`dos`/`intuition`/
-`graphics` under verbatim names; `dos.library` supersedes the G3
-`Croi_Fs_*` stopgap syscalls).
+line for the same demo on real hardware (no RV2 board yet). **Phase 3 is
+underway** — planned in `docs/PHASE3.md`, **P0 (ABI/toolchain proof)
+shipped**; **L1 (widen `exec.library`) is next**.
 
 Recent commits (newest first), all on `main`:
 
 ```
+9c8429b phase-3/P0    verbatim-V36 source builds + runs (ABI proof)
+aee7d29 docs          Phase 3 plan (docs/PHASE3.md)
+c2f947f docs          Phase 2 complete under QEMU
 8c25ad7 phase-2/F6 G2 UUID-aware root selection + multi-partition GPT
 3c3c279 phase-2/F6 G4 S/Startup-Sequence runner at boot
 fe701fb phase-2/F6 G3 Clar edits a CaraFS file — Phase 2 criterion met
@@ -38,10 +40,9 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**30 passed / 0 failed**, QEMU boot smoke ok (boots twice: boot 1
-partitions + formats + runs the startup-sequence + Clar saves its
-drawer file; boot 2 discovers the GPT and reads `drawer note='as'`
-back), `format-check` clean. (Host suite ~20–25 s.)
+**31 passed / 0 failed**, QEMU boot smoke ok (two boots: partition +
+format + startup-sequence + Clar drawer file persists; plus the P0
+`v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
 
 ### Phase 2 so far
 
@@ -218,7 +219,7 @@ library trampoline needed. Watch-outs from the F5 recap still apply (no
 `%.*s` in the kernel `LOG`; `nvme_io` scribbles the namespace tail, now
 the backup-GPT region, clear of the partition).
 
-### Phase 3 — AmigaOS Release 2 (V36+) parity (next; planned in docs/PHASE3.md)
+### Phase 3 — AmigaOS Release 2 (V36+) parity (underway; planned in docs/PHASE3.md)
 
 The project's real charter: the AmigaOS V36+ API under verbatim names so
 a Release-2 source program builds + runs unmodified. The plan is written
@@ -227,17 +228,32 @@ library-by-library** (dependency order), **`dos.library` as an AmigaDOS
 handler Gleas** (server flavour, retiring the G3 `Croi_Fs_*` stopgap),
 and **apps-driven impl with ABI-complete declaration** (each library's
 full `.conf`/headers link, bodies implemented to what the editor/paint/
-file-manager exercise, the rest defined stubs). Epic order: **P0** ABI
-proof (verbatim V36 source compiles vs our headers) → **L1** exec (widen,
-deep) → **L2** utility → **L3** dos (handler Gleas) → **L4** graphics
-(Dath CPU raster) → **L5** intuition (widen) → **L6** devices → **L7**
-BOOPSI → **L8** gadtools → **L9** asl → **L10–14** iffparse/icon/diskfont/
-commodities/expansion → **T** tools → **A** apps + PORTING.md (criterion).
-LVO-gen (`tools/lvo-gen`, `docs/LVO.md`) + the existing exec(17)/
-intuition(5)/Dath slices are the starting point. Open questions
-(BSTR/BPTR site, Process-vs-Task, proto/ search path, stub-coverage
-report, which sample apps) are listed in PHASE3.md §7 — settle the first
-few during L1/L3.
+file-manager exercise, the rest defined stubs). Epic order: **P0 ABI
+proof ✓ (`9c8429b`)** → **L1 exec (widen, deep) — NEXT** → L2 utility →
+L3 dos (handler Gleas) → L4 graphics (Dath CPU raster) → L5 intuition
+(widen) → L6 devices → L7 BOOPSI → L8 gadtools → L9 asl → L10–14
+iffparse/icon/diskfont/commodities/expansion → T tools → A apps +
+PORTING.md (criterion).
+
+**P0 shipped:** `src/userland/v36hello.c` is verbatim-V36 source
+(`<exec/*>`/`<intuition/*>`/`<proto/*>` only) — it builds against our
+headers and `KERNEL_TEST(v36hello_smoke)` runs it to `RETURN_OK`.
+`docs/PORTING.md` is the rebuild-and-link recipe. The pattern for adding
+a userland Gleas (CMake target + `user_blob.S` incbin + a spawn
+KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
+
+**L1 — widen `exec.library`:** `tools/lvo-gen/exec.conf` currently
+declares 17 LVOs; widen to the full V36 Exec autodoc (ABI-complete),
+implementing bodies for lists / memory (AllocVec, pools) / tasks /
+ports+messages (CreateMsgPort/ReplyMsg) / libraries (MakeLibrary,
+SetFunction) / semaphores / the `OpenDevice`/`DoIO` device primitives
+(L6 builds on them). Settle the stub-coverage report format here
+(PHASE3.md §7 Q4) since L1 sets the per-library precedent. LVO-gen flow
++ the conf format are in `docs/LVO.md`; existing impls in
+`src/croi/exec_lib`.
+
+Open questions for L1/L3 in PHASE3.md §7: BSTR/BPTR site, Process-vs-Task
+layout, `proto/` search path, stub-coverage report, which sample apps.
 
 ---
 
