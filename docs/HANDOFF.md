@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+1763f81 phase-3/L1    exec.library CreateMsgPort/DeleteMsgPort/ReplyMsg (slice 3)
 5d0dce6 phase-3/L1    exec.library AllocVec / FreeVec (slice 2)
 92b4557 phase-3/L1    exec.library list primitives (slice 1, first local LVOs)
 9c8429b phase-3/P0    verbatim-V36 source builds + runs (ABI proof)
@@ -264,15 +265,19 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `trampolines.S` `CARA_SYSCALL_TRAMPOLINE` + `syscall.c` arm +
   `Croi_*_Impl` (mem.c) + `cara/exec_lib.h` decl, exercised in
   `userexec.c`.
-- **Slice 3 (next): messaging** — `CreateMsgPort`/`DeleteMsgPort`
-  (allocate a public `struct MsgPort` + signal over the caller's task;
-  the internal `Croi_CreateMsgPort` in ipc/ is the substrate) and
-  `ReplyMsg` (set `ln_Type=NT_REPLYMSG`, `Croi_PutMsg_Impl(msg->mn_ReplyPort,
-  msg)`). ReplyMsg needs a *public* MsgPort, so it pairs with
-  CreateMsgPort — once both exist, test a full PutMsg→GetMsg→ReplyMsg
-  round-trip from a Gleas. Then `FindTask(NULL)` (self), semaphores,
-  `MakeLibrary`/`SetFunction`, and the `OpenDevice`/`DoIO` device
-  primitives (L6 builds on them). Kernel-state → syscall; pure → local.
+- **Slice 3 shipped (`1763f81`): messaging** — `CreateMsgPort` (no-arg
+  LVO; allocs a signal on `Sched_Current()` + a public `struct MsgPort`
+  via the internal `Croi_CreateMsgPort`, returns `&p->pub`),
+  `DeleteMsgPort`, `ReplyMsg`. The V36 message cycle is now complete;
+  `userexec.c` does a full PutMsg→GetMsg→ReplyMsg→GetMsg round-trip.
+  Confirmed lvo-gen accepts a no-arg `()` LVO.
+- **Slice 4+ (next):** `FindTask(NULL)` (self, via `Sched_Current()`),
+  semaphores (`ObtainSemaphore`/`ReleaseSemaphore`/…), libraries
+  (`MakeLibrary`/`SetFunction`/`SumLibrary`), and the `OpenDevice`/
+  `DoIO`/`SendIO`/`CheckIO`/`WaitIO`/`AbortIO` device primitives (L6
+  builds on them). Kernel-state → syscall; pure → local. Then the
+  **stub-coverage report** + widening the conf toward the full Exec
+  autodoc (still `##pad_run`s).
 - **Still TODO in L1:** the **stub-coverage report** (PHASE3.md §7 Q4)
   — a check listing which declared LVOs are unimplemented stubs. Not
   built yet; settle its format as the per-library precedent. The conf
