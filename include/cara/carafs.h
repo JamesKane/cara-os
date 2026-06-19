@@ -504,4 +504,69 @@ struct CarafsStat {
 [[nodiscard]] int Carafs_FileWrite(struct CarafsMount *m, u64 cnode, u64 off, const void *buf,
                                    usize len);
 
+// ---- Directories and links (epic F3) ----------------------------------------
+//
+// Names link to cnodes through a directory's entries, which escalate
+// transparently: an INLINE_DIRENTS item in the cnode → one dirent leaf
+// block → a (name_hash, collision_seq)-keyed B+tree (CARAFS.md §3.6).
+// Lookup is case-insensitive under the ASCII fold (§3.5). A directory's
+// size_bytes is its entry count. Every mutator brackets its own
+// transaction and is durable on return (pre-F4 commit = write + flush).
+
+// A resume token for Carafs_DirNext. Zero-initialise to start a listing;
+// it survives concurrent insertion/removal elsewhere (§3.6 cursor rule).
+struct CarafsDirCursor {
+    u64 hash;
+    u8 seq;
+    bool started;
+};
+
+// One entry surfaced by Carafs_DirNext: the target and its name. The
+// name is not NUL-terminated; name_len bytes of `name` are valid.
+struct CarafsDirEntry {
+    u64 cnode;
+    u16 type; // CARAFS_T_*
+    u8 name_len;
+    u8 name[CARAFS_NAME_MAX];
+};
+
+// Look up `name` in `dir` (case-insensitive). Fills *cnode_out / *type_out
+// (either may be null). CARA_ENOENT if absent, CARA_EINVAL if `dir` is
+// not a directory.
+[[nodiscard]] int Carafs_DirLookup(struct CarafsMount *m, u64 dir, const void *name, u32 name_len,
+                                   u64 *cnode_out, u16 *type_out);
+
+// Create a new object of `type` (FILE / DIR / SYMLINK) named `name` in
+// `dir` and link it: allocates its cnode, stores the NAME item and
+// parent_cnode, inserts the dirent. CARA_EEXIST if the name is taken.
+// A SYMLINK created here has no target yet — use Carafs_DirSymlink.
+[[nodiscard]] int Carafs_DirCreate(struct CarafsMount *m, u64 dir, const void *name, u32 name_len,
+                                   u16 type, u64 *cnode_out);
+
+// Create a symbolic link named `name` whose target is the byte string
+// [target, target+target_len). CARA_EEXIST if the name is taken.
+[[nodiscard]] int Carafs_DirSymlink(struct CarafsMount *m, u64 dir, const void *name, u32 name_len,
+                                    const void *target, u32 target_len, u64 *cnode_out);
+
+// Hard-link an existing file cnode under a new name (bumps link_count).
+// CARA_EEXIST if the name is taken; CARA_EINVAL if `target` is not a file
+// (no directory hard links, §3.11).
+[[nodiscard]] int Carafs_DirLink(struct CarafsMount *m, u64 dir, const void *name, u32 name_len,
+                                 u64 target);
+
+// Remove `name` from `dir`. Decrements the target's link_count; the
+// cnode and all its storage are freed when it reaches 0. A directory
+// must be empty (CARA_ENOTEMPTY otherwise). CARA_ENOENT if absent.
+[[nodiscard]] int Carafs_DirRemove(struct CarafsMount *m, u64 dir, const void *name, u32 name_len);
+
+// Iterate `dir` in key order. *cur is zero-initialised on the first
+// call. CARA_EOK + *out for each entry, CARA_ENOENT past the last one.
+[[nodiscard]] int Carafs_DirNext(struct CarafsMount *m, u64 dir, struct CarafsDirCursor *cur,
+                                 struct CarafsDirEntry *out);
+
+// Copy a symlink's stored target into buf (up to buflen bytes); *len_out
+// gets the full target length. CARA_EINVAL if `cnode` is not a symlink.
+[[nodiscard]] int Carafs_SymlinkRead(struct CarafsMount *m, u64 cnode, void *buf, usize buflen,
+                                     usize *len_out);
+
 #endif

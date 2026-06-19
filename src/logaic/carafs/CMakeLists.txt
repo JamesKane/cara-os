@@ -17,6 +17,7 @@ add_library(cara_carafs STATIC
     cnode.c
     btree.c
     file.c
+    dir.c
 )
 
 if(CARA_TARGET STREQUAL "riscv64")

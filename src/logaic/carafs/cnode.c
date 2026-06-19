@@ -147,27 +147,23 @@ void carafs_item_remove(struct CarafsCnode *cn, u32 bs, u16 kind)
     (void)bs;
 }
 
-// ---- Public lifecycle ----------------------------------------------------------
+// ---- Lifecycle core (no op bracket; caller is mid-transaction) ----------------
+//
+// Carafs_CnodeCreate/Delete wrap these in their own op bracket; the
+// directory layer (dir.c) calls them directly inside its own bracket so
+// the cnode + its dirent commit atomically.
 
-[[nodiscard]] int Carafs_CnodeCreate(struct CarafsMount *m, u16 type, u64 hint, u64 *cnode_out)
+[[nodiscard]] int carafs_cnode_alloc(struct CarafsMount *m, u16 type, u64 hint, u64 *block_out)
 {
-    if (!m || !cnode_out ||
-        (type != CARAFS_T_FILE && type != CARAFS_T_DIR && type != CARAFS_T_SYMLINK)) {
-        return CARA_EINVAL;
-    }
-    int rc = carafs_op_begin(m);
+    u64 block;
+    int rc = carafs_alloc_block(m, hint, &block);
     if (rc != CARA_EOK) {
         return rc;
-    }
-    u64 block;
-    rc = carafs_alloc_block(m, hint, &block);
-    if (rc != CARA_EOK) {
-        goto fail;
     }
     u8 *blk;
     rc = carafs_cache_get(m, block, CARAFS_GET_READ, &blk, nullptr);
     if (rc != CARA_EOK) {
-        goto fail;
+        return rc;
     }
     // Generation recovery: continue a legible tombstone's sequence.
     u64 generation = 1;
@@ -193,7 +189,66 @@ void carafs_item_remove(struct CarafsCnode *cn, u32 bs, u16 kind)
     rc = carafs_cnode_dirty(m, cn);
     carafs_cache_put(m, block);
     if (rc != CARA_EOK) {
-        goto fail;
+        return rc;
+    }
+    *block_out = block;
+    return CARA_EOK;
+}
+
+// Free a cnode's storage and rewrite the block as a tombstone (gen+1,
+// link_count 0). `cn` stays pinned; the caller puts it.
+[[nodiscard]] int carafs_cnode_free_locked(struct CarafsMount *m, struct CarafsCnode *cn)
+{
+    int rc = CARA_EOK;
+    u64 block = cn->block_no;
+    // Free the storage: extent tree, then inline extents (start == 0
+    // runs are holes), then the cnode block itself.
+    if (cn->tree_root != 0 && cn->type == CARAFS_T_FILE) {
+        rc = carafs_etree_free_all(m, cn);
+    } else if (cn->tree_root != 0 && cn->type == CARAFS_T_DIR) {
+        rc = carafs_dtree_free_all(m, cn);
+    }
+    for (u32 i = 0; rc == CARA_EOK && i < cn->n_inline_extents; i++) {
+        if (cn->ext[i].start != 0) {
+            rc = carafs_free_extent(m, cn->ext[i].start, cn->ext[i].count);
+        }
+    }
+    if (rc == CARA_EOK) {
+        rc = carafs_free_extent(m, block, 1);
+    }
+    if (rc != CARA_EOK) {
+        return rc;
+    }
+    // Tombstone: bump the generation, drop the link count, clear the
+    // rest. The block is free; the tombstone survives until reuse.
+    u64 generation = cn->generation + 1;
+    u16 type = cn->type;
+    memset(cn, 0, m->block_size);
+    cn->magic = CARAFS_MAGIC_CNODE;
+    cn->block_no = block;
+    cn->generation = generation;
+    cn->type = type;
+    cn->changed_ns = carafs_now(m);
+    return carafs_cnode_dirty(m, cn);
+}
+
+// ---- Public lifecycle ----------------------------------------------------------
+
+[[nodiscard]] int Carafs_CnodeCreate(struct CarafsMount *m, u16 type, u64 hint, u64 *cnode_out)
+{
+    if (!m || !cnode_out ||
+        (type != CARAFS_T_FILE && type != CARAFS_T_DIR && type != CARAFS_T_SYMLINK)) {
+        return CARA_EINVAL;
+    }
+    int rc = carafs_op_begin(m);
+    if (rc != CARA_EOK) {
+        return rc;
+    }
+    u64 block;
+    rc = carafs_cnode_alloc(m, type, hint, &block);
+    if (rc != CARA_EOK) {
+        carafs_op_abort(m);
+        return rc;
     }
     rc = carafs_op_commit(m);
     if (rc != CARA_EOK) {
@@ -201,9 +256,6 @@ void carafs_item_remove(struct CarafsCnode *cn, u32 bs, u16 kind)
     }
     *cnode_out = block;
     return CARA_EOK;
-fail:
-    carafs_op_abort(m);
-    return rc;
 }
 
 [[nodiscard]] int Carafs_CnodeDelete(struct CarafsMount *m, u64 cnode)
@@ -221,35 +273,7 @@ fail:
         carafs_op_abort(m);
         return rc;
     }
-    // Free the storage: extent tree, then inline extents (start == 0
-    // runs are holes), then the cnode block itself.
-    if (cn->tree_root != 0) {
-        rc = carafs_etree_free_all(m, cn);
-    }
-    for (u32 i = 0; rc == CARA_EOK && i < cn->n_inline_extents; i++) {
-        if (cn->ext[i].start != 0) {
-            rc = carafs_free_extent(m, cn->ext[i].start, cn->ext[i].count);
-        }
-    }
-    if (rc == CARA_EOK) {
-        rc = carafs_free_extent(m, cnode, 1);
-    }
-    if (rc != CARA_EOK) {
-        carafs_cnode_put(m, cn);
-        carafs_op_abort(m);
-        return rc;
-    }
-    // Tombstone: bump the generation, drop the link count, clear the
-    // rest. The block is free; the tombstone survives until reuse.
-    u64 generation = cn->generation + 1;
-    u16 type = cn->type;
-    memset(cn, 0, m->block_size);
-    cn->magic = CARAFS_MAGIC_CNODE;
-    cn->block_no = cnode;
-    cn->generation = generation;
-    cn->type = type;
-    cn->changed_ns = carafs_now(m);
-    rc = carafs_cnode_dirty(m, cn);
+    rc = carafs_cnode_free_locked(m, cn);
     carafs_cnode_put(m, cn);
     if (rc != CARA_EOK) {
         carafs_op_abort(m);

@@ -65,6 +65,8 @@ enum {
     CARA_EOVERFLOW = -9,
     CARA_ENOTFOUND = -10,
     CARA_EIO = -11,
+    CARA_EEXIST = -12,
+    CARA_ENOTEMPTY = -13,
 };
 
 CARA_NORETURN void Croi_Halt(void);

@@ -53,6 +53,138 @@ static bool bit_get(const u8 *bits, u32 idx)
     return (bits[idx / 8] >> (idx % 8)) & 1u;
 }
 
+// ---- Directory checks (F3) ----------------------------------------------------
+//
+// Walk one directory level (the root, for now): every dirent must
+// resolve to an in-range cnode of the matching type, and subdirectories
+// must point their parent_cnode back. Reads the dir's tree nodes one at
+// a time into blk2 and each target cnode into blk — no extra scratch.
+// A full recursive walk with link-count reconciliation is a later step.
+
+constexpr u32 FSCK_BT_MAX_DEPTH = 8;
+
+static void check_child(struct Fsck *f, const struct CarafsGeometry *g, u64 dir_block,
+                        const struct CarafsDirent *de)
+{
+    u32 bs = f->bdev->block_size;
+    if (de->name_len < 1) {
+        fail(f, "dirent name length", dir_block);
+    }
+    if (de->type != CARAFS_T_FILE && de->type != CARAFS_T_DIR && de->type != CARAFS_T_SYMLINK) {
+        fail(f, "dirent type", dir_block);
+    }
+    if (de->cnode < g->ag_first || de->cnode >= g->backup_sb) {
+        fail(f, "dirent cnode out of range", de->cnode);
+        return;
+    }
+    if (f->bdev->read(f->bdev->ctx, de->cnode, 1, f->blk) != CARA_EOK) {
+        return;
+    }
+    f->rep->blocks_checked++;
+    const struct CarafsCnode *c = (const struct CarafsCnode *)f->blk;
+    if (c->magic != CARAFS_MAGIC_CNODE ||
+        !crc_ok(f->blk, bs, offsetof(struct CarafsCnode, crc32c))) {
+        fail(f, "dirent target cnode", de->cnode);
+        return;
+    }
+    if (c->block_no != de->cnode) {
+        fail(f, "dirent target self-address", de->cnode);
+    }
+    if (c->type != de->type) {
+        fail(f, "dirent type vs cnode", de->cnode);
+    }
+    if (c->link_count < 1) {
+        fail(f, "dirent target link_count", de->cnode);
+    }
+    if (c->type == CARAFS_T_DIR && c->parent_cnode != dir_block) {
+        fail(f, "subdirectory parent linkage", de->cnode);
+    }
+}
+
+// Validate a packed CarafsDirent blob (inline item payload or a leaf
+// body). `blob` lives in blk2; child reads land in blk.
+static void check_dirent_blob(struct Fsck *f, const struct CarafsGeometry *g, u64 dir_block,
+                              const u8 *blob, u32 bytes)
+{
+    for (u32 off = 0; off + CARAFS_DIRENT_BASE <= bytes;) {
+        const struct CarafsDirent *d = (const struct CarafsDirent *)(blob + off);
+        u32 stride = Carafs_Align8(CARAFS_DIRENT_BASE + d->name_len);
+        if (off + stride > bytes) {
+            fail(f, "dirent overruns area", dir_block);
+            break;
+        }
+        check_child(f, g, dir_block, d);
+        off += stride;
+    }
+}
+
+static void check_dir(struct Fsck *f, const struct CarafsGeometry *g, u64 dir_block)
+{
+    u32 bs = f->bdev->block_size;
+    if (f->bdev->read(f->bdev->ctx, dir_block, 1, f->blk2) != CARA_EOK) {
+        return;
+    }
+    const struct CarafsCnode *dcn = (const struct CarafsCnode *)f->blk2;
+    u64 tree_root = dcn->tree_root;
+    if (tree_root == 0) {
+        u16 ilen = 0;
+        u8 *p = carafs_item_find((struct CarafsCnode *)f->blk2, bs, CARAFS_ITEM_INLINE_DIRENTS,
+                                 &ilen);
+        if (p) {
+            check_dirent_blob(f, g, dir_block, p, ilen);
+        }
+        return;
+    }
+    // DFS over the directory tree, one node in blk2 at a time. The stack
+    // holds block numbers + a per-interior child cursor; each visit
+    // re-reads the node (cheap for fsck, no second node buffer needed).
+    struct {
+        u64 block;
+        u32 next;
+    } st[FSCK_BT_MAX_DEPTH];
+    u32 sp = 0;
+    st[sp++] = (typeof(st[0])){ .block = tree_root };
+    while (sp > 0) {
+        u64 blk = st[sp - 1].block;
+        if (blk < g->ag_first || blk >= g->backup_sb) {
+            fail(f, "dir tree node out of range", blk);
+            sp--;
+            continue;
+        }
+        if (f->bdev->read(f->bdev->ctx, blk, 1, f->blk2) != CARA_EOK) {
+            sp--;
+            continue;
+        }
+        f->rep->blocks_checked++;
+        const struct CarafsBtNode *n = (const struct CarafsBtNode *)f->blk2;
+        if (n->magic != CARAFS_MAGIC_BTREE || n->block_no != blk || n->flavour != CARAFS_BT_DIR ||
+            !crc_ok(f->blk2, bs, offsetof(struct CarafsBtNode, crc32c))) {
+            fail(f, "dir tree node", blk);
+            sp--;
+            continue;
+        }
+        if (n->level == 0) {
+            check_dirent_blob(f, g, dir_block, (const u8 *)f->blk2 + CARAFS_BT_BODY_OFF,
+                              n->used_bytes);
+            sp--;
+            continue;
+        }
+        if (st[sp - 1].next < n->n_records) {
+            const struct CarafsBtInteriorRec *r =
+                (const struct CarafsBtInteriorRec *)((const u8 *)f->blk2 + CARAFS_BT_BODY_OFF);
+            u64 child = r[st[sp - 1].next].child;
+            st[sp - 1].next++;
+            if (sp >= FSCK_BT_MAX_DEPTH) {
+                fail(f, "dir tree too deep", blk);
+                break;
+            }
+            st[sp++] = (typeof(st[0])){ .block = child };
+        } else {
+            sp--;
+        }
+    }
+}
+
 [[nodiscard]] int Carafs_Fsck(struct CarafsBdev *bdev, void *scratch, usize scratch_bytes,
                               struct CarafsFsckReport *rep)
 {
@@ -197,19 +329,29 @@ static bool bit_get(const u8 *bits, u32 idx)
     }
     rep->blocks_checked++;
     const struct CarafsCnode *root = (const struct CarafsCnode *)f.blk2;
+    bool root_ok = true;
     if (root->magic != CARAFS_MAGIC_CNODE ||
         !crc_ok(f.blk2, bs, offsetof(struct CarafsCnode, crc32c))) {
         fail(&f, "root cnode", root_cnode);
+        root_ok = false;
     } else {
         if (root->block_no != root_cnode) {
             fail(&f, "root cnode self-address", root_cnode);
         }
         if (root->type != CARAFS_T_DIR) {
             fail(&f, "root cnode not a directory", root_cnode);
+            root_ok = false;
         }
         if (root->link_count < 1) {
             fail(&f, "root cnode link_count", root_cnode);
         }
+    }
+
+    // ---- Root directory contents (F3) ---------------------------------------
+    // (Reuses f.blk and f.blk2; the superblock fields needed below are
+    // already captured in locals + g.)
+    if (root_ok) {
+        check_dir(&f, &g, root_cnode);
     }
 
     return CARA_EOK;

@@ -101,6 +101,13 @@ void carafs_op_abort(struct CarafsMount *m);
 void carafs_cnode_put(struct CarafsMount *m, struct CarafsCnode *cn);
 [[nodiscard]] int carafs_cnode_dirty(struct CarafsMount *m, struct CarafsCnode *cn);
 
+// Lifecycle core without the op bracket — for callers (dir.c) already
+// inside a transaction. alloc grants + initialises a cnode (link_count
+// 1, generation recovered from a tombstone); free_locked releases a
+// pinned cnode's storage and rewrites it as a tombstone (caller puts).
+[[nodiscard]] int carafs_cnode_alloc(struct CarafsMount *m, u16 type, u64 hint, u64 *block_out);
+[[nodiscard]] int carafs_cnode_free_locked(struct CarafsMount *m, struct CarafsCnode *cn);
+
 // TLV item area. resize creates/grows/shrinks `kind` in place
 // (growth zero-filled, later records repacked) and returns the
 // payload; CARA_EOVERFLOW when the area is full.
@@ -137,6 +144,46 @@ void carafs_item_remove(struct CarafsCnode *cn, u32 bs, u16 kind);
 // Free every extent the tree maps plus the tree's own node blocks;
 // clears cn->tree_root.
 [[nodiscard]] int carafs_etree_free_all(struct CarafsMount *m, struct CarafsCnode *cn);
+
+// ---- Directory B+tree (btree.c, CARAFS_BT_DIR flavour) -----------------------
+//
+// Variable-stride CarafsDirent leaves keyed by (name_hash, seq); shares
+// the interior machinery with the extent tree. dir.c drives promotion
+// (inline item -> single leaf -> tree) and the cnode-level glue.
+
+// Scan the equal-hash run for `name`: *exists reports a folded-name
+// match (header copied to *match when non-null); *free_seq (non-null)
+// gets the smallest unused collision_seq for a new insert.
+[[nodiscard]] int carafs_dtree_scan(struct CarafsMount *m, u64 root, u64 hash, const void *name,
+                                    u32 name_len, bool *exists, struct CarafsDirent *match,
+                                    u8 *free_seq);
+
+// Folded-name lookup. CARA_EOK + *out on hit, CARA_ENOTFOUND otherwise.
+[[nodiscard]] int carafs_dtree_lookup(struct CarafsMount *m, u64 root, u64 hash, const void *name,
+                                      u32 name_len, struct CarafsDirent *out);
+
+// Forward iteration: first entry with key > (hash, seq) (strict) or >=
+// (otherwise). Header to *out, name bytes to name_out (>= 255 bytes).
+[[nodiscard]] int carafs_dtree_next(struct CarafsMount *m, u64 root, u64 hash, u8 seq, bool strict,
+                                    struct CarafsDirent *out, u8 *name_out);
+
+// Insert a fully-formed dirent whose key (hash, seq) is unique; `name`
+// holds de->name_len bytes. Splits + grows the tree as needed.
+[[nodiscard]] int carafs_dtree_insert(struct CarafsMount *m, struct CarafsCnode *cn,
+                                      const struct CarafsDirent *de, const void *name);
+
+// Remove the entry keyed (hash, seq); frees emptied nodes (and the whole
+// tree when the last entry goes). CARA_ENOTFOUND if absent.
+[[nodiscard]] int carafs_dtree_remove(struct CarafsMount *m, struct CarafsCnode *cn, u64 hash,
+                                      u8 seq);
+
+// Move a packed, sorted inline-dirent blob (`bytes` long) into a fresh
+// single leaf; sets cn->tree_root (caller drops the inline item).
+[[nodiscard]] int carafs_dtree_spill(struct CarafsMount *m, struct CarafsCnode *cn, const u8 *blob,
+                                     u32 bytes);
+
+// Free every node block of the directory tree; clears cn->tree_root.
+[[nodiscard]] int carafs_dtree_free_all(struct CarafsMount *m, struct CarafsCnode *cn);
 
 // Geometry helpers shared by mkfs / fsck / allocator.
 [[nodiscard]] static inline u32 carafs_ag_size(u32 block_size)
