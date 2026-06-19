@@ -12,25 +12,26 @@
 ## 1. Where we are
 
 **Phase 1 shipped** (see §5 for the live demo recipe). **Phase 2 is in
-flight**: the NVMe driver and the CaraFS core through epic F3 are
-done; F4 (journal) is next.
+flight**: the NVMe driver and the CaraFS core through epic F4 are
+done; F5 (kernel mount over NVMe) is next. **The on-disk format is now
+frozen** (F4 boundary) — bump `incompat` for any later change.
 
 Recent commits (newest first), all on `main`:
 
 ```
+d941883 phase-2/F4    CaraFS journal — WAL, ordered data, replay, crash test
 0af45f8 phase-2/F3    CaraFS directories — inline→leaf→tree, links, scale
 591d1d3 phase-2/F2    CaraFS cnodes, files, allocator
 a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 16b5265 phase-2/F0    CaraFS format foundation
 b0463ae docs          CaraFS design (Phase 2 Subgoal 2)
 5cb4c0c phase-2/N1-N5 NVMe driver — probe to write/readback under QEMU
-21e8774 docs          session handoff (Phase 1 close-out)
 ```
 
-Status: everything green — host ctest **25/25**, in-kernel tests
+Status: everything green — host ctest **26/26**, in-kernel tests
 **25 passed / 0 failed**, QEMU boot smoke ok, `format-check` clean.
-(The new `test_carafs_dir` includes the 10^6-entry scale test, so the
-host suite now runs ~40 s.)
+(The host suite runs ~20–25 s: `test_carafs_dir`'s scale test and
+`test_carafs_journal`'s crash-injection harness dominate.)
 
 ### Phase 2 so far
 
@@ -128,57 +129,54 @@ Per-file map of `src/logaic/carafs/`:
 
 ---
 
-## 3. What's next: F4 — journal (then F5)
+## 3. What's next: F5 — kernel mount (then F6)
 
-### F3 shipped (`0af45f8`) — directories
+### F4 shipped (`d941883`) — journal. **Format frozen.**
 
-The directory layer is live; the internals a fresh session needs:
+The metadata WAL is live; the internals a fresh session needs:
 
-- **Shared btree is now two-flavour** (`btree.c`). The node helpers
-  (`bt_get`/`bt_new`/`bt_idescend`/`node_min_key`/`node_split_fixed`)
-  take a `flavour` and a **composite key** `(hi, lo)`; the EXTENT tree
-  is the degenerate `(file_off, 0)` case. The old per-insert "carry +
-  separate separator repair" pair is replaced by one integrated upward
-  pass, **`bt_propagate`**, that fixes subtree-minimum separators *and*
-  threads split-carries to the root in a single walk — this is what
-  makes interior splits in deep trees correct (the extent suite never
-  exercised them; the 10^6 dir test does). Touch `bt_propagate` with
-  care: both flavours' inserts/removes depend on it.
-- **DIR leaves are variable-stride** `CarafsDirent` keyed by
-  `(name_hash, collision_seq)`. `carafs_dtree_*` (scan, lookup, next,
-  insert, remove, spill, free_all) live in `btree.c`; the equal-hash
-  run scan crosses leaves via re-descend (collisions are negligible but
-  handled). Remove collapses emptied nodes; there's **no borrow/merge
-  rebalancing** of partially-full nodes (a deliberate Phase-2 scope cut
-  — space refills, and dir delete frees everything via free_all).
-- **`dir.c` is the layer**: inline `INLINE_DIRENTS` item → single leaf
-  → tree promotion (mirrors `file.c`); public
-  `Carafs_DirLookup/Create/Symlink/Link/Remove/Next` + `SymlinkRead`;
-  cnode glue (NAME item, `parent_cnode`, `link_count` refcounting,
-  empty-dir `ENOTEMPTY`). Directory `size_bytes` = entry count.
-- **cnode.c** now exposes `carafs_cnode_alloc` / `carafs_cnode_free_locked`
-  (op-bracket-free) so `dir.c` links a child + its dirent in one txn.
-- **fsck** walks the root directory (ranges, target type, subdir parent
-  linkage). A *full recursive* walk with link-count reconciliation is
-  still open — fair game in F4+.
-- **Collision/seq path is effectively untested**: forging two names
-  with the same FNV-1a-64 hash is infeasible, so the `seq`/equal-hash-run
-  code is exercised only by construction, not by a test. If F4 touches
-  it, reason carefully.
+- **`journal.c` is the WAL.** A commit (`carafs_txn_commit`, in
+  `cache.c`) now: (1) flushes dirty file-data home (ordered-data
+  barrier), (2) `carafs_journal_append` writes one txn —
+  `DESC | image[] | COMMIT` — to the circular log and flushes (the
+  durability point), (3) releases TXN pinning, leaving images dirty for
+  **lazy** home writeback, (4) opportunistically checkpoints. Home
+  writes therefore lag the log; `carafs_journal_checkpoint`
+  (`carafs_cache_sync` + advance the JSB past the whole log) is the only
+  thing that makes them durable + reclaims log space. Sync/Unmount
+  checkpoint; Unmount then clears DIRTY.
+- **Replay** (`carafs_journal_replay`, on a DIRTY RW mount) applies
+  every complete txn home in order — validated by per-block CRCs, a
+  chained image CRC, and a contiguous seq — and stops at the first torn
+  txn. Then it reloads the recovered superblock and marks the volume
+  clean. Bounded by journal size. (A read-only mount of a DIRTY volume
+  skips replay → stale view; documented dev/disaster path.)
+- **Log geometry.** Offsets `1..journal_blocks-1`, physical block =
+  `journal_start + offset`; txns may wrap (all addressing via `j_adv`).
+  `CARAFS_TXN_MAX_BLOCKS` is now **60** (DESC target list must fit a
+  512 B block, static_asserted); geometry floors the log above one
+  maximal txn. Two arena-carved scratch blocks (`j_scratch`, `j_image`)
+  build records / read images — the core still never allocates.
+- **Crash-injection harness** (`test_carafs_journal.c`, §4): a recording
+  bdev captures every block write of a workload; then *every prefix* of
+  that stream is replayed into a fresh image and checked (fsck clean +
+  no torn objects), with the full stream recovering the complete state.
+  This is the strongest correctness lever in the FS — extend the
+  workload there when touching commit/replay.
+- **Still open** (fair game in F5+): full recursive fsck with
+  link-count reconciliation; the collision/`seq` path remains
+  test-by-construction only (FNV-1a-64 collisions can't be forged).
 
-### F4 — journal (the current epic)
+### F5 — kernel mount (the current epic)
 
-Replace `carafs_txn_commit`'s body with a WAL
-append (DESC | images | COMMIT, chained CRC), replay on DIRTY mount,
-checkpoint, ordered-data flush discipline, and the crash-injection
-harness (record the write stream, replay every prefix, mount + fsck
-each — `docs/CARAFS.md` §4). **The on-disk format freezes after F4.**
-
-Then **F5 — kernel mount**: `Croi_Nvme_Flush` (NVMe Flush command,
-admin path exists), a `CarafsBdev` over `Croi_Nvme_*` (one FS block =
-block_size/512 LBAs), mount at boot when a CaraFS superblock is
-found, `KERNEL_TEST(carafs_mount)` + a write/reboot-persist smoke
-stage. The smoke harness already provisions an NVMe scratch image.
+`Croi_Nvme_Flush` (NVMe Flush command; the admin path exists), a
+`CarafsBdev` over `Croi_Nvme_*` (one FS block = block_size/512 LBAs),
+mount at boot when a CaraFS superblock is found, `KERNEL_TEST(carafs_mount)`
++ a write/reboot-persist smoke stage. The smoke harness already
+provisions an NVMe scratch image. The CarafsBdev `flush` must map to the
+new `Croi_Nvme_Flush` so the WAL's ordering/durability holds on real
+hardware. Then **F6** hands off to Subgoal 3 (GPT/UUID discovery, root
+volume selection, Startup-Sequence) in the Logaic boot-path doc.
 
 Phase 2's success criterion: Clar's drawer is a CaraFS directory
 listing (replacing the hard-coded Bosca), edit → write → reboot →
