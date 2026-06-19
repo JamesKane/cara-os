@@ -471,6 +471,14 @@ static void console_putc(char c)
         }
     }
 
+    // ---- Boot script (Phase 2 Subgoal 3, docs/LOGAIC_BOOT.md §5): run
+    //      S/Startup-Sequence off the root volume. Its LoadWB gates the
+    //      live Workbench launch below; with no volume we default to up.
+    bool boot_wants_wb = true;
+    if (g_carafs_mounted) {
+        boot_wants_wb = Croi_Boot_RunStartup();
+    }
+
     // ---- Bring up the cooperative scheduler before running tests so
     //      the sched_smoke test can spawn workers and yield.
     Sched_Init();
@@ -587,7 +595,7 @@ static void console_putc(char c)
                                             &leargas_pointer_arrow, white, ptr_outline,
                                             (i32)g_fb.width / 2, (i32)g_fb.height / 2) == CARA_EOK;
 
-        if (demo_up && g_xhci_probed) {
+        if (demo_up && g_xhci_probed && boot_wants_wb) {
             g_leargas_up = true;
             // Input-pump task + Clar run at the same priority so Croi_Yield
             // round-robins between them; kmain drops below both and idles.

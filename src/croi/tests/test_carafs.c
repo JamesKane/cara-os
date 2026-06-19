@@ -111,6 +111,58 @@ KERNEL_TEST(carafs_fs_syscall)
                 "cleanup fssys");
 }
 
+// The G4 boot-script runner: the format-seeded S/Startup-Sequence is
+// present and parses to a Workbench launch (LoadWB).
+KERNEL_TEST(carafs_startup)
+{
+    TEST_ASSERT(ctx, g_carafs_mounted, "CaraFS not mounted");
+
+    // The default seeded sequence requests the Workbench.
+    TEST_ASSERT(ctx, Croi_Boot_RunStartup(), "seeded startup requests Workbench");
+
+    // A custom script: a script with no LoadWB must NOT request it, and a
+    // bare comment/blank script is tolerated. Build S/test-seq and point
+    // the resolver at it by replacing the live one is overkill — instead
+    // exercise the parser via the public path by rewriting the file.
+    // (Resolve S dir, then overwrite Startup-Sequence, then restore.)
+    u64 sdir;
+    u16 ty;
+    TEST_ASSERT(ctx,
+                Carafs_DirLookup(&g_carafs, g_carafs.sb.root_cnode, "S", 1, &sdir, &ty) ==
+                        CARA_EOK &&
+                    ty == CARAFS_T_DIR,
+                "S dir exists");
+    u64 f;
+    TEST_ASSERT(ctx, Carafs_DirLookup(&g_carafs, sdir, "Startup-Sequence", 16, &f, &ty) == CARA_EOK,
+                "Startup-Sequence exists");
+
+    // Overwrite with a no-LoadWB script, re-run, expect false.
+    TEST_ASSERT(ctx, Carafs_DirRemove(&g_carafs, sdir, "Startup-Sequence", 16) == CARA_EOK,
+                "rm seq");
+    u64 f2;
+    TEST_ASSERT(ctx,
+                Carafs_DirCreate(&g_carafs, sdir, "Startup-Sequence", 16, CARAFS_T_FILE, &f2) ==
+                    CARA_EOK,
+                "recreate seq");
+    static const char no_wb[] = "; just a comment\nEcho hi\n";
+    TEST_ASSERT(ctx, Carafs_FileWrite(&g_carafs, f2, 0, no_wb, sizeof(no_wb) - 1) == CARA_EOK,
+                "write no-wb seq");
+    TEST_ASSERT(ctx, !Croi_Boot_RunStartup(), "no LoadWB → no Workbench");
+
+    // Restore the default so the live boot path is unaffected.
+    TEST_ASSERT(ctx, Carafs_DirRemove(&g_carafs, sdir, "Startup-Sequence", 16) == CARA_EOK,
+                "rm seq 2");
+    u64 f3;
+    TEST_ASSERT(ctx,
+                Carafs_DirCreate(&g_carafs, sdir, "Startup-Sequence", 16, CARAFS_T_FILE, &f3) ==
+                    CARA_EOK,
+                "restore seq");
+    static const char dflt[] = "; CaraOS Startup-Sequence\nEcho CaraOS-ready\nLoadWB\n";
+    TEST_ASSERT(ctx, Carafs_FileWrite(&g_carafs, f3, 0, dflt, sizeof(dflt) - 1) == CARA_EOK,
+                "rewrite default seq");
+    TEST_ASSERT(ctx, Croi_Boot_RunStartup(), "restored default requests Workbench");
+}
+
 // Reboot persistence: seed on the first boot, verify on the next. Both
 // outcomes pass the test; the smoke harness distinguishes them by the
 // log line and asserts the verify line appears on the second boot.

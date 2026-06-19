@@ -32,4 +32,13 @@ extern bool g_carafs_mounted;
 [[nodiscard]] i64 Croi_Fs_Read_Impl(const char *name, u32 name_len, void *buf, u32 buf_len);
 [[nodiscard]] i64 Croi_Fs_Write_Impl(const char *name, u32 name_len, const void *buf, u32 buf_len);
 
+// ---- Boot startup-sequence runner (F6/G4, docs/LOGAIC_BOOT.md §5) ------------
+//
+// Read S/Startup-Sequence from the root mount and run its commands (the
+// AmigaDOS boot idiom, minimal): `; …` comments, `Echo <text>` (logs),
+// and `LoadWB` (request the Workbench). Returns true when the Workbench
+// should launch — also the default when there is no sequence. A fresh
+// volume is seeded with a default sequence at format (Croi_Carafs_BringUp).
+[[nodiscard]] bool Croi_Boot_RunStartup(void);
+
 #endif

@@ -71,6 +71,11 @@ check_boot() {
             fail=1
         fi
     done
+    # Subgoal 3: S/Startup-Sequence executed at boot (Echo CaraOS-ready).
+    if ! grep -qF "startup: CaraOS-ready" "${log}"; then
+        echo "smoke_qemu_kernel: FAIL (${label}): S/Startup-Sequence did not run" >&2
+        fail=1
+    fi
     if grep -qE 'kernel tests:.*[0-9]+ passed.*[0-9]+ failed' "${log}"; then
         local failed_count
         failed_count=$(grep -oE 'kernel tests:.*[0-9]+ passed.*[0-9]+ failed' "${log}" \

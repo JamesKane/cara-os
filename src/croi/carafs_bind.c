@@ -130,6 +130,8 @@ static int gpt_write(void *ctx, u64 lba, u32 n, const void *buf)
     return nvme_chunked(ctx, lba, n, (void *)buf, true);
 }
 
+static void seed_startup(void); // defined below; called on fresh format
+
 [[nodiscard]] int Croi_Carafs_BringUp(void)
 {
     if (g_carafs_mounted) {
@@ -211,6 +213,7 @@ static int gpt_write(void *ctx, u64 lba, u32 n, const void *buf)
         .cache_mem = g_carafs_arena,
         .cache_bytes = sizeof(g_carafs_arena),
     };
+    bool formatted = false;
     int rc = Carafs_Mount(&g_carafs, &g_carafs_bdev, &mopts);
     if (rc == CARA_EBADMAGIC || rc == CARA_EBADVERSION) {
         // No (recognised) CaraFS volume here — format one and retry.
@@ -227,6 +230,7 @@ static int gpt_write(void *ctx, u64 lba, u32 n, const void *buf)
             return rc;
         }
         rc = Carafs_Mount(&g_carafs, &g_carafs_bdev, &mopts);
+        formatted = true;
     }
     if (rc != CARA_EOK) {
         LOG_ERROR("carafs", "mount failed: %d", rc);
@@ -237,6 +241,9 @@ static int gpt_write(void *ctx, u64 lba, u32 n, const void *buf)
     LOG_INFO("carafs", "mounted nvme partition @lba %llu: %llu blocks x %u B, %llu free",
              (unsigned long long)part_first, (unsigned long long)g_carafs.sb.total_blocks,
              (unsigned)KFS_BLOCK_SIZE, (unsigned long long)g_carafs.sb.free_blocks);
+    if (formatted) {
+        seed_startup(); // fresh volume: lay down a default boot script
+    }
     return CARA_EOK;
 }
 
@@ -323,4 +330,121 @@ static u32 copy_name(char *dst, const char *src, u32 len)
         }
     }
     return 0;
+}
+
+// ---- Boot startup-sequence runner (G4) --------------------------------------
+
+static bool str_eq(const char *a, const char *b, u32 n)
+{
+    for (u32 i = 0; i < n; i++) {
+        if (a[i] != b[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Resolve S/Startup-Sequence on the root mount; returns bytes read (0 if
+// absent). Two-level path: dir "S" then file "Startup-Sequence".
+static i64 read_startup(void *buf, u32 cap)
+{
+    if (!g_carafs_mounted) {
+        return 0;
+    }
+    u64 sdir;
+    u16 ty;
+    if (Carafs_DirLookup(&g_carafs, g_carafs.sb.root_cnode, "S", 1, &sdir, &ty) != CARA_EOK ||
+        ty != CARAFS_T_DIR) {
+        return 0;
+    }
+    u64 file;
+    if (Carafs_DirLookup(&g_carafs, sdir, "Startup-Sequence", 16, &file, &ty) != CARA_EOK ||
+        ty != CARAFS_T_FILE) {
+        return 0;
+    }
+    usize got = 0;
+    if (Carafs_FileRead(&g_carafs, file, 0, buf, cap, &got) != CARA_EOK) {
+        return 0;
+    }
+    return (i64)got;
+}
+
+// Seed a fresh volume with a default S/Startup-Sequence (called once,
+// right after format) so it boots to the Workbench on its own.
+static void seed_startup(void)
+{
+    u64 root = g_carafs.sb.root_cnode;
+    u64 sdir;
+    int rc = Carafs_DirCreate(&g_carafs, root, "S", 1, CARAFS_T_DIR, &sdir);
+    if (rc != CARA_EOK) {
+        LOG_WARN("carafs", "seed S dir failed: %d", rc);
+        return;
+    }
+    u64 file;
+    rc = Carafs_DirCreate(&g_carafs, sdir, "Startup-Sequence", 16, CARAFS_T_FILE, &file);
+    if (rc != CARA_EOK) {
+        LOG_WARN("carafs", "seed Startup-Sequence failed: %d", rc);
+        return;
+    }
+    static const char seq[] = "; CaraOS Startup-Sequence\nEcho CaraOS-ready\nLoadWB\n";
+    rc = Carafs_FileWrite(&g_carafs, file, 0, seq, sizeof(seq) - 1);
+    if (rc != CARA_EOK) {
+        LOG_WARN("carafs", "seed Startup-Sequence write failed: %d", rc);
+        return;
+    }
+    (void)Carafs_Sync(&g_carafs);
+    LOG_INFO("carafs", "seeded S/Startup-Sequence");
+}
+
+[[nodiscard]] bool Croi_Boot_RunStartup(void)
+{
+    char buf[512];
+    i64 n = read_startup(buf, sizeof(buf) - 1);
+    if (n <= 0) {
+        LOG_INFO("logaic", "no S/Startup-Sequence; launching Workbench");
+        return true; // a volume with no script still boots to the Workbench
+    }
+    buf[n] = 0;
+    bool want_wb = false;
+    for (u32 i = 0; i < (u32)n;) {
+        u32 s = i;
+        while (i < (u32)n && buf[i] != '\n') {
+            i++;
+        }
+        u32 e = i;
+        if (i < (u32)n) {
+            i++; // consume newline
+        }
+        if (e > s && buf[e - 1] == '\r') {
+            e--;
+        }
+        while (s < e && (buf[s] == ' ' || buf[s] == '\t')) {
+            s++;
+        }
+        if (s == e || buf[s] == ';') {
+            continue; // blank line or comment
+        }
+        const char *line = &buf[s];
+        u32 len = e - s;
+        if (len >= 5 && str_eq(line, "Echo ", 5)) {
+            char msg[256];
+            u32 m = 0;
+            for (u32 k = 5; k < len && m < sizeof(msg) - 1; k++) {
+                msg[m++] = line[k];
+            }
+            msg[m] = 0;
+            LOG_INFO("logaic", "startup: %s", msg);
+        } else if (len == 6 && str_eq(line, "LoadWB", 6)) {
+            want_wb = true;
+        } else {
+            char cmd[64];
+            u32 m = 0;
+            for (u32 k = 0; k < len && m < sizeof(cmd) - 1; k++) {
+                cmd[m++] = line[k];
+            }
+            cmd[m] = 0;
+            LOG_WARN("logaic", "startup: unknown command '%s'", cmd);
+        }
+    }
+    return want_wb;
 }
