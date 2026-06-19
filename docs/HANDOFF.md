@@ -24,7 +24,8 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
-92b4557 phase-3/L1    exec.library list primitives (first local-flavour LVOs)
+5d0dce6 phase-3/L1    exec.library AllocVec / FreeVec (slice 2)
+92b4557 phase-3/L1    exec.library list primitives (slice 1, first local LVOs)
 9c8429b phase-3/P0    verbatim-V36 source builds + runs (ABI proof)
 aee7d29 docs          Phase 3 plan (docs/PHASE3.md)
 c2f947f docs          Phase 2 complete under QEMU
@@ -257,13 +258,21 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   from a Gleas, never a KERNEL_TEST** — S-mode can't fetch the
   User-mapped RX page (instruction fault). `userexec.c` exercises them
   via the proto stubs.
-- **Slice 2+ (next):** more Exec — `AllocVec`/`FreeVec` and pools,
-  `CreateMsgPort`/`DeleteMsgPort`/`ReplyMsg`, `FindTask`/`FindPort`,
-  semaphores, libraries (`MakeLibrary`/`SetFunction`), and the
-  `OpenDevice`/`DoIO`/`SendIO`/… device primitives (L6 builds on them).
-  These are kernel-state → `syscall` flavour (proven path: conf line +
-  `cara/sysno.h` + `syscall.c` arm + `Croi_*_Impl`). Pure ones →
-  `local` like the lists.
+- **Slice 2 shipped (`5d0dce6`): `AllocVec`/`FreeVec`** (syscall; LVOs
+  -684/-690, ords 113/114 after a `##pad_run 21`). The full syscall
+  recipe in one go: `cara/sysno.h` number + `exec.conf` line +
+  `trampolines.S` `CARA_SYSCALL_TRAMPOLINE` + `syscall.c` arm +
+  `Croi_*_Impl` (mem.c) + `cara/exec_lib.h` decl, exercised in
+  `userexec.c`.
+- **Slice 3 (next): messaging** — `CreateMsgPort`/`DeleteMsgPort`
+  (allocate a public `struct MsgPort` + signal over the caller's task;
+  the internal `Croi_CreateMsgPort` in ipc/ is the substrate) and
+  `ReplyMsg` (set `ln_Type=NT_REPLYMSG`, `Croi_PutMsg_Impl(msg->mn_ReplyPort,
+  msg)`). ReplyMsg needs a *public* MsgPort, so it pairs with
+  CreateMsgPort — once both exist, test a full PutMsg→GetMsg→ReplyMsg
+  round-trip from a Gleas. Then `FindTask(NULL)` (self), semaphores,
+  `MakeLibrary`/`SetFunction`, and the `OpenDevice`/`DoIO` device
+  primitives (L6 builds on them). Kernel-state → syscall; pure → local.
 - **Still TODO in L1:** the **stub-coverage report** (PHASE3.md §7 Q4)
   — a check listing which declared LVOs are unimplemented stubs. Not
   built yet; settle its format as the per-library precedent. The conf
