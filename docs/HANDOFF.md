@@ -218,18 +218,26 @@ library trampoline needed. Watch-outs from the F5 recap still apply (no
 `%.*s` in the kernel `LOG`; `nvme_io` scribbles the namespace tail, now
 the backup-GPT region, clear of the partition).
 
-### Phase 3 — AmigaOS Release 2 (V36+) parity (next)
+### Phase 3 — AmigaOS Release 2 (V36+) parity (next; planned in docs/PHASE3.md)
 
-The project's real charter (ROADMAP Phase 3): ship `exec`/`dos`/
-`intuition`/`graphics` + the V36 additions (`utility`, BOOPSI,
-`gadtools`, `asl`, …) under their **verbatim AmigaOS names/LVOs** so a
-Release-2 source program builds + runs unmodified. The LVO-gen machinery
-(`tools/lvo-gen`, `docs/LVO.md`) and a first slice of exec/intuition
-already exist (see `src/croi/exec_lib`, `intuition_lib`); the bulk of
-the API surface is unbuilt. `dos.library` (Logaic) is the natural first
-target — it supersedes the Phase-2 `Croi_Fs_*` stopgap syscalls with the
-real Lock/Open/Read/Write/Examine surface over the CaraFS mount, ideally
-as the AmigaDOS handler Gleas (`server` LVO flavour, ARCHITECTURE §6).
+The project's real charter: the AmigaOS V36+ API under verbatim names so
+a Release-2 source program builds + runs unmodified. The plan is written
+(`docs/PHASE3.md`) with three locked decisions: **breadth-first
+library-by-library** (dependency order), **`dos.library` as an AmigaDOS
+handler Gleas** (server flavour, retiring the G3 `Croi_Fs_*` stopgap),
+and **apps-driven impl with ABI-complete declaration** (each library's
+full `.conf`/headers link, bodies implemented to what the editor/paint/
+file-manager exercise, the rest defined stubs). Epic order: **P0** ABI
+proof (verbatim V36 source compiles vs our headers) → **L1** exec (widen,
+deep) → **L2** utility → **L3** dos (handler Gleas) → **L4** graphics
+(Dath CPU raster) → **L5** intuition (widen) → **L6** devices → **L7**
+BOOPSI → **L8** gadtools → **L9** asl → **L10–14** iffparse/icon/diskfont/
+commodities/expansion → **T** tools → **A** apps + PORTING.md (criterion).
+LVO-gen (`tools/lvo-gen`, `docs/LVO.md`) + the existing exec(17)/
+intuition(5)/Dath slices are the starting point. Open questions
+(BSTR/BPTR site, Process-vs-Task, proto/ search path, stub-coverage
+report, which sample apps) are listed in PHASE3.md §7 — settle the first
+few during L1/L3.
 
 ---
 
