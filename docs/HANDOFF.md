@@ -12,14 +12,15 @@
 ## 1. Where we are
 
 **Phase 1 shipped** (see §5 for the live demo recipe). **Phase 2 is in
-flight**: the NVMe driver and the CaraFS core through epic F5 are done —
-CaraFS now mounts on NVMe at boot and survives reboot. **F6 (Subgoal-3
-boot path) is next**, and it carries Phase 2's success criterion. The
-on-disk format is frozen (F4 boundary) — bump `incompat` for any change.
+flight**: the NVMe driver and CaraFS F0–F5 are done, and **F6 (Subgoal-3
+boot path) is in progress** — epic **G1 (GPT discovery) shipped**; the
+remaining G2/G3/G4 carry Phase 2's success criterion. The on-disk
+format is frozen (F4 boundary) — bump `incompat` for any change.
 
 Recent commits (newest first), all on `main`:
 
 ```
+b7c80aa phase-2/F6 G1 GPT partition discovery + partition-relative mount
 0da9d95 phase-2/F5    CaraFS kernel mount over NVMe + reboot persistence
 d941883 phase-2/F4    CaraFS journal — WAL, ordered data, replay, crash test
 0af45f8 phase-2/F3    CaraFS directories — inline→leaf→tree, links, scale
@@ -29,11 +30,11 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 5cb4c0c phase-2/N1-N5 NVMe driver — probe to write/readback under QEMU
 ```
 
-Status: everything green — host ctest **26/26**, in-kernel tests
-**28 passed / 0 failed**, QEMU boot smoke ok (CaraFS persists across a
-reboot), `format-check` clean. (Host suite ~20–25 s: `test_carafs_dir`'s
-scale test + `test_carafs_journal`'s crash-injection harness dominate.
-The boot smoke now boots QEMU **twice** against one NVMe image.)
+Status: everything green — host ctest **27/27**, in-kernel tests
+**28 passed / 0 failed**, QEMU boot smoke ok (boots twice: partition +
+format on boot 1, GPT discovery + persist on boot 2), `format-check`
+clean. (Host suite ~20–25 s: `test_carafs_dir`'s scale test +
+`test_carafs_journal`'s crash-injection harness dominate.)
 
 ### Phase 2 so far
 
@@ -164,18 +165,38 @@ CaraFS runs on device storage now; the kernel-side internals:
   harmless because mount uses the primary sb and the persist marker
   lives in low (AG 0) blocks, but don't put anything load-bearing there.
 
-### F6 — Subgoal-3 boot path (the current epic; carries the Phase 2 criterion)
+### F6 — Subgoal-3 boot path (in progress; design in docs/LOGAIC_BOOT.md)
 
-Scoped in the Logaic boot-path doc (to be written), not in CARAFS.md:
-GPT/UUID partition discovery, root-volume selection (the superblock UUID
-is the key), and an `S:Startup-Sequence` analogue executed at boot. The
-payoff and **Phase 2's success criterion**: Clar's drawer becomes a live
-CaraFS directory listing (replacing the Phase 1 hard-coded Bosca), and
-edit → write → reboot → still there. That likely needs a first slice of
-`dos.library`/Logaic (locks/Open/Read/Write over the CaraFS handler) so
-Clar talks to the FS through the AmigaDOS surface rather than calling
-`Carafs_*` directly — confirm scoping before starting (it brushes up
-against Phase 3).
+The boot-path doc is written (`docs/LOGAIC_BOOT.md`): it scopes G1–G4
+and records the load-bearing decision — Clar reaches the FS via thin
+kernel `Croi_Fs_*` syscalls in Phase 2; `dos.library` is Phase 3
+(PRINCIPLES §6). Epic plan:
+
+- **G1 — GPT discovery (shipped, `b7c80aa`).** `cara_gpt`
+  (`src/logaic/gpt`) is a cleanroom GPT parse/format behind a `GptDev`
+  seam (IEEE CRC-32, protective MBR + primary/backup headers + 128-entry
+  array, the minted `CARAFS_GPT_TYPE_GUID`). `Croi_Carafs_BringUp`
+  (carafs_bind.c) now reads the GPT — laying one down on a blank
+  namespace — and offsets the mount to the CaraFS partition (LBA 2048).
+  `nvme_chunked` is the shared raw-LBA bounce helper for both the GPT and
+  CaraFS paths. Host-tested (test_gpt.c); the two-boot smoke discovers
+  the GPT on boot 2.
+- **G2 — root selection by UUID + an off-target authoring tool.** Pick
+  the root partition by superblock UUID when several exist; a host
+  `mkfs --gpt` / `mkgpt` so disks can be authored without booting.
+- **G3 — FS syscalls + Clar drawer (carries the criterion).** A minimal
+  `Croi_Fs_*` syscall surface (readdir/lookup/stat/read/write/create)
+  over `g_carafs`; Clar (U-mode) lists a real directory instead of the
+  hard-coded Bosca, opens a file into the text Inntin, saves it back; the
+  persist smoke checks a Clar-written file across reboot. This is where
+  the U/S-boundary + Clar UI work concentrates. **Phase 2's success
+  criterion: edit → write → reboot → still there.**
+- **G4 — Startup-Sequence analogue.** A tiny boot-script runner from the
+  root volume; launches Clar through it. Closes Phase 2.
+
+Watch-outs for next time are in the F5 recap above (no `%.*s` in the
+kernel `LOG`; `nvme_io` scribbles the namespace tail — now the
+backup-GPT region, clear of the partition).
 
 ---
 
