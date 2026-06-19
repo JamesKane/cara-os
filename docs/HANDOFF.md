@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+92b4557 phase-3/L1    exec.library list primitives (first local-flavour LVOs)
 9c8429b phase-3/P0    verbatim-V36 source builds + runs (ABI proof)
 aee7d29 docs          Phase 3 plan (docs/PHASE3.md)
 c2f947f docs          Phase 2 complete under QEMU
@@ -242,15 +243,32 @@ headers and `KERNEL_TEST(v36hello_smoke)` runs it to `RETURN_OK`.
 a userland Gleas (CMake target + `user_blob.S` incbin + a spawn
 KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
 
-**L1 — widen `exec.library`:** `tools/lvo-gen/exec.conf` currently
-declares 17 LVOs; widen to the full V36 Exec autodoc (ABI-complete),
-implementing bodies for lists / memory (AllocVec, pools) / tasks /
-ports+messages (CreateMsgPort/ReplyMsg) / libraries (MakeLibrary,
-SetFunction) / semaphores / the `OpenDevice`/`DoIO` device primitives
-(L6 builds on them). Settle the stub-coverage report format here
-(PHASE3.md §7 Q4) since L1 sets the per-library precedent. LVO-gen flow
-+ the conf format are in `docs/LVO.md`; existing impls in
-`src/croi/exec_lib`.
+**L1 — widen `exec.library` (in progress).**
+
+- **Slice 1 shipped (`92b4557`): the list primitives** (Insert/AddHead/
+  AddTail/Remove/RemHead/RemTail/Enqueue/FindName) — the **first
+  U-mode-callable `local`-flavour LVOs**. The pattern, now established
+  for the whole phase: declare in the `.conf` as `local` at canonical
+  LVOs (split `##pad_run`s to keep ordinal == LVO position); implement
+  in a `.lib_text.exec` source file (the 0x4000_0000 RX page) that is
+  **self-contained — no kernel symbols, no globals, no out-of-section
+  calls** (inline any helper as a macro; a real `static inline` that
+  doesn't inline becomes a PC-relative call that overflows). **Test
+  from a Gleas, never a KERNEL_TEST** — S-mode can't fetch the
+  User-mapped RX page (instruction fault). `userexec.c` exercises them
+  via the proto stubs.
+- **Slice 2+ (next):** more Exec — `AllocVec`/`FreeVec` and pools,
+  `CreateMsgPort`/`DeleteMsgPort`/`ReplyMsg`, `FindTask`/`FindPort`,
+  semaphores, libraries (`MakeLibrary`/`SetFunction`), and the
+  `OpenDevice`/`DoIO`/`SendIO`/… device primitives (L6 builds on them).
+  These are kernel-state → `syscall` flavour (proven path: conf line +
+  `cara/sysno.h` + `syscall.c` arm + `Croi_*_Impl`). Pure ones →
+  `local` like the lists.
+- **Still TODO in L1:** the **stub-coverage report** (PHASE3.md §7 Q4)
+  — a check listing which declared LVOs are unimplemented stubs. Not
+  built yet; settle its format as the per-library precedent. The conf
+  is *not* yet the full Exec autodoc (still `##pad_run`s); widening to
+  ABI-complete is ongoing.
 
 Open questions for L1/L3 in PHASE3.md §7: BSTR/BPTR site, Process-vs-Task
 layout, `proto/` search path, stub-coverage report, which sample apps.
