@@ -59,3 +59,6 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_SetSignal,       SYS_SetSignal
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_PutMsg,          SYS_PutMsg
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GetMsg,          SYS_GetMsg
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_WaitPort,        SYS_WaitPort
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_ReplyMsg,        SYS_ReplyMsg
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_CreateMsgPort,   SYS_CreateMsgPort
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DeleteMsgPort,   SYS_DeleteMsgPort

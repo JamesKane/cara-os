@@ -24,11 +24,16 @@
 #include <cara/log.h>
 #include <cara/msgport.h>
 #include <cara/ring.h>
+#include <cara/sched.h>
 #include <cara/types.h>
 #include <exec/nodes.h>
 #include <exec/ports.h>
 
 #include <stddef.h>
+
+// Default ring capacity for a CreateMsgPort port (power of two). Far more
+// than the polled Phase-2/3 message traffic ever has in flight.
+constexpr u32 CARA_PORT_RING_CAP = 32;
 
 static struct CroiMsgPort *port_to_croi(struct MsgPort *port)
 {
@@ -76,4 +81,53 @@ struct Message *Croi_WaitPort_Impl(struct MsgPort *port)
     (void)Croi_WaitPort(cmp);
     // v0: return nullptr — see header note. Caller must GetMsg next.
     return nullptr;
+}
+
+// V36+ ReplyMsg: stamp the message as replied and PutMsg it back to its
+// reply port (which signals that port's task).
+void Croi_ReplyMsg_Impl(struct Message *msg)
+{
+    if (!msg) {
+        return;
+    }
+    msg->mn_Node.ln_Type = NT_REPLYMSG;
+    if (msg->mn_ReplyPort) {
+        Croi_PutMsg_Impl(msg->mn_ReplyPort, msg);
+    }
+}
+
+// V36+ CreateMsgPort: a public struct MsgPort over the SASOS shared heap
+// with a freshly allocated signal bit on the caller, ready for PA_SIGNAL
+// arrival. The wrapper's public part is the first field, so &p->pub is
+// the canonical MsgPort pointer.
+struct MsgPort *Croi_CreateMsgPort_Impl(void)
+{
+    struct Task *me = Sched_Current();
+    if (!me) {
+        return nullptr;
+    }
+    i32 sig = Croi_AllocSignal();
+    if (sig < 0) {
+        return nullptr;
+    }
+    struct CroiMsgPort *p = Croi_CreateMsgPort(me, (u32)sig, CARA_PORT_RING_CAP);
+    if (!p) {
+        Croi_FreeSignal(sig);
+        return nullptr;
+    }
+    return &p->pub;
+}
+
+// V36+ DeleteMsgPort: free the signal bit (read before destroy) and the
+// port + ring. Assumes the deleting task is the one that created it (the
+// normal idiom), since FreeSignal acts on the current task.
+void Croi_DeleteMsgPort_Impl(struct MsgPort *port)
+{
+    if (!port) {
+        return;
+    }
+    struct CroiMsgPort *cmp = port_to_croi(port);
+    i32 sig = (i32)cmp->signal_bit;
+    Croi_DestroyMsgPort(cmp);
+    Croi_FreeSignal(sig);
 }

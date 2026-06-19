@@ -38,6 +38,9 @@ ULONG Croi_SetSignal_Impl(ULONG new_signals, ULONG mask);
 void Croi_PutMsg_Impl(struct MsgPort *port, struct Message *msg);
 struct Message *Croi_GetMsg_Impl(struct MsgPort *port);
 struct Message *Croi_WaitPort_Impl(struct MsgPort *port);
+void Croi_ReplyMsg_Impl(struct Message *msg);
+struct MsgPort *Croi_CreateMsgPort_Impl(void);
+void Croi_DeleteMsgPort_Impl(struct MsgPort *port);
 
 // ---- Library lifecycle ----------------------------------------------
 

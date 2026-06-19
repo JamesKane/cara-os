@@ -58,6 +58,9 @@ enum {
     // Phase 3 L1 — more exec.library (docs/PHASE3.md).
     SYS_AllocVec = 23,
     SYS_FreeVec = 24,
+    SYS_CreateMsgPort = 25,
+    SYS_DeleteMsgPort = 26,
+    SYS_ReplyMsg = 27,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -93,6 +96,9 @@ enum {
 // Phase 3 L1 — more exec.library.
 #define SYS_AllocVec 23
 #define SYS_FreeVec 24
+#define SYS_CreateMsgPort 25
+#define SYS_DeleteMsgPort 26
+#define SYS_ReplyMsg 27
 #endif
 
 #endif

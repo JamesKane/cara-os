@@ -144,6 +144,14 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)(uptr)Croi_GetMsg_Impl((struct MsgPort *)(uptr)a0);
     case SYS_WaitPort:
         return (i64)(uptr)Croi_WaitPort_Impl((struct MsgPort *)(uptr)a0);
+    case SYS_ReplyMsg:
+        Croi_ReplyMsg_Impl((struct Message *)(uptr)a0);
+        return 0;
+    case SYS_CreateMsgPort:
+        return (i64)(uptr)Croi_CreateMsgPort_Impl();
+    case SYS_DeleteMsgPort:
+        Croi_DeleteMsgPort_Impl((struct MsgPort *)(uptr)a0);
+        return 0;
 
     // ---- intuition.library windows ----
     case SYS_OpenWindow:

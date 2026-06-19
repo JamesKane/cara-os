@@ -28,6 +28,7 @@
 #include <exec/lists.h>
 #include <exec/memory.h>
 #include <exec/nodes.h>
+#include <exec/ports.h>
 #include <exec/types.h>
 #include <proto/exec.h>
 
@@ -38,6 +39,7 @@
 #define USEREXEC_EXIT_ALLOC_FAILED 0xBAD4
 #define USEREXEC_EXIT_NOT_ZEROED 0xBAD5
 #define USEREXEC_EXIT_LIST_FAIL 0xBAD6
+#define USEREXEC_EXIT_MSG_FAIL 0xBAD7
 
 // Inline ecall for SYS_LOG_WRITE — used to surface progress markers
 // in the kernel log alongside the existing kernel-side messages so
@@ -214,6 +216,36 @@ int main(void)
         return (int)USEREXEC_EXIT_NOT_ZEROED;
     }
     FreeVec(vec);
+
+    // 4c. Messaging round-trip: CreateMsgPort, PutMsg → GetMsg, ReplyMsg
+    //     → GetMsg on the reply port, DeleteMsgPort.
+    struct MsgPort *port = CreateMsgPort();
+    struct MsgPort *reply = CreateMsgPort();
+    bool msg_ok = (port != nullptr && reply != nullptr);
+    if (msg_ok) {
+        struct Message m = { 0 };
+        m.mn_Node.ln_Type = NT_MESSAGE;
+        m.mn_ReplyPort = reply;
+        m.mn_Length = sizeof(m);
+        PutMsg(port, &m);
+        struct Message *got = GetMsg(port);
+        msg_ok = (got == &m);
+        if (msg_ok) {
+            ReplyMsg(got);
+            struct Message *back = GetMsg(reply);
+            msg_ok = (back == &m && back->mn_Node.ln_Type == NT_REPLYMSG);
+        }
+    }
+    if (port) {
+        DeleteMsgPort(port);
+    }
+    if (reply) {
+        DeleteMsgPort(reply);
+    }
+    if (!msg_ok) {
+        CloseLibrary(lib);
+        return (int)USEREXEC_EXIT_MSG_FAIL;
+    }
 
     // 5. Balance the open. Note: libcara also opened exec.library
     //    at startup, so OpenCnt is still > 0 after this close.
