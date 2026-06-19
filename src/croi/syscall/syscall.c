@@ -135,6 +135,8 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return 0;
     case SYS_SetSignal:
         return (i64)Croi_SetSignal_Impl((ULONG)a0, (ULONG)a1);
+    case SYS_FindTask:
+        return (i64)(uptr)Croi_FindTask_Impl((STRPTR)(uptr)a0);
 
     // ---- exec.library IPC ----
     case SYS_PutMsg:

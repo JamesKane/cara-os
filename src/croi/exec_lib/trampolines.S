@@ -55,6 +55,9 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AllocSignal,     SYS_AllocSignal
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_FreeSignal,      SYS_FreeSignal
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_SetSignal,       SYS_SetSignal
 
+// ---- Tasks ----
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_FindTask,        SYS_FindTask
+
 // ---- IPC ----
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_PutMsg,          SYS_PutMsg
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GetMsg,          SYS_GetMsg

@@ -29,6 +29,7 @@
 #include <exec/memory.h>
 #include <exec/nodes.h>
 #include <exec/ports.h>
+#include <exec/tasks.h>
 #include <exec/types.h>
 #include <proto/exec.h>
 
@@ -40,6 +41,8 @@
 #define USEREXEC_EXIT_NOT_ZEROED 0xBAD5
 #define USEREXEC_EXIT_LIST_FAIL 0xBAD6
 #define USEREXEC_EXIT_MSG_FAIL 0xBAD7
+#define USEREXEC_EXIT_TASK_FAIL 0xBAD8
+#define USEREXEC_EXIT_COPY_FAIL 0xBAD9
 
 // Inline ecall for SYS_LOG_WRITE — used to surface progress markers
 // in the kernel log alongside the existing kernel-side messages so
@@ -245,6 +248,45 @@ int main(void)
     if (!msg_ok) {
         CloseLibrary(lib);
         return (int)USEREXEC_EXIT_MSG_FAIL;
+    }
+
+    // 4d. FindTask: NULL is self; this task (spawned as "uexec") is
+    //     findable by name; a bogus name is not. The returned Task lives
+    //     in kernel memory — opaque to U-mode (don't dereference it); the
+    //     name match happens kernel-side.
+    struct Task *self = FindTask(nullptr);
+    if (!self || FindTask((STRPTR) "uexec") != self ||
+        FindTask((STRPTR) "no-such-task-xyz") != nullptr) {
+        CloseLibrary(lib);
+        return (int)USEREXEC_EXIT_TASK_FAIL;
+    }
+
+    // 4e. CopyMem / CopyMemQuick.
+    UBYTE csrc[40];
+    UBYTE cdst[40];
+    for (int i = 0; i < 40; i++) {
+        csrc[i] = (UBYTE)(i * 5 + 1);
+        cdst[i] = 0;
+    }
+    CopyMem(csrc, cdst, 40);
+    UBYTE qsrc[32];
+    UBYTE qdst[32];
+    for (int i = 0; i < 32; i++) {
+        qsrc[i] = (UBYTE)(i ^ 0x5A);
+        qdst[i] = 0;
+    }
+    CopyMemQuick(qsrc, qdst, 32);
+    for (int i = 0; i < 40; i++) {
+        if (cdst[i] != csrc[i]) {
+            CloseLibrary(lib);
+            return (int)USEREXEC_EXIT_COPY_FAIL;
+        }
+    }
+    for (int i = 0; i < 32; i++) {
+        if (qdst[i] != qsrc[i]) {
+            CloseLibrary(lib);
+            return (int)USEREXEC_EXIT_COPY_FAIL;
+        }
     }
 
     // 5. Balance the open. Note: libcara also opened exec.library

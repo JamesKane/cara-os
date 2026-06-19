@@ -32,6 +32,7 @@ void Croi_Signal_Impl(struct Task *target, ULONG mask);
 LONG Croi_AllocSignal_Impl(LONG sig_num);
 void Croi_FreeSignal_Impl(LONG sig_num);
 ULONG Croi_SetSignal_Impl(ULONG new_signals, ULONG mask);
+struct Task *Croi_FindTask_Impl(STRPTR name);
 
 // ---- IPC ------------------------------------------------------------
 
