@@ -11,15 +11,19 @@
 
 ## 1. Where we are
 
-**Phase 1 shipped** (see §5 for the live demo recipe). **Phase 2 is in
-flight**: the NVMe driver and CaraFS F0–F5 are done, and **F6 (Subgoal-3
-boot path) is in progress** — epic **G1 (GPT discovery) shipped**; the
-remaining G2/G3/G4 carry Phase 2's success criterion. The on-disk
-format is frozen (F4 boundary) — bump `incompat` for any change.
+**Phase 1 shipped** (see §5 for the live demo recipe). **Phase 2's
+success criterion is met in QEMU** (`fe701fb`): Clar edits a file in its
+drawer and the change persists across reboot, on a CaraFS volume mounted
+from an NVMe-resident GPT partition. Remaining F6 work is completeness,
+not criterion: **G4 (Startup-Sequence) and the deferred G2 (multi-volume
+root-by-UUID + a host disk-authoring tool)**. (ROADMAP reserves a phase
+`STATUS: complete` line for *real hardware*; we're QEMU-only so far.)
+The on-disk format is frozen (F4 boundary) — bump `incompat` for changes.
 
 Recent commits (newest first), all on `main`:
 
 ```
+fe701fb phase-2/F6 G3 Clar edits a CaraFS file — Phase 2 criterion met
 b7c80aa phase-2/F6 G1 GPT partition discovery + partition-relative mount
 0da9d95 phase-2/F5    CaraFS kernel mount over NVMe + reboot persistence
 d941883 phase-2/F4    CaraFS journal — WAL, ordered data, replay, crash test
@@ -27,14 +31,13 @@ d941883 phase-2/F4    CaraFS journal — WAL, ordered data, replay, crash test
 591d1d3 phase-2/F2    CaraFS cnodes, files, allocator
 a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 16b5265 phase-2/F0    CaraFS format foundation
-5cb4c0c phase-2/N1-N5 NVMe driver — probe to write/readback under QEMU
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**28 passed / 0 failed**, QEMU boot smoke ok (boots twice: partition +
-format on boot 1, GPT discovery + persist on boot 2), `format-check`
-clean. (Host suite ~20–25 s: `test_carafs_dir`'s scale test +
-`test_carafs_journal`'s crash-injection harness dominate.)
+**29 passed / 0 failed**, QEMU boot smoke ok (boots twice: boot 1
+partitions + formats + Clar saves its drawer file; boot 2 discovers the
+GPT and reads `drawer note='as'` back), `format-check` clean. (Host
+suite ~20–25 s.)
 
 ### Phase 2 so far
 
@@ -181,22 +184,29 @@ kernel `Croi_Fs_*` syscalls in Phase 2; `dos.library` is Phase 3
   `nvme_chunked` is the shared raw-LBA bounce helper for both the GPT and
   CaraFS paths. Host-tested (test_gpt.c); the two-boot smoke discovers
   the GPT on boot 2.
-- **G2 — root selection by UUID + an off-target authoring tool.** Pick
-  the root partition by superblock UUID when several exist; a host
-  `mkfs --gpt` / `mkgpt` so disks can be authored without booting.
-- **G3 — FS syscalls + Clar drawer (carries the criterion).** A minimal
-  `Croi_Fs_*` syscall surface (readdir/lookup/stat/read/write/create)
-  over `g_carafs`; Clar (U-mode) lists a real directory instead of the
-  hard-coded Bosca, opens a file into the text Inntin, saves it back; the
-  persist smoke checks a Clar-written file across reboot. This is where
-  the U/S-boundary + Clar UI work concentrates. **Phase 2's success
-  criterion: edit → write → reboot → still there.**
-- **G4 — Startup-Sequence analogue.** A tiny boot-script runner from the
-  root volume; launches Clar through it. Closes Phase 2.
+- **G3 — FS syscalls + Clar drawer (shipped, `fe701fb`; criterion met).**
+  `SYS_Fs_Read=21` / `SYS_Fs_Write=22` dispatch to `Croi_Fs_Read/Write_Impl`
+  (carafs_bind.c) over the boot mount's root directory (read-named-file;
+  write with drop+recreate replace semantics — CaraFS has no truncate).
+  Clar reads its drawer's `note` file on open and logs `drawer note='…'`
+  (the persistence proof, kept in a private buffer so `clar_smoke` is
+  unaffected) and writes the typed buffer on Return. The two-boot smoke
+  proves it: boot 1 `saved note`, boot 2 `drawer note='as'`.
+  `KERNEL_TEST(carafs_fs_syscall)` covers the backends directly.
+- **G2 — root selection by UUID + off-target authoring tool (deferred).**
+  Not needed for the single-volume criterion; pick the root partition by
+  superblock UUID when several exist, plus a host `mkfs --gpt`/`mkgpt`.
+  Requires raw-LBA + partition-offset file bdevs in `tools/` (the host
+  side doesn't have those yet).
+- **G4 — Startup-Sequence analogue (remaining).** A tiny boot-script
+  runner read from the root volume (`S/Startup-Sequence`) that launches
+  Clar; the AmigaDOS boot idiom, kept minimal (full shell is Phase 3).
+  Formally closes Subgoal 3.
 
-Watch-outs for next time are in the F5 recap above (no `%.*s` in the
-kernel `LOG`; `nvme_io` scribbles the namespace tail — now the
-backup-GPT region, clear of the partition).
+How Clar reaches the FS: it does direct `ecall`s (see `ecall4` in
+clar.c) — no library trampoline needed. Other watch-outs are in the F5
+recap above (no `%.*s` in the kernel `LOG`; `nvme_io` scribbles the
+namespace tail, now the backup-GPT region, clear of the partition).
 
 ---
 
