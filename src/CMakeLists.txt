@@ -51,6 +51,10 @@ add_subdirectory(croi/hid)
 # kernel build mounts over the NVMe driver.
 add_subdirectory(logaic/carafs)
 
+# Always-on: GPT partition discovery/format (Phase 2 Subgoal 3). Pure
+# logic behind the GptDev seam; host tests + kernel boot-path mount.
+add_subdirectory(logaic/gpt)
+
 # Always-on: Leargas substrate. L0 is just the input event ring
 # (pure atomics + flat storage); LA/LB pull in framebuffer code
 # and may need to gate on CARA_TARGET like cara_dath does.

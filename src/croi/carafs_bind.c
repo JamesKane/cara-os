@@ -20,6 +20,7 @@
 
 #include <cara/carafs.h>
 #include <cara/carafs_bind.h>
+#include <cara/gpt.h>
 #include <cara/log.h>
 #include <cara/mm.h>
 #include <cara/nvme.h>
@@ -48,6 +49,7 @@ struct CroiCarafsCtx {
     struct NvmeController *nvme;
     u32 block_bytes;   // NVMe LBA size
     u32 lba_per_block; // KFS_BLOCK_SIZE / block_bytes
+    u64 part_base_lba; // first LBA of the CaraFS partition (GPT, §3)
     u8 *bounce;        // BOUNCE_PAGES, page-aligned (DMA-capable)
 };
 
@@ -62,25 +64,28 @@ alignas(CARA_PAGE_SIZE) static u8 g_carafs_arena[256 * 1024];
 // buffer (mkfs writes route through bdev->write, which uses the bounce).
 alignas(8) static u8 g_mkfs_scratch[KFS_BLOCK_SIZE];
 
-// Move `n` filesystem blocks at `block` to/from NSID 1, bouncing in
-// <= 8 KiB chunks through the page-aligned DMA buffer.
-static int bd_rw(struct CroiCarafsCtx *c, u64 block, u32 n, void *buf, bool write)
+// Transfer `n_lbas` absolute LBAs to/from NSID 1, bouncing in <= 8 KiB
+// chunks (one NVMe PRP1+PRP2) through the page-aligned DMA buffer —
+// Croi_Nvme_Read/Write need a page-aligned <= 2-page buffer, the cache
+// frames are only 64-byte aligned. Shared by the GPT (raw-LBA) and
+// CaraFS (FS-block) paths.
+static int nvme_chunked(struct CroiCarafsCtx *c, u64 lba, u32 n_lbas, void *buf, bool write)
 {
-    u64 total = (u64)n * KFS_BLOCK_SIZE;
+    u64 total = (u64)n_lbas * c->block_bytes;
     u64 off = 0;
     while (off < total) {
         u32 chunk = (u32)(total - off);
         if (chunk > BOUNCE_PAGES * CARA_PAGE_SIZE) {
             chunk = BOUNCE_PAGES * CARA_PAGE_SIZE;
         }
-        u64 lba = block * c->lba_per_block + off / c->block_bytes;
-        u32 nlba = chunk / c->block_bytes;
+        u64 clba = lba + off / c->block_bytes;
+        u32 cn = chunk / c->block_bytes;
         int rc;
         if (write) {
             memcpy(c->bounce, (const u8 *)buf + off, chunk);
-            rc = Croi_Nvme_Write(c->nvme, lba, nlba, c->bounce);
+            rc = Croi_Nvme_Write(c->nvme, clba, cn, c->bounce);
         } else {
-            rc = Croi_Nvme_Read(c->nvme, lba, nlba, c->bounce);
+            rc = Croi_Nvme_Read(c->nvme, clba, cn, c->bounce);
             if (rc == CARA_EOK) {
                 memcpy((u8 *)buf + off, c->bounce, chunk);
             }
@@ -93,20 +98,36 @@ static int bd_rw(struct CroiCarafsCtx *c, u64 block, u32 n, void *buf, bool writ
     return CARA_EOK;
 }
 
+// CaraFS bdev: filesystem block `block` → partition-relative LBA range.
 static int bd_read(void *ctx, u64 block, u32 n, void *buf)
 {
-    return bd_rw(ctx, block, n, buf, false);
+    struct CroiCarafsCtx *c = ctx;
+    return nvme_chunked(c, c->part_base_lba + block * c->lba_per_block, n * c->lba_per_block, buf,
+                        false);
 }
 
 static int bd_write(void *ctx, u64 block, u32 n, const void *buf)
 {
-    return bd_rw(ctx, block, n, (void *)buf, true);
+    struct CroiCarafsCtx *c = ctx;
+    return nvme_chunked(c, c->part_base_lba + block * c->lba_per_block, n * c->lba_per_block,
+                        (void *)buf, true);
 }
 
 static int bd_flush(void *ctx)
 {
     struct CroiCarafsCtx *c = ctx;
     return Croi_Nvme_Flush(c->nvme);
+}
+
+// GPT dev: absolute-LBA access (no partition offset, no FS-block scale).
+static int gpt_read(void *ctx, u64 lba, u32 n, void *buf)
+{
+    return nvme_chunked(ctx, lba, n, buf, false);
+}
+
+static int gpt_write(void *ctx, u64 lba, u32 n, const void *buf)
+{
+    return nvme_chunked(ctx, lba, n, (void *)buf, true);
 }
 
 [[nodiscard]] int Croi_Carafs_BringUp(void)
@@ -136,7 +157,47 @@ static int bd_flush(void *ctx)
         .bounce = (u8 *)Mm_PhysToVirt(bounce_phys),
     };
 
-    u64 fs_blocks = g_nvme.ns.n_blocks / g_ctx.lba_per_block;
+    // ---- GPT (docs/LOGAIC_BOOT.md §3): find the CaraFS partition, or
+    //      partition the blank namespace ourselves (symmetric with the
+    //      mkfs-on-empty below). GPT scratch needs one LBA + the 16 KiB
+    //      entry array.
+    u32 gpt_pages = (u32)((bb + GPT_ARRAY_BYTES + CARA_PAGE_SIZE - 1) / CARA_PAGE_SIZE);
+    u64 gpt_scratch_phys = Page_Alloc(&g_page_alloc, gpt_pages);
+    if (gpt_scratch_phys == 0) {
+        Page_Free(&g_page_alloc, bounce_phys, BOUNCE_PAGES);
+        return CARA_ENOMEM;
+    }
+    u8 *gpt_scratch = (u8 *)Mm_PhysToVirt(gpt_scratch_phys);
+    usize gpt_scratch_bytes = (usize)gpt_pages * CARA_PAGE_SIZE;
+    struct GptDev gdev = {
+        .ctx = &g_ctx,
+        .lba_size = bb,
+        .n_lbas = g_nvme.ns.n_blocks,
+        .read = gpt_read,
+        .write = gpt_write,
+    };
+    u64 part_first = 0;
+    u64 part_lbas = 0;
+    int grc = Gpt_FindCarafs(&gdev, gpt_scratch, gpt_scratch_bytes, &part_first, &part_lbas);
+    if (grc == CARA_ENOENT) {
+        LOG_INFO("carafs", "no GPT; partitioning the namespace");
+        // No RNG in the boot path; derive stable GUIDs from a constant.
+        static const u8 disk_guid[16] = { 0xCA, 0x1A, 0x05, 0x00, 0xD1, 0x5C, 0x00, 0x01,
+                                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 };
+        static const u8 part_guid[16] = { 0xCA, 0x1A, 0x05, 0x00, 0x9A, 0x27, 0x00, 0x01,
+                                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 };
+        grc = Gpt_Format(&gdev, disk_guid, part_guid, gpt_scratch, gpt_scratch_bytes, &part_first,
+                         &part_lbas);
+    }
+    Page_Free(&g_page_alloc, gpt_scratch_phys, gpt_pages);
+    if (grc != CARA_EOK) {
+        LOG_ERROR("carafs", "GPT discovery/format failed: %d", grc);
+        Page_Free(&g_page_alloc, bounce_phys, BOUNCE_PAGES);
+        return grc;
+    }
+    g_ctx.part_base_lba = part_first;
+
+    u64 fs_blocks = part_lbas / g_ctx.lba_per_block;
     g_carafs_bdev = (struct CarafsBdev){
         .ctx = &g_ctx,
         .block_size = KFS_BLOCK_SIZE,
@@ -173,8 +234,8 @@ static int bd_flush(void *ctx)
     }
 
     g_carafs_mounted = true;
-    LOG_INFO("carafs", "mounted on nvme: %llu blocks x %u B, %llu free",
-             (unsigned long long)g_carafs.sb.total_blocks, (unsigned)KFS_BLOCK_SIZE,
-             (unsigned long long)g_carafs.sb.free_blocks);
+    LOG_INFO("carafs", "mounted nvme partition @lba %llu: %llu blocks x %u B, %llu free",
+             (unsigned long long)part_first, (unsigned long long)g_carafs.sb.total_blocks,
+             (unsigned)KFS_BLOCK_SIZE, (unsigned long long)g_carafs.sb.free_blocks);
     return CARA_EOK;
 }
