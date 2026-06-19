@@ -17,6 +17,7 @@
 #include "ramfb.h"
 
 #include <cara/alloc.h>
+#include <cara/carafs_bind.h>
 #include <cara/dath.h>
 #include <cara/exec_lib.h>
 #include <cara/exec_lib_image.h>
@@ -455,6 +456,12 @@ static void console_putc(char c)
                         int qrc = Croi_Nvme_CreateIoQueues(&g_nvme);
                         if (qrc != CARA_EOK) {
                             LOG_WARN("nvme", "CreateIoQueues failed: %d", qrc);
+                        } else {
+                            // F5: mount (or format) CaraFS on NSID 1.
+                            int frc = Croi_Carafs_BringUp();
+                            if (frc != CARA_EOK) {
+                                LOG_WARN("carafs", "bring-up failed: %d", frc);
+                            }
                         }
                     }
                 }

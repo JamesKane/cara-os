@@ -95,3 +95,13 @@ static int nvme_io_cmd(struct NvmeController *c, u8 opcode, u64 lba, u32 n_block
 {
     return nvme_io_cmd(c, NVME_NVM_WRITE, lba, n_blocks, buf);
 }
+
+[[nodiscard]] int Croi_Nvme_Flush(struct NvmeController *c)
+{
+    if (!c || !c->io_ready) {
+        return CARA_EINVAL;
+    }
+    // Flush carries no data transfer: PRP1/PRP2 and all CDWs are zero
+    // (NVM Command Set §3.1). NSID 1 flushes the one namespace we drive.
+    return nvme_submit_sync(c, &c->io, NVME_NVM_FLUSH, CARA_NVME_NSID, 0, 0, 0, 0, 0, nullptr);
+}

@@ -23,6 +23,7 @@ add_library(cara_kernel_tests STATIC
     test_pci.c
     test_xhci.c
     test_nvme.c
+    test_carafs.c
     test_idcmp.c
     test_string.c
     test_shared.c

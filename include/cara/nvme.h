@@ -277,4 +277,11 @@ struct NvmeController {
 [[nodiscard]] int Croi_Nvme_Read(struct NvmeController *c, u64 lba, u32 n_blocks, void *buf);
 [[nodiscard]] int Croi_Nvme_Write(struct NvmeController *c, u64 lba, u32 n_blocks, const void *buf);
 
+// F5: NVM Flush (opcode 0x00) on NSID 1 through the I/O queue pair —
+// commit volatile write cache to the medium. The durability barrier
+// CaraFS's journal relies on (CARAFS.md §3.9). Returns CARA_EOK,
+// CARA_EIO (non-zero NVMe status), CARA_EAGAIN (timeout), or
+// CARA_EINVAL (I/O queue not ready).
+[[nodiscard]] int Croi_Nvme_Flush(struct NvmeController *c);
+
 #endif

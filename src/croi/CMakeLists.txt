@@ -60,6 +60,7 @@ add_executable(croi
     platform_init.c
     ramfb.c
     input_pump.c
+    carafs_bind.c
 )
 add_dependencies(croi userhello userexec userintuition clar)
 # Make the Phase 9 aggregated lookup table build alongside croi.elf
@@ -89,6 +90,7 @@ target_link_libraries(croi PRIVATE
     cara_pci
     cara_xhci
     cara_nvme
+    cara_carafs
     cara_hid
     cara_leargas
     # cara_exec_lib is whole-archived so trampolines.S.obj isn't
