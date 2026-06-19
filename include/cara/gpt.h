@@ -107,6 +107,44 @@ struct GptDev {
 [[nodiscard]] int Gpt_FindCarafs(struct GptDev *dev, void *scratch, usize scratch_bytes,
                                  u64 *first_lba_out, u64 *lba_count_out);
 
+// As Gpt_FindCarafs but returns the `nth` (0-based) CaraFS partition in
+// entry order; CARA_ENOENT once there are no more.
+[[nodiscard]] int Gpt_FindCarafsNth(struct GptDev *dev, void *scratch, usize scratch_bytes, u32 nth,
+                                    u64 *first_lba_out, u64 *lba_count_out);
+
+// UUID-aware root selection (docs/LOGAIC_BOOT.md §1/§3): scan the CaraFS
+// partitions and return the one whose volume superblock (read from the
+// partition's first LBA) starts with `magic` (magic_len bytes at offset
+// 0) and carries `target_uuid` (16 bytes at byte offset `uuid_off`).
+// Generic so the GPT layer needn't know CaraFS's superblock shape — the
+// caller passes CARAFS_SB_MAGIC and the uuid field offset. CARA_ENOENT
+// when no partition matches.
+[[nodiscard]] int Gpt_FindByVolumeUuid(struct GptDev *dev, void *scratch, usize scratch_bytes,
+                                       const void *magic, u32 magic_len, u32 uuid_off,
+                                       const u8 target_uuid[16], u64 *first_lba_out,
+                                       u64 *lba_count_out);
+
+// One partition for Gpt_FormatN. `last_lba` is inclusive.
+struct GptPartSpec {
+    u8 type_guid[16];
+    u8 unique_guid[16];
+    u64 first_lba;
+    u64 last_lba;
+};
+
+// Lay a fresh GPT with `n_parts` caller-specified partitions (the
+// general form of Gpt_Format). Each spec's range must lie within the
+// usable region; the caller computes/aligns them. `scratch` as above.
+[[nodiscard]] int Gpt_FormatN(struct GptDev *dev, const u8 disk_guid[16],
+                              const struct GptPartSpec *specs, u32 n_parts, void *scratch,
+                              usize scratch_bytes);
+
+// First usable LBA after the primary header + entry array, and the last
+// usable LBA before the backup array + header, for this device geometry
+// — callers building GptPartSpec ranges need these bounds.
+[[nodiscard]] u64 Gpt_FirstUsableLba(const struct GptDev *dev);
+[[nodiscard]] u64 Gpt_LastUsableLba(const struct GptDev *dev);
+
 // Lay a fresh GPT (protective MBR + primary/backup headers + entry
 // arrays) with a single CaraFS partition spanning the 1 MiB-aligned
 // usable region. `disk_guid` / `part_guid` are 16 bytes each (the core

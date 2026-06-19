@@ -238,9 +238,12 @@ static void seed_startup(void); // defined below; called on fresh format
     }
 
     g_carafs_mounted = true;
-    LOG_INFO("carafs", "mounted nvme partition @lba %llu: %llu blocks x %u B, %llu free",
-             (unsigned long long)part_first, (unsigned long long)g_carafs.sb.total_blocks,
-             (unsigned)KFS_BLOCK_SIZE, (unsigned long long)g_carafs.sb.free_blocks);
+    u32 uuid_hi;
+    memcpy(&uuid_hi, g_carafs.sb.uuid, 4);
+    LOG_INFO("carafs", "mounted root volume uuid=%x.. @lba %llu: %llu blocks x %u B, %llu free",
+             (unsigned)uuid_hi, (unsigned long long)part_first,
+             (unsigned long long)g_carafs.sb.total_blocks, (unsigned)KFS_BLOCK_SIZE,
+             (unsigned long long)g_carafs.sb.free_blocks);
     if (formatted) {
         seed_startup(); // fresh volume: lay down a default boot script
     }

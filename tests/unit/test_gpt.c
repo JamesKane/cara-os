@@ -5,6 +5,7 @@
 // (a corrupt header or entry array makes discovery fail), and the
 // CRC-32 against a known vector.
 
+#include <cara/carafs.h> // CARAFS_SB_MAGIC + superblock uuid offset
 #include <cara/gpt.h>
 #include <cara/types.h>
 
@@ -159,6 +160,75 @@ static void test_crc32_vector(void)
     CHECK(Gpt_Crc32(0, "123456789", 9) == 0xCBF43926u, "CRC-32 check vector");
 }
 
+// Two CaraFS partitions, distinct superblock UUIDs: UUID-aware root
+// selection picks the right one (docs/LOGAIC_BOOT.md root volume mount).
+static void test_uuid_select(void)
+{
+    u32 lba_size = 512;
+    u64 n_lbas = (64ull << 20) / lba_size;
+    u8 *mem = calloc(1, n_lbas * lba_size);
+    u8 *scratch = malloc(lba_size + GPT_ARRAY_BYTES);
+    struct MemDev st;
+    struct GptDev dev;
+    make_dev(&dev, &st, mem, lba_size, n_lbas);
+
+    u64 fu = Gpt_FirstUsableLba(&dev);
+    (void)fu;
+    u64 align = GPT_ALIGN_BYTES / lba_size;
+    struct GptPartSpec specs[2] = {
+        { .first_lba = align, .last_lba = 16 * align - 1 },
+        { .first_lba = 16 * align, .last_lba = 32 * align - 1 },
+    };
+    memcpy(specs[0].type_guid, CARAFS_GPT_TYPE_GUID, 16);
+    memcpy(specs[1].type_guid, CARAFS_GPT_TYPE_GUID, 16);
+    memset(specs[0].unique_guid, 0x11, 16);
+    memset(specs[1].unique_guid, 0x22, 16);
+    static const u8 DG[16] = { 9 };
+    CHECK(Gpt_FormatN(&dev, DG, specs, 2, scratch, lba_size + GPT_ARRAY_BYTES) == CARA_EOK,
+          "format two partitions");
+
+    // Both partitions are enumerable; a third index is absent.
+    u64 f, c;
+    CHECK(Gpt_FindCarafsNth(&dev, scratch, lba_size + GPT_ARRAY_BYTES, 0, &f, &c) == CARA_EOK &&
+              f == specs[0].first_lba,
+          "nth=0 is partition A");
+    CHECK(Gpt_FindCarafsNth(&dev, scratch, lba_size + GPT_ARRAY_BYTES, 1, &f, &c) == CARA_EOK &&
+              f == specs[1].first_lba,
+          "nth=1 is partition B");
+    CHECK(Gpt_FindCarafsNth(&dev, scratch, lba_size + GPT_ARRAY_BYTES, 2, &f, &c) == CARA_ENOENT,
+          "nth=2 absent");
+
+    // Lay a minimal CaraFS superblock (magic + uuid) at each partition's
+    // first LBA, with distinct volume UUIDs.
+    u8 uuid_a[16];
+    u8 uuid_b[16];
+    memset(uuid_a, 0xA5, 16);
+    memset(uuid_b, 0x5B, 16);
+    u32 uoff = offsetof(struct CarafsSuperblock, uuid);
+    memcpy(mem + specs[0].first_lba * lba_size, CARAFS_SB_MAGIC, 8);
+    memcpy(mem + specs[0].first_lba * lba_size + uoff, uuid_a, 16);
+    memcpy(mem + specs[1].first_lba * lba_size, CARAFS_SB_MAGIC, 8);
+    memcpy(mem + specs[1].first_lba * lba_size + uoff, uuid_b, 16);
+
+    // Select each by volume UUID; an unknown UUID is not found.
+    CHECK(Gpt_FindByVolumeUuid(&dev, scratch, lba_size + GPT_ARRAY_BYTES, CARAFS_SB_MAGIC, 8, uoff,
+                               uuid_b, &f, &c) == CARA_EOK &&
+              f == specs[1].first_lba,
+          "select B by uuid");
+    CHECK(Gpt_FindByVolumeUuid(&dev, scratch, lba_size + GPT_ARRAY_BYTES, CARAFS_SB_MAGIC, 8, uoff,
+                               uuid_a, &f, &c) == CARA_EOK &&
+              f == specs[0].first_lba,
+          "select A by uuid");
+    u8 nobody[16];
+    memset(nobody, 0xCC, 16);
+    CHECK(Gpt_FindByVolumeUuid(&dev, scratch, lba_size + GPT_ARRAY_BYTES, CARAFS_SB_MAGIC, 8, uoff,
+                               nobody, &f, &c) == CARA_ENOENT,
+          "unknown uuid not found");
+
+    free(mem);
+    free(scratch);
+}
+
 int main(void)
 {
     test_crc32_vector();
@@ -166,6 +236,7 @@ int main(void)
     test_round_trip(4096);
     test_crc_rejects();
     test_blank_disk();
+    test_uuid_select();
 
     if (failures) {
         printf("test_gpt: %d failure(s)\n", failures);
