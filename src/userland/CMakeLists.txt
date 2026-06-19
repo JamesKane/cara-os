@@ -111,3 +111,29 @@ set_target_properties(clar PROPERTIES
     SUFFIX ".elf"
     OUTPUT_NAME "clar"
 )
+
+# v36hello — Phase 3 P0 ABI proof (docs/PHASE3.md, docs/PORTING.md).
+# Verbatim V36 source (no cara/* includes); same link recipe as
+# userintuition (libcara crt + generated <proto/*> inline stubs).
+add_executable(v36hello v36hello.c)
+target_link_libraries(v36hello PRIVATE
+    cara_kernel_flags
+    cara_headers
+    libcara_user
+)
+add_dependencies(v36hello cara_exec_lib_gen cara_intuition_lib_gen)
+target_link_options(v36hello PRIVATE
+    -nostdlib
+    -fuse-ld=${CARA_RV64_LDLLD_PATH}
+    -Wl,-T,${_user_lds}
+    -Wl,--build-id=none
+    -Wl,--whole-archive
+    "$<TARGET_FILE:libcara_user>"
+    -Wl,--no-whole-archive
+)
+set_target_properties(v36hello PROPERTIES
+    LINK_DEPENDS ${_user_lds}
+    LINKER_LANGUAGE C
+    SUFFIX ".elf"
+    OUTPUT_NAME "v36hello"
+)
