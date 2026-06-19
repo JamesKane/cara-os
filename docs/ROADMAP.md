@@ -83,6 +83,16 @@ same code paths. Both must work; QEMU is the daily driver.
 
 ## Phase 2 — NVMe and a modernised FFS replacement
 
+> **STATUS: criterion met under QEMU (2026-06-19); real-hardware
+> sign-off pending the RV2 board.** All four subgoals are implemented:
+> NVMe driver (N1–N5), CaraFS (F0–F5, on-disk format frozen at F4),
+> the Logaic boot path (F6 G1–G4: GPT/UUID discovery, partition-relative
+> mount, root selection, `S/Startup-Sequence`), and hosted mkfs/fsck.
+> The two-boot QEMU smoke shows Clar editing a file in its drawer and
+> the change surviving a reboot. A `STATUS: complete` line is reserved
+> for the same demo on the physical RV2 (no board in hand yet). Designs:
+> `docs/PHASE2_NVME.md`, `docs/CARAFS.md`, `docs/LOGAIC_BOOT.md`.
+
 **Success criterion:**
 
 > Croi mounts a CaraFS volume on an NVMe SSD attached via the M.2 slot

@@ -11,18 +11,22 @@
 
 ## 1. Where we are
 
-**Phase 1 shipped** (see §5 for the live demo recipe). **Phase 2's
-success criterion is met in QEMU** (`fe701fb`): Clar edits a file in its
-drawer and the change persists across reboot, on a CaraFS volume mounted
-from an NVMe-resident GPT partition. Remaining F6 work is completeness,
-not criterion: **G4 (Startup-Sequence) and the deferred G2 (multi-volume
-root-by-UUID + a host disk-authoring tool)**. (ROADMAP reserves a phase
-`STATUS: complete` line for *real hardware*; we're QEMU-only so far.)
-The on-disk format is frozen (F4 boundary) — bump `incompat` for changes.
+**Phase 1 shipped** (see §5 for the live demo recipe). **Phase 2 is
+complete under QEMU** (all four subgoals; criterion met at `fe701fb`,
+Subgoal-3 finished by G4+G2): Clar edits a file in its drawer and the
+change persists across reboot, on a CaraFS volume mounted from an
+NVMe-resident GPT partition, with `S/Startup-Sequence` run at boot. The
+on-disk format is frozen (F4). ROADMAP reserves a `STATUS: complete`
+line for the same demo on real hardware (no RV2 board yet). **Next:
+Phase 3 — the AmigaOS V36+ library surface** (`exec`/`dos`/`intuition`/
+`graphics` under verbatim names; `dos.library` supersedes the G3
+`Croi_Fs_*` stopgap syscalls).
 
 Recent commits (newest first), all on `main`:
 
 ```
+8c25ad7 phase-2/F6 G2 UUID-aware root selection + multi-partition GPT
+3c3c279 phase-2/F6 G4 S/Startup-Sequence runner at boot
 fe701fb phase-2/F6 G3 Clar edits a CaraFS file — Phase 2 criterion met
 b7c80aa phase-2/F6 G1 GPT partition discovery + partition-relative mount
 0da9d95 phase-2/F5    CaraFS kernel mount over NVMe + reboot persistence
@@ -34,10 +38,10 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**29 passed / 0 failed**, QEMU boot smoke ok (boots twice: boot 1
-partitions + formats + Clar saves its drawer file; boot 2 discovers the
-GPT and reads `drawer note='as'` back), `format-check` clean. (Host
-suite ~20–25 s.)
+**30 passed / 0 failed**, QEMU boot smoke ok (boots twice: boot 1
+partitions + formats + runs the startup-sequence + Clar saves its
+drawer file; boot 2 discovers the GPT and reads `drawer note='as'`
+back), `format-check` clean. (Host suite ~20–25 s.)
 
 ### Phase 2 so far
 
@@ -168,12 +172,12 @@ CaraFS runs on device storage now; the kernel-side internals:
   harmless because mount uses the primary sb and the persist marker
   lives in low (AG 0) blocks, but don't put anything load-bearing there.
 
-### F6 — Subgoal-3 boot path (in progress; design in docs/LOGAIC_BOOT.md)
+### F6 — Subgoal-3 boot path (complete; design in docs/LOGAIC_BOOT.md)
 
-The boot-path doc is written (`docs/LOGAIC_BOOT.md`): it scopes G1–G4
-and records the load-bearing decision — Clar reaches the FS via thin
-kernel `Croi_Fs_*` syscalls in Phase 2; `dos.library` is Phase 3
-(PRINCIPLES §6). Epic plan:
+All four epics shipped. The boot-path doc (`docs/LOGAIC_BOOT.md`)
+records the load-bearing decision — Clar reaches the FS via thin kernel
+`Croi_Fs_*` syscalls in Phase 2; `dos.library` is Phase 3 (PRINCIPLES
+§6). What landed:
 
 - **G1 — GPT discovery (shipped, `b7c80aa`).** `cara_gpt`
   (`src/logaic/gpt`) is a cleanroom GPT parse/format behind a `GptDev`
@@ -193,20 +197,39 @@ kernel `Croi_Fs_*` syscalls in Phase 2; `dos.library` is Phase 3
   unaffected) and writes the typed buffer on Return. The two-boot smoke
   proves it: boot 1 `saved note`, boot 2 `drawer note='as'`.
   `KERNEL_TEST(carafs_fs_syscall)` covers the backends directly.
-- **G2 — root selection by UUID + off-target authoring tool (deferred).**
-  Not needed for the single-volume criterion; pick the root partition by
-  superblock UUID when several exist, plus a host `mkfs --gpt`/`mkgpt`.
-  Requires raw-LBA + partition-offset file bdevs in `tools/` (the host
-  side doesn't have those yet).
-- **G4 — Startup-Sequence analogue (remaining).** A tiny boot-script
-  runner read from the root volume (`S/Startup-Sequence`) that launches
-  Clar; the AmigaDOS boot idiom, kept minimal (full shell is Phase 3).
-  Formally closes Subgoal 3.
+- **G4 — Startup-Sequence (shipped, `3c3c279`).** `Croi_Boot_RunStartup`
+  (carafs_bind.c) resolves `S/Startup-Sequence` (dir `S` → file), parses
+  `;` comments / `Echo <text>` / `LoadWB` (unknown commands warn — no
+  shell until Phase 3), and returns whether to launch the Workbench.
+  entry.c runs it after mount and gates the live Clar launch on it; a
+  fresh volume is seeded with a default at format. `KERNEL_TEST(carafs_startup)`
+  + the smoke asserts `startup: CaraOS-ready` on every boot.
+- **G2 — UUID-aware root selection (shipped, `8c25ad7`).** cara_gpt
+  `Gpt_FormatN` (N partitions) + `Gpt_FindCarafsNth` (enumerate) +
+  `Gpt_FindByVolumeUuid` (pick the partition whose superblock carries a
+  target UUID; generic in magic+uuid-offset so GPT stays unaware of the
+  CaraFS sb shape). Host-tested with two partitions. The kernel logs the
+  root volume UUID; single-volume boot still mounts the one partition,
+  selector ready for multi-volume boot config later. (A host `mkfs --gpt`
+  authoring tool was left out — not needed; mkfs/fsck already exist.)
 
-How Clar reaches the FS: it does direct `ecall`s (see `ecall4` in
-clar.c) — no library trampoline needed. Other watch-outs are in the F5
-recap above (no `%.*s` in the kernel `LOG`; `nvme_io` scribbles the
-namespace tail, now the backup-GPT region, clear of the partition).
+How Clar reaches the FS: direct `ecall`s (see `ecall4` in clar.c) — no
+library trampoline needed. Watch-outs from the F5 recap still apply (no
+`%.*s` in the kernel `LOG`; `nvme_io` scribbles the namespace tail, now
+the backup-GPT region, clear of the partition).
+
+### Phase 3 — AmigaOS Release 2 (V36+) parity (next)
+
+The project's real charter (ROADMAP Phase 3): ship `exec`/`dos`/
+`intuition`/`graphics` + the V36 additions (`utility`, BOOPSI,
+`gadtools`, `asl`, …) under their **verbatim AmigaOS names/LVOs** so a
+Release-2 source program builds + runs unmodified. The LVO-gen machinery
+(`tools/lvo-gen`, `docs/LVO.md`) and a first slice of exec/intuition
+already exist (see `src/croi/exec_lib`, `intuition_lib`); the bulk of
+the API surface is unbuilt. `dos.library` (Logaic) is the natural first
+target — it supersedes the Phase-2 `Croi_Fs_*` stopgap syscalls with the
+real Lock/Open/Read/Write/Examine surface over the CaraFS mount, ideally
+as the AmigaDOS handler Gleas (`server` LVO flavour, ARCHITECTURE §6).
 
 ---
 
