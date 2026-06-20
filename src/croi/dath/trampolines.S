@@ -27,3 +27,11 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxAllocBitMap,   SYS_Gfx_AllocBitMap
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxFreeBitMap,    SYS_Gfx_FreeBitMap
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxInitRastPort,  SYS_Gfx_InitRastPort
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxSetRast,       SYS_Gfx_SetRast
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxMove,          SYS_Gfx_Move
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxDraw,          SYS_Gfx_Draw
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxRectFill,      SYS_Gfx_RectFill
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxReadPixel,     SYS_Gfx_ReadPixel
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxWritePixel,    SYS_Gfx_WritePixel
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxSetAPen,       SYS_Gfx_SetAPen
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxSetBPen,       SYS_Gfx_SetBPen
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxSetDrMd,       SYS_Gfx_SetDrMd

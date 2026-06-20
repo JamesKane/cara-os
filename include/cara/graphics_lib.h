@@ -35,4 +35,14 @@ void Croi_Gfx_FreeBitMap_Impl(struct BitMap *bm);
 void Croi_Gfx_InitRastPort_Impl(struct RastPort *rp);
 void Croi_Gfx_SetRast_Impl(struct RastPort *rp, ULONG pen);
 
+// ---- Pen state + primitives (L4.3) -----------------------------------
+void Croi_Gfx_Move_Impl(struct RastPort *rp, WORD x, WORD y);
+void Croi_Gfx_Draw_Impl(struct RastPort *rp, WORD x, WORD y);
+void Croi_Gfx_RectFill_Impl(struct RastPort *rp, WORD xMin, WORD yMin, WORD xMax, WORD yMax);
+LONG Croi_Gfx_ReadPixel_Impl(struct RastPort *rp, WORD x, WORD y);
+LONG Croi_Gfx_WritePixel_Impl(struct RastPort *rp, WORD x, WORD y);
+void Croi_Gfx_SetAPen_Impl(struct RastPort *rp, ULONG pen);
+void Croi_Gfx_SetBPen_Impl(struct RastPort *rp, ULONG pen);
+void Croi_Gfx_SetDrMd_Impl(struct RastPort *rp, ULONG mode);
+
 #endif // CARA_GRAPHICS_LIB_H

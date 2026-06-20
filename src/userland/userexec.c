@@ -683,6 +683,21 @@ int main(void)
                     gfx_ok = false;
                 }
             }
+
+            // L4.3 pen state + primitives. SetAPen blue (palette 4 →
+            // 0xFF0000FF), then WritePixel/ReadPixel, RectFill, Move/Draw
+            // — verify via the shared-heap surface (8 px/row).
+            SetAPen(&grp, 4);
+            gfx_ok = gfx_ok && WritePixel(&grp, 0, 0) == 0;
+            gfx_ok = gfx_ok && (ULONG)ReadPixel(&grp, 0, 0) == 0xFF0000FFu;
+            gfx_ok = gfx_ok && ReadPixel(&grp, 100, 100) == -1; // out of bounds
+            gfx_ok = gfx_ok && WritePixel(&grp, 100, 100) == -1;
+            RectFill(&grp, 1, 1, 2, 2); // 2x2 blue block, inclusive corners
+            gfx_ok = gfx_ok && gpx[1 * 8 + 1] == 0xFF0000FFu && gpx[2 * 8 + 2] == 0xFF0000FFu;
+            Move(&grp, 0, 3);
+            Draw(&grp, 7, 3); // horizontal blue line across row 3
+            gfx_ok = gfx_ok && gpx[3 * 8 + 5] == 0xFF0000FFu && grp.cp_x == 7 && grp.cp_y == 3;
+
             FreeBitMap(bm);
         }
         CloseLibrary(glib);

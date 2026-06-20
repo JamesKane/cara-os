@@ -104,6 +104,14 @@ enum {
     SYS_Gfx_FreeBitMap = 62,
     SYS_Gfx_InitRastPort = 63,
     SYS_Gfx_SetRast = 64,
+    SYS_Gfx_Move = 65,
+    SYS_Gfx_Draw = 66,
+    SYS_Gfx_RectFill = 67,
+    SYS_Gfx_ReadPixel = 68,
+    SYS_Gfx_WritePixel = 69,
+    SYS_Gfx_SetAPen = 70,
+    SYS_Gfx_SetBPen = 71,
+    SYS_Gfx_SetDrMd = 72,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -183,6 +191,14 @@ enum {
 #define SYS_Gfx_FreeBitMap 62
 #define SYS_Gfx_InitRastPort 63
 #define SYS_Gfx_SetRast 64
+#define SYS_Gfx_Move 65
+#define SYS_Gfx_Draw 66
+#define SYS_Gfx_RectFill 67
+#define SYS_Gfx_ReadPixel 68
+#define SYS_Gfx_WritePixel 69
+#define SYS_Gfx_SetAPen 70
+#define SYS_Gfx_SetBPen 71
+#define SYS_Gfx_SetDrMd 72
 #endif
 
 #endif

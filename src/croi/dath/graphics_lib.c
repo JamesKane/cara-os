@@ -133,3 +133,106 @@ void Croi_Gfx_SetRast_Impl(struct RastPort *rp, ULONG pen)
     }
     Dath_Clear(fb, pen_to_color(pen, fb));
 }
+
+// The RastPort's current foreground colour for the target surface.
+static DathColor fg_color(const struct RastPort *rp, const struct DathFramebuffer *fb)
+{
+    return pen_to_color((ULONG)(UBYTE)rp->FgPen, fb);
+}
+
+// SetAPen/SetBPen/SetDrMd — pure RastPort state (no Dath call). v0
+// honours FgPen for primitives; JAM1/JAM2 draw identically (BgPen is used
+// only by text later); COMPLEMENT is not implemented (§6).
+void Croi_Gfx_SetAPen_Impl(struct RastPort *rp, ULONG pen)
+{
+    if (rp) {
+        rp->FgPen = (BYTE)pen;
+    }
+}
+
+void Croi_Gfx_SetBPen_Impl(struct RastPort *rp, ULONG pen)
+{
+    if (rp) {
+        rp->BgPen = (BYTE)pen;
+    }
+}
+
+void Croi_Gfx_SetDrMd_Impl(struct RastPort *rp, ULONG mode)
+{
+    if (rp) {
+        rp->DrawMode = (BYTE)mode;
+    }
+}
+
+// Move(rp, x, y) — set the graphics cursor (no draw).
+void Croi_Gfx_Move_Impl(struct RastPort *rp, WORD x, WORD y)
+{
+    if (rp) {
+        rp->cp_x = x;
+        rp->cp_y = y;
+    }
+}
+
+// Draw(rp, x, y) — line from the cursor to (x,y) in FgPen; cursor moves.
+void Croi_Gfx_Draw_Impl(struct RastPort *rp, WORD x, WORD y)
+{
+    if (!rp || !rp->BitMap) {
+        return;
+    }
+    struct DathFramebuffer *fb = surf_of(rp->BitMap);
+    if (!fb) {
+        return;
+    }
+    Dath_DrawLine(fb, rp->cp_x, rp->cp_y, x, y, fg_color(rp, fb));
+    rp->cp_x = x;
+    rp->cp_y = y;
+}
+
+// RectFill(rp, xMin, yMin, xMax, yMax) — filled rect, inclusive corners,
+// in FgPen.
+void Croi_Gfx_RectFill_Impl(struct RastPort *rp, WORD xMin, WORD yMin, WORD xMax, WORD yMax)
+{
+    if (!rp || !rp->BitMap) {
+        return;
+    }
+    struct DathFramebuffer *fb = surf_of(rp->BitMap);
+    if (!fb) {
+        return;
+    }
+    Dath_FillRect(fb, xMin, yMin, (i32)xMax - xMin + 1, (i32)yMax - yMin + 1, fg_color(rp, fb));
+}
+
+// WritePixel(rp, x, y) — set (x,y) to FgPen. Returns 0 on success, -1 if
+// (x,y) is outside the BitMap.
+LONG Croi_Gfx_WritePixel_Impl(struct RastPort *rp, WORD x, WORD y)
+{
+    if (!rp || !rp->BitMap) {
+        return -1;
+    }
+    struct DathFramebuffer *fb = surf_of(rp->BitMap);
+    if (!fb || x < 0 || y < 0 || (u32)x >= fb->width || (u32)y >= fb->height) {
+        return -1;
+    }
+    Dath_Pixel(fb, x, y, fg_color(rp, fb));
+    return 0;
+}
+
+// ReadPixel(rp, x, y) — return the raw chunky pixel value at (x,y) (v0:
+// no reverse-palette lookup; §6.2), or -1 if (x,y) is outside.
+LONG Croi_Gfx_ReadPixel_Impl(struct RastPort *rp, WORD x, WORD y)
+{
+    if (!rp || !rp->BitMap) {
+        return -1;
+    }
+    struct DathFramebuffer *fb = surf_of(rp->BitMap);
+    if (!fb || !fb->base || x < 0 || y < 0 || (u32)x >= fb->width || (u32)y >= fb->height) {
+        return -1;
+    }
+    const u8 *row = (const u8 *)fb->base + (usize)(u32)y * fb->stride;
+    if (fb->bpp == 4) {
+        u32 v = *(const u32 *)(row + (usize)(u32)x * 4);
+        return (LONG)v;
+    }
+    u16 v = *(const u16 *)(row + (usize)(u32)x * 2);
+    return (LONG)v;
+}

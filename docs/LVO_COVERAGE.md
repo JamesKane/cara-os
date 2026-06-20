@@ -26,7 +26,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | intuition.library | 77 | 5 | 0 | 68 | 4 | 6% |
 | utility.library | 30 | 13 | 0 | 13 | 4 | 50% |
 | dos.library | 33 | 19 | 0 | 10 | 4 | 65% |
-| graphics.library | 154 | 4 | 0 | 146 | 4 | 2% |
+| graphics.library | 154 | 12 | 0 | 138 | 4 | 8% |
 | cruth.library | 23 | 9 | 10 | 0 | 4 | 100% |
 
 ## exec.library
@@ -189,18 +189,26 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 ## graphics.library
 
-ABI surface declared through LVO -924 (ordinal 153). 150 user-callable slots: **4 impl**, 0 server, **146 stub**; coverage **2%**.
+ABI surface declared through LVO -924 (ordinal 153). 150 user-callable slots: **12 impl**, 0 server, **138 stub**; coverage **8%**.
 
-### Implemented (4)
+### Implemented (12)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
 | 32 | -198 | `InitRastPort` | syscall |
 | 38 | -234 | `SetRast` | syscall |
+| 39 | -240 | `Move` | syscall |
+| 40 | -246 | `Draw` | syscall |
+| 50 | -306 | `RectFill` | syscall |
+| 52 | -318 | `ReadPixel` | syscall |
+| 53 | -324 | `WritePixel` | syscall |
+| 56 | -342 | `SetAPen` | syscall |
+| 57 | -348 | `SetBPen` | syscall |
+| 58 | -354 | `SetDrMd` | syscall |
 | 152 | -918 | `AllocBitMap` | syscall |
 | 153 | -924 | `FreeBitMap` | syscall |
 
-### Unimplemented stub slots (146)
+### Unimplemented stub slots (138)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
@@ -208,7 +216,10 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 |-----------|-----------|------:|
 | 4..31 | -30..-192 | 28 |
 | 33..37 | -204..-228 | 5 |
-| 39..151 | -240..-912 | 113 |
+| 41..49 | -252..-300 | 9 |
+| 51..51 | -312..-312 | 1 |
+| 54..55 | -330..-336 | 2 |
+| 59..151 | -360..-912 | 93 |
 
 ## cruth.library
 

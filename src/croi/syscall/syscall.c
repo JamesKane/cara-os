@@ -198,6 +198,29 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_Gfx_SetRast:
         Croi_Gfx_SetRast_Impl((struct RastPort *)(uptr)a0, (ULONG)a1);
         return 0;
+    case SYS_Gfx_Move:
+        Croi_Gfx_Move_Impl((struct RastPort *)(uptr)a0, (WORD)a1, (WORD)a2);
+        return 0;
+    case SYS_Gfx_Draw:
+        Croi_Gfx_Draw_Impl((struct RastPort *)(uptr)a0, (WORD)a1, (WORD)a2);
+        return 0;
+    case SYS_Gfx_RectFill:
+        Croi_Gfx_RectFill_Impl((struct RastPort *)(uptr)a0, (WORD)a1, (WORD)a2, (WORD)a3,
+                               (WORD)frame->x[14]);
+        return 0;
+    case SYS_Gfx_ReadPixel:
+        return (i64)Croi_Gfx_ReadPixel_Impl((struct RastPort *)(uptr)a0, (WORD)a1, (WORD)a2);
+    case SYS_Gfx_WritePixel:
+        return (i64)Croi_Gfx_WritePixel_Impl((struct RastPort *)(uptr)a0, (WORD)a1, (WORD)a2);
+    case SYS_Gfx_SetAPen:
+        Croi_Gfx_SetAPen_Impl((struct RastPort *)(uptr)a0, (ULONG)a1);
+        return 0;
+    case SYS_Gfx_SetBPen:
+        Croi_Gfx_SetBPen_Impl((struct RastPort *)(uptr)a0, (ULONG)a1);
+        return 0;
+    case SYS_Gfx_SetDrMd:
+        Croi_Gfx_SetDrMd_Impl((struct RastPort *)(uptr)a0, (ULONG)a1);
+        return 0;
 
     // ---- utility.library allocating tag helpers ----
     case SYS_AllocateTagItems:
