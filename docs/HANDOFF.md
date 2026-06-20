@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+ea39d2a phase-3/L4.6  graphics.library area fill (InitArea/AreaMove/AreaDraw/AreaEnd)
 c9f6492 phase-3/L4.5  graphics.library text + fonts (OpenFont/SetFont/Text/TextLength)
 7d51b32 phase-3/L4.4  graphics.library blits (BltBitMap/BltBitMapRastPort/ClipBlit)
 15db462 phase-3/L4.3  graphics.library pen state + primitives (Move/Draw/RectFill/...)
@@ -533,13 +534,20 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   **13%** (20 impl / 130 stub). **The core graphics surface is now in**
   (alloc, RastPort, pen, primitives, blits, text) — what intuition + a
   basic paint app need.
-- **NEXT (both optional / apps-gated):** **L4.6** — areas/flood
-  (`InitArea`/`AreaMove`/`AreaDraw`/`AreaEnd`/`Flood`); needs a new
-  span/edge-list fill the Dath set lacks; gate on the paint app actually
-  using it. **L4.7** — convergence: repoint Leargas chrome through real
-  `graphics.library` RastPorts so `Screen.RastPort` (today `nullptr`) is
-  live; pure refactor, may slip to L5. Or move on to **L5
-  (intuition.library widen)**, which is the bigger apps unblock.
+- **L4.6 shipped (`ea39d2a`): area fill.** `InitArea`/`AreaMove`/
+  `AreaDraw`/`AreaEnd` over a new **even-odd scanline polygon fill**
+  (`fill_polygon` in graphics_lib.c; half-open `[ylo,yhi)` edge rule,
+  spans via `Dath_FillRect`, 64 pts/poly v0 cap). `struct AreaInfo`
+  filled (ABI); AreaMove/Draw append vertices into the app's InitArea
+  buffer (SUM=1), AreaEnd fills + resets. `SYS_Gfx_*` 79-82. **`Flood`
+  (seed fill) deferred** — separate queue algorithm, apps-gated (§6.3).
+  Coverage **16%** (24 impl / 126 stub). **L4 core + areas done.**
+- **NEXT (optional):** **L4.7** — convergence: repoint Leargas chrome
+  through real `graphics.library` RastPorts so `Screen.RastPort` (today
+  `nullptr`) is live; pure refactor, may fold into L5. Otherwise move to
+  **L5 (intuition.library widen)** — the bigger apps unblock (screens,
+  tag window opener, menus, requesters, full gadget/IDCMP); its graphics
+  dependency is now satisfied. **Recommend scoping L5 next.**
 - **L4 reference: `graphics.library` (Dath): SCOPED (`docs/DATH_GRAPHICS.md`).**
   Read that doc before cutting L4 code. Decisions locked there: (1) **chunky
   RTG bitmaps, not planar** — `struct BitMap` kept ABI-shaped but opaque,
