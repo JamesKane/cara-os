@@ -30,3 +30,8 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosDupLock,    SYS_Dos_DupLock
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosCurrentDir, SYS_Dos_CurrentDir
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosExamine,    SYS_Dos_Examine
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosExNext,     SYS_Dos_ExNext
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosOpen,       SYS_Dos_Open
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosClose,      SYS_Dos_Close
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosRead,       SYS_Dos_Read
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosWrite,      SYS_Dos_Write
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosSeek,       SYS_Dos_Seek

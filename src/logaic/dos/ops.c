@@ -102,3 +102,68 @@ LONG Croi_Dos_ExNext_Impl(BPTR lock, struct FileInfoBlock *fib)
     set_ioerr(dp.dp_Res2);
     return (LONG)dp.dp_Res1;
 }
+
+// Open(name, accessMode) → BPTR FileHandle (0 on failure). The mode
+// selects the FIND action.
+BPTR Croi_Dos_Open_Impl(STRPTR name, LONG accessMode)
+{
+    struct Process *p = (struct Process *)Sched_Current();
+    struct DosPacket dp = { 0 };
+    dp.dp_Type = (accessMode == MODE_NEWFILE)     ? ACTION_FINDOUTPUT
+                 : (accessMode == MODE_READWRITE) ? ACTION_FINDUPDATE
+                                                  : ACTION_FINDINPUT; // MODE_OLDFILE
+    dp.dp_Arg1 = (SIPTR)(uptr)(p ? p->pr_CurrentDir : BNULL);
+    dp.dp_Arg2 = (SIPTR)(uptr)name;
+    Croi_Dos_Dispatch(&dp);
+    set_ioerr(dp.dp_Res2);
+    return (BPTR)(uptr)dp.dp_Res1;
+}
+
+// Close(file) → BOOL.
+LONG Croi_Dos_Close_Impl(BPTR file)
+{
+    struct DosPacket dp = { 0 };
+    dp.dp_Type = ACTION_END;
+    dp.dp_Arg1 = (SIPTR)(uptr)file;
+    Croi_Dos_Dispatch(&dp);
+    return (LONG)dp.dp_Res1;
+}
+
+// Read(file, buffer, length) → bytes read (0 EOF, -1 error).
+LONG Croi_Dos_Read_Impl(BPTR file, APTR buffer, LONG length)
+{
+    struct DosPacket dp = { 0 };
+    dp.dp_Type = ACTION_READ;
+    dp.dp_Arg1 = (SIPTR)(uptr)file;
+    dp.dp_Arg2 = (SIPTR)(uptr)buffer;
+    dp.dp_Arg3 = (SIPTR)length;
+    Croi_Dos_Dispatch(&dp);
+    set_ioerr(dp.dp_Res2);
+    return (LONG)dp.dp_Res1;
+}
+
+// Write(file, buffer, length) → bytes written (-1 error).
+LONG Croi_Dos_Write_Impl(BPTR file, APTR buffer, LONG length)
+{
+    struct DosPacket dp = { 0 };
+    dp.dp_Type = ACTION_WRITE;
+    dp.dp_Arg1 = (SIPTR)(uptr)file;
+    dp.dp_Arg2 = (SIPTR)(uptr)buffer;
+    dp.dp_Arg3 = (SIPTR)length;
+    Croi_Dos_Dispatch(&dp);
+    set_ioerr(dp.dp_Res2);
+    return (LONG)dp.dp_Res1;
+}
+
+// Seek(file, position, mode) → previous position (-1 error).
+LONG Croi_Dos_Seek_Impl(BPTR file, LONG position, LONG mode)
+{
+    struct DosPacket dp = { 0 };
+    dp.dp_Type = ACTION_SEEK;
+    dp.dp_Arg1 = (SIPTR)(uptr)file;
+    dp.dp_Arg2 = (SIPTR)position;
+    dp.dp_Arg3 = (SIPTR)mode;
+    Croi_Dos_Dispatch(&dp);
+    set_ioerr(dp.dp_Res2);
+    return (LONG)dp.dp_Res1;
+}

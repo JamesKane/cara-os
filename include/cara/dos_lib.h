@@ -46,4 +46,11 @@ BPTR Croi_Dos_CurrentDir_Impl(BPTR lock);
 LONG Croi_Dos_Examine_Impl(BPTR lock, struct FileInfoBlock *fib);
 LONG Croi_Dos_ExNext_Impl(BPTR lock, struct FileInfoBlock *fib);
 
+// ---- File I/O LVOs (L3.4) -------------------------------------------
+BPTR Croi_Dos_Open_Impl(STRPTR name, LONG accessMode);
+LONG Croi_Dos_Close_Impl(BPTR file);
+LONG Croi_Dos_Read_Impl(BPTR file, APTR buffer, LONG length);
+LONG Croi_Dos_Write_Impl(BPTR file, APTR buffer, LONG length);
+LONG Croi_Dos_Seek_Impl(BPTR file, LONG position, LONG mode);
+
 #endif // CARA_DOS_LIB_H

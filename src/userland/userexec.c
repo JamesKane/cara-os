@@ -529,6 +529,33 @@ int main(void)
 
     UnLock(rootlock);
 
+    // L3.4 file I/O: create a file, write to it, close; reopen, read it
+    // back, seek, read again, close. Exercises Open(NEWFILE/OLDFILE)/
+    // Write/Read/Seek/Close over CaraFS.
+    static const char wtext[] = "CaraOS dos.library L3.4 file I/O!";
+    const LONG wlen = (LONG)(sizeof(wtext) - 1);
+    BPTR fh = Open((STRPTR) "uexec-test.txt", MODE_NEWFILE);
+    dos_ok = dos_ok && fh != BNULL;
+    if (fh) {
+        dos_ok = dos_ok && Write(fh, (APTR)wtext, wlen) == wlen;
+        Close(fh);
+    }
+    char rbuf[64];
+    BPTR rf = Open((STRPTR) "uexec-test.txt", MODE_OLDFILE);
+    dos_ok = dos_ok && rf != BNULL;
+    if (rf) {
+        LONG n = Read(rf, rbuf, wlen);
+        dos_ok = dos_ok && n == wlen;
+        for (LONG i = 0; i < wlen; i++) {
+            dos_ok = dos_ok && rbuf[i] == wtext[i];
+        }
+        // Seek back to offset 7 and re-read a byte.
+        dos_ok = dos_ok && Seek(rf, 7, OFFSET_BEGINNING) == wlen; // old pos was EOF
+        char c = 0;
+        dos_ok = dos_ok && Read(rf, &c, 1) == 1 && c == wtext[7];
+        Close(rf);
+    }
+
     CloseLibrary(dlib);
     if (!dos_ok) {
         CloseLibrary(lib);

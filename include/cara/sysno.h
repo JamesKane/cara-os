@@ -87,6 +87,11 @@ enum {
     SYS_Dos_CurrentDir = 46,
     SYS_Dos_Examine = 47,
     SYS_Dos_ExNext = 48,
+    SYS_Dos_Open = 49,
+    SYS_Dos_Close = 50,
+    SYS_Dos_Read = 51,
+    SYS_Dos_Write = 52,
+    SYS_Dos_Seek = 53,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -150,6 +155,11 @@ enum {
 #define SYS_Dos_CurrentDir 46
 #define SYS_Dos_Examine 47
 #define SYS_Dos_ExNext 48
+#define SYS_Dos_Open 49
+#define SYS_Dos_Close 50
+#define SYS_Dos_Read 51
+#define SYS_Dos_Write 52
+#define SYS_Dos_Seek 53
 #endif
 
 #endif

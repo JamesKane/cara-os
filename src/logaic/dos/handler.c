@@ -132,6 +132,77 @@ static int dos_resolve(const char *path, u64 base, u64 *out, char *namebuf, u32 
     return CARA_EOK;
 }
 
+// An open FileHandle is the head of this kernel-private extension: the
+// authoritative cnode + byte position live here (the public fh_Args /
+// fh_Pos are LONG and can't hold a 64-bit cnode/offset). Mirrors
+// struct DosLockExt.
+struct DosFileExt {
+    struct FileHandle fh; // offset 0 — the BPTR points here
+    u64 cnode;
+    u64 pos;
+};
+
+static u32 dos_strlen(const char *s)
+{
+    u32 n = 0;
+    while (s && s[n]) {
+        n++;
+    }
+    return n;
+}
+
+// Resolve `path` to its parent directory cnode + final component name
+// (the thing Open creates/opens). Descends every component except the
+// last. CARA_EINVAL if there is no final component (empty path / root).
+static int dos_resolve_parent(const char *path, u64 base, u64 *parent_out, char *name, u32 cap)
+{
+    u64 cur = base;
+    const char *p = path;
+    for (const char *q = path; q && *q; q++) {
+        if (*q == ':') {
+            cur = g_carafs.sb.root_cnode;
+            p = q + 1;
+            break;
+        }
+    }
+    const char *pend = nullptr;
+    u32 pend_len = 0;
+    while (p && *p) {
+        const char *start = p;
+        while (*p && *p != '/') {
+            p++;
+        }
+        u32 len = (u32)(p - start);
+        if (*p == '/') {
+            p++;
+        }
+        if (len == 0) {
+            continue;
+        }
+        if (pend) {
+            // The previously-pending component is an interior dir: descend.
+            u64 c;
+            u16 t;
+            if (Carafs_DirLookup(&g_carafs, cur, pend, pend_len, &c, &t) != CARA_EOK) {
+                return CARA_ENOENT;
+            }
+            cur = c;
+        }
+        pend = start;
+        pend_len = len;
+    }
+    if (!pend) {
+        return CARA_EINVAL; // no final component
+    }
+    *parent_out = cur;
+    u32 n = pend_len < cap - 1 ? pend_len : cap - 1;
+    for (u32 i = 0; i < n; i++) {
+        name[i] = pend[i];
+    }
+    name[n] = 0;
+    return CARA_EOK;
+}
+
 // Shared dispatch for dos packet ops — called both by the handler task
 // (on GetMsg) and directly by the `syscall`-flavour dos LVO impls (the
 // fast path: CaraFS ops are synchronous and the cooperative single-hart
@@ -245,8 +316,150 @@ void Croi_Dos_Dispatch(struct DosPacket *dp)
         break;
     }
 
+    case ACTION_FINDINPUT:  // Open MODE_OLDFILE
+    case ACTION_FINDOUTPUT: // Open MODE_NEWFILE (create/truncate)
+    case ACTION_FINDUPDATE: // Open MODE_READWRITE (open or create)
+    {
+        // dp_Arg1 = base lock, dp_Arg2 = name (C str). Returns a
+        // FileHandle BPTR or 0.
+        const char *name = (const char *)(uptr)dp->dp_Arg2;
+        u64 base = lock_cnode((BPTR)(uptr)dp->dp_Arg1);
+        u64 parent;
+        char comp[256];
+        if (dos_resolve_parent(name, base, &parent, comp, sizeof(comp)) != CARA_EOK) {
+            dp->dp_Res1 = 0;
+            dp->dp_Res2 = ERROR_OBJECT_NOT_FOUND;
+            break;
+        }
+        u32 clen = dos_strlen(comp);
+        u64 fcnode;
+        u16 ftype;
+        bool exists =
+            (Carafs_DirLookup(&g_carafs, parent, comp, clen, &fcnode, &ftype) == CARA_EOK);
+
+        if (dp->dp_Type == ACTION_FINDINPUT) {
+            if (!exists) {
+                dp->dp_Res1 = 0;
+                dp->dp_Res2 = ERROR_OBJECT_NOT_FOUND;
+                break;
+            }
+        } else if (dp->dp_Type == ACTION_FINDOUTPUT) {
+            // NEWFILE: truncate by removing + recreating (CaraFS writes
+            // are extend-only, so a fresh cnode gives true truncation).
+            if (exists) {
+                (void)Carafs_DirRemove(&g_carafs, parent, comp, clen);
+            }
+            if (Carafs_DirCreate(&g_carafs, parent, comp, clen, CARAFS_T_FILE, &fcnode) !=
+                CARA_EOK) {
+                dp->dp_Res1 = 0;
+                dp->dp_Res2 = ERROR_DISK_FULL;
+                break;
+            }
+        } else { // ACTION_FINDUPDATE
+            if (!exists && Carafs_DirCreate(&g_carafs, parent, comp, clen, CARAFS_T_FILE,
+                                            &fcnode) != CARA_EOK) {
+                dp->dp_Res1 = 0;
+                dp->dp_Res2 = ERROR_DISK_FULL;
+                break;
+            }
+        }
+
+        struct DosFileExt *fe = (struct DosFileExt *)Croi_AllocShared(sizeof(struct DosFileExt));
+        if (!fe) {
+            dp->dp_Res1 = 0;
+            dp->dp_Res2 = ERROR_NO_FREE_STORE;
+            break;
+        }
+        fe->fh = (struct FileHandle){ 0 };
+        fe->fh.fh_Type = g_dos_handler_port;
+        fe->fh.fh_Args = (LONG)fcnode;
+        fe->cnode = fcnode;
+        fe->pos = 0;
+        dp->dp_Res1 = (SIPTR)(uptr)MKBADDR(&fe->fh);
+        dp->dp_Res2 = 0;
+        break;
+    }
+
+    case ACTION_READ: {
+        // dp_Arg1 = FileHandle, dp_Arg2 = buffer, dp_Arg3 = length.
+        // Returns bytes read (0 = EOF, -1 = error).
+        struct DosFileExt *fe = (struct DosFileExt *)BADDR((BPTR)(uptr)dp->dp_Arg1);
+        void *buf = (void *)(uptr)dp->dp_Arg2;
+        usize len = (usize)dp->dp_Arg3;
+        usize nread = 0;
+        if (!fe || Carafs_FileRead(&g_carafs, fe->cnode, fe->pos, buf, len, &nread) != CARA_EOK) {
+            dp->dp_Res1 = -1;
+            dp->dp_Res2 = ERROR_SEEK_ERROR;
+            break;
+        }
+        fe->pos += nread;
+        dp->dp_Res1 = (SIPTR)nread;
+        dp->dp_Res2 = 0;
+        break;
+    }
+
+    case ACTION_WRITE: {
+        // dp_Arg1 = FileHandle, dp_Arg2 = buffer, dp_Arg3 = length.
+        // Returns bytes written (-1 = error).
+        struct DosFileExt *fe = (struct DosFileExt *)BADDR((BPTR)(uptr)dp->dp_Arg1);
+        const void *buf = (const void *)(uptr)dp->dp_Arg2;
+        usize len = (usize)dp->dp_Arg3;
+        if (!fe || Carafs_FileWrite(&g_carafs, fe->cnode, fe->pos, buf, len) != CARA_EOK) {
+            dp->dp_Res1 = -1;
+            dp->dp_Res2 = ERROR_DISK_FULL;
+            break;
+        }
+        fe->pos += len;
+        dp->dp_Res1 = (SIPTR)len;
+        dp->dp_Res2 = 0;
+        break;
+    }
+
+    case ACTION_SEEK: {
+        // dp_Arg1 = FileHandle, dp_Arg2 = position, dp_Arg3 = mode.
+        // Returns the previous position (-1 = error).
+        struct DosFileExt *fe = (struct DosFileExt *)BADDR((BPTR)(uptr)dp->dp_Arg1);
+        if (!fe) {
+            dp->dp_Res1 = -1;
+            dp->dp_Res2 = ERROR_SEEK_ERROR;
+            break;
+        }
+        LONG off = (LONG)dp->dp_Arg2;
+        LONG mode = (LONG)dp->dp_Arg3;
+        u64 old = fe->pos;
+        u64 base;
+        if (mode == OFFSET_BEGINNING) {
+            base = 0;
+        } else if (mode == OFFSET_END) {
+            struct CarafsStat st;
+            if (Carafs_CnodeStat(&g_carafs, fe->cnode, &st) != CARA_EOK) {
+                dp->dp_Res1 = -1;
+                dp->dp_Res2 = ERROR_SEEK_ERROR;
+                break;
+            }
+            base = st.size_bytes;
+        } else { // OFFSET_CURRENT
+            base = fe->pos;
+        }
+        fe->pos = (u64)((i64)base + off);
+        dp->dp_Res1 = (SIPTR)old;
+        dp->dp_Res2 = 0;
+        break;
+    }
+
+    case ACTION_END: { // Close
+        // dp_Arg1 = FileHandle. Frees the handle.
+        BPTR file = (BPTR)(uptr)dp->dp_Arg1;
+        if (file) {
+            Croi_Free(BADDR(file));
+        }
+        dp->dp_Res1 = DOSTRUE;
+        dp->dp_Res2 = 0;
+        break;
+    }
+
     default:
-        // Unimplemented action (more land in L3.4+). Fail cleanly so a
+        // Unimplemented action (more land in L3.5+). Fail cleanly so a
         // caller never hangs.
         dp->dp_Res1 = DOSFALSE;
         dp->dp_Res2 = ERROR_OBJECT_WRONG_TYPE;
