@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+872117c phase-3/L5.1  intuition tag window opener + window RPort + ModifyIDCMP
 95a593d phase-3/L4.7  live Screen.RastPort over the framebuffer (L4 complete)
 ea39d2a phase-3/L4.6  graphics.library area fill (InitArea/AreaMove/AreaDraw/AreaEnd)
 c9f6492 phase-3/L4.5  graphics.library text + fonts (OpenFont/SetFont/Text/TextLength)
@@ -66,7 +67,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**32 passed / 0 failed** (L4.7 added `graphics_screen_rastport`), QEMU
+**33 passed / 0 failed** (L5.1 added `intuition_openwindowtaglist`), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -571,8 +572,22 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   All `syscall` flavour (Leargas kernel-resident); wide LVOs use the L4.4
   `local` marshalling-stub pattern. Slice plan L5.1 tag opener+window
   RPort → L5.2 window ops+activation → L5.3 menus → L5.4 requesters → L5.5
-  rendering helpers+gadget widen → L5.6 screens (apps-gated). Today
-  intuition is 5 LVOs ~6%. **NEXT: start L5.1.**
+  rendering helpers+gadget widen → L5.6 screens (apps-gated).
+- **L5.1 shipped (`872117c`): tag window opener + window RPort.**
+  `OpenWindowTagList` (`WA_*` → `NewWindow` → `Leargas_OpenWindow`;
+  taglist walked kernel-side since utility's walkers are local U-mode
+  code); `window->RPort` = a live RastPort over a **sub-bitmap view onto
+  the screen** (screen stride, base offset to the window content origin,
+  sized to the inner area → window-relative + auto-clipped, immediate, no
+  occlusion); `ModifyIDCMP`. New `WA_*` tags; `##include <utility/
+  tagitem.h>` in the conf so the generated proto sees `struct TagItem`.
+  KERNEL_TEST verifies a tagged window's RPort draws to the right screen
+  region + clips at the edge. intuition coverage **7%** (7 impl / 90
+  stub; surface declared to -606). **NEXT: L5.2** — window ops +
+  activation: `ActivateWindow`/`MoveWindow`/`SizeWindow`/`WindowToFront`/
+  `WindowToBack`/`SetWindowTitles` + `IDCMP_ACTIVEWINDOW`/`INACTIVEWINDOW`
+  (note: `MoveWindow`/`SizeWindow` must recompute the window RPort
+  sub-bitmap base/dims).
 - **Rich gadgets (list/cycle/slider/…) are gadtools (L8) on BOOPSI (L7);
   the file requester is asl (L9)** — not L5. L5 is the window-system core
   + menus + requesters.
