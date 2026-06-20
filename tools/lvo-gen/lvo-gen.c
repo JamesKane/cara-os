@@ -573,7 +573,11 @@ static void validate(Library *lib)
     // to repeat as different reserved slots; canonical V36+ libraries
     // sometimes have multiple).
     for (size_t i = 0; i < lib->nfuncs; i++) {
-        if (lib->funcs[i].is_pad) {
+        // Reserved slots (ord 0..3) are validated separately and use
+        // distinct LIB_* identifiers; a user LVO is allowed to reuse one
+        // of their verbatim names (e.g. dos.library Open), so skip them
+        // here along with pads.
+        if (lib->funcs[i].is_pad || lib->funcs[i].ordinal < 4) {
             continue;
         }
         for (size_t j = i + 1; j < lib->nfuncs; j++) {
@@ -638,6 +642,15 @@ static const char *func_idx_suffix(const Function *f, char *buf, size_t cap)
             p = "PAD";              // bare "_" or "____" → "PAD"
         }
         snprintf(buf, cap, "%s_%d", p, f->ordinal);
+    } else if (f->ordinal < 4) {
+        // Reserved library vectors (Open/Close/Expunge/ExtFunc) are not
+        // application-callable, and a library may legitimately have a
+        // real LVO named "Open" (e.g. dos.library's file Open at -30).
+        // So the reserved slots get distinct CARA_IDX_/_LVO identifiers,
+        // freeing the verbatim names for the user-callable rows.
+        static const char *const reserved[4] = { "LIB_OPEN", "LIB_CLOSE", "LIB_EXPUNGE",
+                                                 "LIB_EXTFUNC" };
+        snprintf(buf, cap, "%s", reserved[f->ordinal]);
     } else {
         snprintf(buf, cap, "%s", f->name);
     }

@@ -32,10 +32,10 @@ extern ULONG Croi_Sample_SharedImpl(ULONG, struct SampleBase *);
 extern void Croi_LvoServerStub(void);
 
 void *sample_lib_vec[] = {
-    [CARA_IDX_Open] = (void *)Croi_Sample_Open,
-    [CARA_IDX_Close] = (void *)Croi_Sample_Close,
-    [CARA_IDX_Expunge] = (void *)Croi_Sample_Expunge,
-    [CARA_IDX_ExtFunc] = (void *)Croi_LvoUnimplemented,
+    [CARA_IDX_LIB_OPEN] = (void *)Croi_Sample_Open,
+    [CARA_IDX_LIB_CLOSE] = (void *)Croi_Sample_Close,
+    [CARA_IDX_LIB_EXPUNGE] = (void *)Croi_Sample_Expunge,
+    [CARA_IDX_LIB_EXTFUNC] = (void *)Croi_LvoUnimplemented,
     [CARA_IDX_PingLocal] = (void *)Sample_PingLocal,
     [CARA_IDX_GetTimeOfDay] = (void *)Croi_Sample_GetTimeOfDay,
     [CARA_IDX_SubmitJob] = (void *)Croi_LvoServerStub,

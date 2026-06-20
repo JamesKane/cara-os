@@ -9,10 +9,10 @@
 // CaraOS runtime ordinals — declaration order in sample.conf.
 // These are what the inline stubs in <proto/sample.h> use to
 // index into the negative-side function-pointer table.
-constexpr int CARA_IDX_Open                             =    0;
-constexpr int CARA_IDX_Close                            =    1;
-constexpr int CARA_IDX_Expunge                          =    2;
-constexpr int CARA_IDX_ExtFunc                          =    3;
+constexpr int CARA_IDX_LIB_OPEN                         =    0;
+constexpr int CARA_IDX_LIB_CLOSE                        =    1;
+constexpr int CARA_IDX_LIB_EXPUNGE                      =    2;
+constexpr int CARA_IDX_LIB_EXTFUNC                      =    3;
 constexpr int CARA_IDX_PingLocal                        =    4;
 constexpr int CARA_IDX_GetTimeOfDay                     =    5;
 constexpr int CARA_IDX_SubmitJob                        =    6;
@@ -23,10 +23,10 @@ constexpr int CARA_IDX_SharedAlias2                     =    9;
 // V36+ canonical LVO offsets — header constants and
 // Phase 9 binary-translator lookup keys, NOT physical
 // memory offsets at runtime on RV64. See docs/LVO.md §3.1.
-constexpr int _LVOOpen                             =    -6;
-constexpr int _LVOClose                            =   -12;
-constexpr int _LVOExpunge                          =   -18;
-constexpr int _LVOExtFunc                          =   -24;
+constexpr int _LVOLIB_OPEN                         =    -6;
+constexpr int _LVOLIB_CLOSE                        =   -12;
+constexpr int _LVOLIB_EXPUNGE                      =   -18;
+constexpr int _LVOLIB_EXTFUNC                      =   -24;
 constexpr int _LVOPingLocal                        =   -30;
 constexpr int _LVOGetTimeOfDay                     =   -36;
 constexpr int _LVOSubmitJob                        =   -42;

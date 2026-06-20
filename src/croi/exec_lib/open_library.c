@@ -14,7 +14,7 @@
 // (LIBF_DELEXP handling is post-v0).
 //
 // Both Open functions ought to chain into the library's own lib_Open
-// hook (vec[CARA_IDX_Open]) per V36+ semantics — that's what gives a
+// hook (vec[CARA_IDX_LIB_OPEN]) per V36+ semantics — that's what gives a
 // library a chance to do per-task setup. v0 skips that for
 // exec.library specifically (its Open hook is a no-op anyway), and
 // will revisit when graphics.library lands in Phase 4.
