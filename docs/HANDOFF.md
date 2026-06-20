@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+e52d812 phase-3/L2    utility.library allocating tag helpers (slice 3)
 5870c8b phase-3/L2    utility.library MapTags/FilterTagItems/FilterTagChanges (slice 2)
 6a4b462 phase-3/L2    utility.library tag walkers + Hook (slice 1)
 92e256d phase-3/L1    lvo-gen --coverage stub-coverage report (closes L1)
@@ -336,16 +337,30 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   now in `<utility/tagitem.h>`. Documented flat-list operation (avoids
   in-place compaction across TAG_MORE chains; the common usage).
   utility coverage **34%** (9 impl / 17 stub). userexec exercises all.
-- **NEXT: L2 slice 3 (optional, low-priority)** — the allocating helpers
-  `AllocateTagItems`/`CloneTagItems`/`FreeTagItems`/`RefreshTagItemClones`.
-  These need to allocate, so they can't be `local` — make them `syscall`
-  flavour (kernel impl in a new `src/croi/utility_lib/tag_alloc.c`, the
-  AllocVec size-header trick for FreeTagItems). Rarely used by apps;
-  could stay stubbed indefinitely. **Recommended instead: jump to L3 —
-  `dos.library`** (the big one: handler Gleas, `server`-flavour packet
-  ops, retires the `Croi_Fs_*` stopgap; BSTR/BPTR + Process-vs-Task open
-  questions land here). utility's apps-used + tag-driven-API surface is
-  now sufficient for L5.
+- **L2 slice 3 shipped (`e52d812`): allocating tag helpers**
+  `AllocateTagItems`/`CloneTagItems`/`FreeTagItems`/`RefreshTagItemClones`
+  — utility's first `syscall`-flavour rows (they allocate, so not
+  `local`). New `src/croi/utility_lib/trampolines.S` (.lib_text.utility)
+  + `tag_alloc.c` kernel impls over the SASOS heap (`Croi_AllocVec_Impl`
+  size-header → FreeTagItems frees by pointer; MEMF_CLEAR → fresh list
+  reads all-TAG_DONE). sysno 37..40; `cara/utility_lib.h` decls.
+- **L2 effectively COMPLETE: utility coverage 50%** (13 impl / 13 stub).
+  The full **tag-list + Hook surface** is implemented; the remaining 13
+  stubs are the 2 reserved private slots + the V37 date/math/string
+  functions (`Amiga2Date`/`SMult32`/`Stricmp`/…) — pure leaf functions,
+  implement on demand if an app needs them (all could be `local`).
+- **NEXT: L3 — `dos.library`** (Logaic). The keystone epic: a handler
+  Gleas owns the CaraFS mount and receives `DosPacket`s; dos LVOs are
+  `server`-flavour (PutMsg round-trip) for packet ops, `local`/`syscall`
+  for the rest. Retires the `Croi_Fs_*` G3 stopgap (delete those
+  syscalls + repoint Clar). The PHASE3.md §7 open questions land here:
+  **BSTR/BPTR** (BCPL pointer/string boundary — decide at the handler
+  edge) and **Process vs Task** (`pr_*` hangs off the Gleas/Task — pin
+  the layout). Big enough to want a scoping pass first. This is the first
+  `server`-flavour library (cruth declares server rows but they're
+  stubbed) — the PutMsg marshalling in `proto`/vec (`LVO.md §12.2`) is
+  currently `[[gnu::error]]`/`Croi_LvoServerStub`, so L3 also builds the
+  server-flavour call path.
 - **Deferred exec long-tail (optional, low-value):** `MakeLibrary`/
   `MakeFunctions`/`SetFunction`/`SumLibrary` (library-author API;
   `Croi_MakeLibrary` is the substrate). Device prims (`OpenDevice`/`DoIO`/
