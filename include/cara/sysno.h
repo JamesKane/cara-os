@@ -50,10 +50,9 @@ enum {
     SYS_RemoveGadget = 19,
     SYS_ActivateGadget = 20,
 
-    // Phase 2 Subgoal 3 — thin CaraFS access for Clar (docs/LOGAIC_BOOT.md
-    // §4). A Phase-2 stopgap until dos.library (Phase 3) owns file I/O.
-    SYS_Fs_Read = 21,
-    SYS_Fs_Write = 22,
+    // (21, 22 retired in L3.7: the Phase-2 CaraFS stopgap SYS_Fs_Read/
+    // Write — Clar's drawer note now goes through dos.library. The numbers
+    // stay reserved so the trampoline wire ABI is never reused.)
 
     // Phase 3 L1 — more exec.library (docs/PHASE3.md).
     SYS_AllocVec = 23,
@@ -127,9 +126,7 @@ enum {
 #define SYS_RemoveGadget 19
 #define SYS_ActivateGadget 20
 
-// Phase 2 Subgoal 3 — thin CaraFS access for Clar.
-#define SYS_Fs_Read 21
-#define SYS_Fs_Write 22
+// (21, 22 retired in L3.7 — Phase-2 CaraFS stopgap; numbers stay reserved.)
 
 // Phase 3 L1 — more exec.library.
 #define SYS_AllocVec 23

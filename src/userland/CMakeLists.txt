@@ -88,14 +88,15 @@ set_target_properties(userintuition PROPERTIES
 )
 
 # clar — the Phase 1 Workbench Gleas (docs/PHASE1_CLAR.md). Same link
-# recipe as userintuition; drives exec.library + intuition.library LVOs.
+# recipe as userintuition; drives exec.library + intuition.library +
+# dos.library LVOs (its drawer note is a dos file since L3.7).
 add_executable(clar clar.c)
 target_link_libraries(clar PRIVATE
     cara_kernel_flags
     cara_headers
     libcara_user
 )
-add_dependencies(clar cara_exec_lib_gen cara_intuition_lib_gen)
+add_dependencies(clar cara_exec_lib_gen cara_intuition_lib_gen cara_dos_lib_gen)
 target_link_options(clar PRIVATE
     -nostdlib
     -fuse-ld=${CARA_RV64_LDLLD_PATH}

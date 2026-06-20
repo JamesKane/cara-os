@@ -238,12 +238,18 @@ allocates and hands back as `BPTR`s (`MKBADDR`). `fl_Task` /
   *Done when:* `Write(Output(), …)` returns the byte count, `Read(Input(),
   …)` returns 0, and `Output()` is idempotent. Console output appears in
   the boot log under the `cout` tag.
-- **L3.7 — retire the stopgap.** Delete the app-facing `SYS_Fs_Read/
-  Write` name-in-root path; repoint **Clar** to dos
-  `Open`/`Read`/`Write`/`Close`; keep the handler-only kernel FS
-  syscalls. Update the boot smoke so Clar's drawer file persists *via
-  dos*. *Done when:* the Phase-2 criterion (a file edited in Clar's
-  drawer survives reboot) holds with `Croi_Fs_*` gone from the app path.
+- **L3.7 — retire the stopgap.** ✅ Deleted the app-facing
+  `SYS_Fs_Read`/`Write` name-in-root path (syscall arms + `sysno`
+  entries 21/22 reserved, `Croi_Fs_Read/Write_Impl` + `copy_name` in
+  `carafs_bind.c`, the `carafs_fs_syscall` kernel test). **Clar** now
+  reads/writes its drawer note through dos `Open`/`Read`/`Write`/`Close`
+  (opens `dos.library` v36 + a `DOSBase` global, like every V36 program).
+  No "handler-only FS syscalls" survive — the v0 handler is
+  kernel-resident and calls `Carafs_*` directly (the L3.2 deviation), so
+  the stopgap is gone with nothing left behind. *Done:* the Phase-2
+  criterion (a file edited in Clar's drawer survives reboot) holds with
+  `Croi_Fs_*` gone from the app path — the boot smoke's two-boot
+  `drawer note='as'` check now exercises dos end-to-end. **L3 COMPLETE.**
 
 ---
 

@@ -11,7 +11,6 @@
 // arm below reads the args it cares about and routes to the matching
 // Croi_*_Impl helper from src/croi/exec_lib/.
 
-#include <cara/carafs_bind.h>
 #include <cara/dos_lib.h>
 #include <cara/exec_lib.h>
 #include <cara/intuition_lib.h>
@@ -258,12 +257,6 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_ActivateGadget:
         return (i64)Croi_ActivateGadget_Impl((struct Gadget *)(uptr)a0, (struct Window *)(uptr)a1,
                                              (struct Requester *)(uptr)a2);
-
-    // ---- CaraFS (Phase 2 Subgoal 3) ----
-    case SYS_Fs_Read:
-        return Croi_Fs_Read_Impl((const char *)(uptr)a0, (u32)a1, (void *)(uptr)a2, (u32)a3);
-    case SYS_Fs_Write:
-        return Croi_Fs_Write_Impl((const char *)(uptr)a0, (u32)a1, (const void *)(uptr)a2, (u32)a3);
 
     default:
         LOG_WARN("sysc", "unknown syscall a7=%lld", num);

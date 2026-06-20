@@ -22,15 +22,9 @@ extern bool g_carafs_mounted;
 // live mount, or an error (controller not ready, mkfs/mount failure).
 [[nodiscard]] int Croi_Carafs_BringUp(void);
 
-// ---- Thin filesystem syscall backends (F6/G3, docs/LOGAIC_BOOT.md §4) -------
-//
-// Read/write a file named `name` (name_len bytes) in the root directory
-// of the boot mount. Pointers may be user-VA (the syscall path runs with
-// SUM=1) or kernel-VA (a kernel test). Read returns bytes read (0 when
-// absent); Write replaces the file's contents. Both return a negative
-// CARA_E* on error. The Phase-2 stopgap dos.library replaces in Phase 3.
-[[nodiscard]] i64 Croi_Fs_Read_Impl(const char *name, u32 name_len, void *buf, u32 buf_len);
-[[nodiscard]] i64 Croi_Fs_Write_Impl(const char *name, u32 name_len, const void *buf, u32 buf_len);
+// (The F6/G3 thin filesystem syscall backends Croi_Fs_Read/Write_Impl
+// were the Phase-2 stopgap for Clar's drawer note; retired in L3.7 once
+// dos.library Open/Read/Write/Close owns app-facing file I/O.)
 
 // ---- Boot startup-sequence runner (F6/G4, docs/LOGAIC_BOOT.md §5) ------------
 //

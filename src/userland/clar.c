@@ -24,12 +24,15 @@
 // might arrive in the same wakeup.
 
 #include <cara/sysno.h>
+#include <dos/dos.h>
+#include <dos/dosextens.h>
 #include <exec/execbase.h>
 #include <exec/libraries.h>
 #include <exec/memory.h>
 #include <exec/types.h>
 #include <intuition/intuition.h>
 #include <intuition/intuitionbase.h>
+#include <proto/dos.h>
 #include <proto/exec.h>
 #include <proto/intuition.h>
 
@@ -38,6 +41,7 @@
 #define CLAR_EXIT_OPENWINDOW_FAILED 0xBAD2
 #define CLAR_EXIT_ALLOC_FAILED 0xBAD3
 #define CLAR_EXIT_NO_INPUT 0xBAD4 // quit without ever typing into the Inntin
+#define CLAR_EXIT_NO_DOS 0xBAD5   // dos.library wouldn't open
 
 // Desktop window + drawer geometry. Fixed in Phase 1 (Clar can't query
 // the screen size) and shared with the smoke test so it can click them.
@@ -54,6 +58,7 @@
 #define CLAR_INNTIN_BUF 64
 
 struct IntuitionBase *IntuitionBase; // referenced by <proto/intuition.h> stubs
+struct DosLibrary *DOSBase;          // referenced by <proto/dos.h> stubs
 
 // Child "Bosca" window + its Inntin. File-scope so the open/close helpers
 // and the main loop share them.
@@ -83,19 +88,35 @@ static void log_msg(int level, const char *tag, const char *msg)
     (void)ecall4(SYS_LOG_WRITE, level, (long)tag, (long)msg, len);
 }
 
-// The drawer is backed by one CaraFS file, "note" (F6/G3,
-// docs/LOGAIC_BOOT.md §4). These wrap the thin Croi_Fs_* syscalls.
+// The drawer is backed by one CaraFS file, "note", in the volume root.
+// Since L3.7 this goes through dos.library (Open/Read/Write/Close) — the
+// V36 idiom — rather than the retired Croi_Fs_* stopgap syscalls.
 #define CLAR_NOTE_NAME "note"
-#define CLAR_NOTE_NAMELEN 4
 
+// Read the drawer note. Returns bytes read; 0 if the file is absent
+// (fresh volume) or empty. Negative is coerced to 0 by the caller.
 static long note_read(void *buf, long buf_len)
 {
-    return ecall4(SYS_Fs_Read, (long)CLAR_NOTE_NAME, CLAR_NOTE_NAMELEN, (long)buf, buf_len);
+    BPTR fh = Open((STRPTR)CLAR_NOTE_NAME, MODE_OLDFILE);
+    if (!fh) {
+        return 0; // not yet saved → empty
+    }
+    LONG got = Read(fh, buf, (LONG)buf_len);
+    Close(fh);
+    return got < 0 ? 0 : (long)got;
 }
 
+// Replace the drawer note with `len` bytes. MODE_NEWFILE truncates (the
+// handler removes + recreates). Returns 0 on success, -1 on failure.
 static long note_write(const void *buf, long len)
 {
-    return ecall4(SYS_Fs_Write, (long)CLAR_NOTE_NAME, CLAR_NOTE_NAMELEN, (long)buf, len);
+    BPTR fh = Open((STRPTR)CLAR_NOTE_NAME, MODE_NEWFILE);
+    if (!fh) {
+        return -1;
+    }
+    LONG wrote = Write(fh, (APTR)buf, (LONG)len);
+    Close(fh);
+    return wrote == (LONG)len ? 0 : -1;
 }
 
 // Open the drawer's child window with a string Inntin and activate it.
@@ -200,6 +221,15 @@ int main(void)
         return (int)CLAR_EXIT_NO_INTUITION;
     }
     IntuitionBase = (struct IntuitionBase *)ilib;
+
+    // dos.library backs the drawer note (L3.7). Open it up front so the
+    // note_read in open_drawer and the note_write on save can use it.
+    struct Library *dlib = OpenLibrary((STRPTR) "dos.library", 36);
+    if (!dlib) {
+        CloseLibrary(ilib);
+        return (int)CLAR_EXIT_NO_DOS;
+    }
+    DOSBase = (struct DosLibrary *)dlib;
 
     char title[] = "Clar";
     struct NewWindow nw = {
@@ -320,6 +350,7 @@ int main(void)
     RemoveGadget(desktop, drawer);
     FreeMem(drawer, sizeof(struct Gadget));
     CloseWindow(desktop);
+    CloseLibrary(dlib);
     CloseLibrary(ilib);
     log_msg(2, "clar", "clar exit");
     return rc;
