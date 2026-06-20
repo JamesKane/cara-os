@@ -554,14 +554,28 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `Dath_*` path (same pixels). KERNEL_TEST(`graphics_screen_rastport`)
   draws through `Screen.RastPort` via the gfx impls + verifies the fb.
   No LVO change (coverage still 16%). kernel 32/0.
-- **NEXT: scope L5 — `intuition.library` widen.** The big apps unblock:
-  screens (`OpenScreen`/`OpenScreenTagList`), the tag window opener
-  (`OpenWindowTagList`), menus, requesters, the full gadget + IDCMP
-  surface. Its graphics dependency (RastPorts, text, blits) is now
-  satisfied. Write a `docs/LEARGAS_INTUITION.md` scope (as L3/L4 got
-  design docs) before cutting code. Window RastPorts derive from the
-  screen RastPort just landed. (Today intuition is 5 LVOs at ~6%
-  coverage — `OpenWindow`/`CloseWindow`/gadget attach/`ActivateGadget`.)
+- **L5 — `intuition.library` widen: SCOPED (`docs/LEARGAS_INTUITION.md`).**
+  Read that doc before cutting L5 code. Decisions locked there: (1) **tag
+  openers map onto the existing Leargas substrate** — `OpenWindowTagList`
+  builds a `NewWindow` from `WA_*` tags (L2 utility walkers) → the
+  existing `Leargas_OpenWindow`; the `*TagList` form is the real LVO,
+  `*Tags` are header inlines. (2) **window RPort = a "sub-bitmap" view
+  onto the screen framebuffer** — a `DathBitMapExt` whose surf is the
+  screen with base offset to the window content origin + inner dims +
+  screen stride, so window-relative drawing lands correctly *and*
+  auto-clips to the window (reuses L4); immediate, no backing store, **no
+  occlusion** (non-overlapping windows only; layers later). (3) **menus
+  are a new Leargas substrate** (bar render + menu-button router +
+  `IDCMP_MENUPICK` + `ItemAddress`). (4) **requesters = modal windows**
+  (`AutoRequest`/`EasyRequestArgs` over the bool-gadget+IDCMP substrate).
+  All `syscall` flavour (Leargas kernel-resident); wide LVOs use the L4.4
+  `local` marshalling-stub pattern. Slice plan L5.1 tag opener+window
+  RPort → L5.2 window ops+activation → L5.3 menus → L5.4 requesters → L5.5
+  rendering helpers+gadget widen → L5.6 screens (apps-gated). Today
+  intuition is 5 LVOs ~6%. **NEXT: start L5.1.**
+- **Rich gadgets (list/cycle/slider/…) are gadtools (L8) on BOOPSI (L7);
+  the file requester is asl (L9)** — not L5. L5 is the window-system core
+  + menus + requesters.
 - **L4 reference: `graphics.library` (Dath): SCOPED (`docs/DATH_GRAPHICS.md`).**
   Read that doc before cutting L4 code. Decisions locked there: (1) **chunky
   RTG bitmaps, not planar** — `struct BitMap` kept ABI-shaped but opaque,
