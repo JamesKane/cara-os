@@ -66,3 +66,25 @@ struct Task *Croi_FindTask_Impl(STRPTR name)
     }
     return nullptr;
 }
+
+// V36+ Forbid/Permit/Disable/Enable — thin shims over the cooperative
+// scheduler's task-switch lock (cara/sched.h).
+void Croi_Forbid_Impl(void)
+{
+    Croi_Forbid();
+}
+
+void Croi_Permit_Impl(void)
+{
+    Croi_Permit();
+}
+
+void Croi_Disable_Impl(void)
+{
+    Croi_Disable();
+}
+
+void Croi_Enable_Impl(void)
+{
+    Croi_Enable();
+}

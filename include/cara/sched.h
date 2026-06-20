@@ -52,6 +52,12 @@ void Croi_Yield(void);
 
 void Croi_TaskSetSelfPriority(i32 pri);
 
+// V36+ task-switch control (cooperative model: gate Croi_Yield).
+void Croi_Forbid(void);
+void Croi_Permit(void);
+void Croi_Disable(void);
+void Croi_Enable(void);
+
 struct Task *Sched_Current(void);
 
 void Sched_ReapDead(void);

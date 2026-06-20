@@ -165,6 +165,12 @@ void Croi_Yield(void)
     if (!g_inited) {
         return;
     }
+    // Forbid()/Disable() disable task switching: while the running task
+    // holds either nest count >= 0, Yield is a no-op so the task keeps
+    // the CPU. (Wait still blocks — it breaks Forbid, per V36+.)
+    if (g_current && (g_current->tc_TDNestCnt >= 0 || g_current->tc_IDNestCnt >= 0)) {
+        return;
+    }
     struct Task *old = g_current;
     if (MinList_IsEmpty(&g_runq)) {
         return; // No-one else ready; current keeps running.
@@ -220,6 +226,41 @@ void Croi_TaskSetSelfPriority(i32 pri)
 {
     if (g_current) {
         g_current->tc_Node.ln_Pri = clamp_pri(pri);
+    }
+}
+
+// V36+ Forbid/Permit (task-switch lock) and Disable/Enable (in the
+// SASOS cooperative single-hart model these only provide scheduling
+// exclusion — there is no preemption to mask, so they gate Croi_Yield
+// via the running task's nest counts and need no real IRQ masking).
+// tc_TDNestCnt / tc_IDNestCnt start at -1 (not nested); the count is
+// >= 0 exactly while switching is disabled. The actual gate lives at
+// the top of Croi_Yield.
+void Croi_Forbid(void)
+{
+    if (g_current) {
+        g_current->tc_TDNestCnt++;
+    }
+}
+
+void Croi_Permit(void)
+{
+    if (g_current && g_current->tc_TDNestCnt >= 0) {
+        g_current->tc_TDNestCnt--;
+    }
+}
+
+void Croi_Disable(void)
+{
+    if (g_current) {
+        g_current->tc_IDNestCnt++;
+    }
+}
+
+void Croi_Enable(void)
+{
+    if (g_current && g_current->tc_IDNestCnt >= 0) {
+        g_current->tc_IDNestCnt--;
     }
 }
 

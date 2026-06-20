@@ -66,6 +66,10 @@ enum {
     SYS_ObtainSemaphore = 30,
     SYS_ReleaseSemaphore = 31,
     SYS_AttemptSemaphore = 32,
+    SYS_Forbid = 33,
+    SYS_Permit = 34,
+    SYS_Disable = 35,
+    SYS_Enable = 36,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -109,6 +113,10 @@ enum {
 #define SYS_ObtainSemaphore 30
 #define SYS_ReleaseSemaphore 31
 #define SYS_AttemptSemaphore 32
+#define SYS_Forbid 33
+#define SYS_Permit 34
+#define SYS_Disable 35
+#define SYS_Enable 36
 #endif
 
 #endif

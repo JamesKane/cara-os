@@ -82,3 +82,40 @@ KERNEL_TEST(sched_smoke)
     // and exited (g_done was 2 at that moment).
     TEST_ASSERT(ctx, g_first_low_iter_at_done_high == 2, "low-pri ran before high-pri finished");
 }
+
+// ---- Forbid/Permit task-switch lock --------------------------------
+
+static volatile bool g_fb_ran;
+
+static void fb_worker(void *arg)
+{
+    (void)arg;
+    g_fb_ran = true;
+}
+
+// KERNEL_TEST(exec_forbid): Forbid() must keep the CPU even when a
+// higher-priority task is ready, and Permit() must release it. Run as
+// kmain: drop to pri 0, spawn a pri-10 worker, Forbid, then Yield — the
+// worker (higher pri) would normally be picked, but the lock makes Yield
+// a no-op, so it must NOT have run. After Permit, Yield hands off and the
+// worker runs.
+KERNEL_TEST(exec_forbid)
+{
+    g_fb_ran = false;
+    Croi_TaskSetSelfPriority(0);
+
+    Croi_Forbid();
+    TEST_ASSERT(ctx, Croi_SpawnKernelTask("fbw", 10, fb_worker, nullptr) != nullptr,
+                "spawn fbw failed");
+    Croi_Yield(); // forbidden: must not switch to the pri-10 worker
+    TEST_ASSERT(ctx, !g_fb_ran, "Forbid did not block a higher-pri task");
+
+    Croi_Permit();
+    while (!g_fb_ran) {
+        Croi_Yield(); // now the worker is free to run
+    }
+    TEST_ASSERT(ctx, g_fb_ran, "Permit did not release the switch lock");
+
+    // Restore the high priority the runner expects for kmain.
+    Croi_TaskSetSelfPriority(100);
+}

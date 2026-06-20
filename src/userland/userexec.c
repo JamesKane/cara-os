@@ -45,6 +45,7 @@
 #define USEREXEC_EXIT_TASK_FAIL 0xBAD8
 #define USEREXEC_EXIT_COPY_FAIL 0xBAD9
 #define USEREXEC_EXIT_SEM_FAIL 0xBADA
+#define USEREXEC_EXIT_FORBID_FAIL 0xBADB
 
 // Inline ecall for SYS_LOG_WRITE — used to surface progress markers
 // in the kernel log alongside the existing kernel-side messages so
@@ -317,6 +318,22 @@ int main(void)
         CloseLibrary(lib);
         return (int)USEREXEC_EXIT_SEM_FAIL;
     }
+
+    // 4g. Task-switch control — exercise the U-mode syscall path for
+    //     Forbid/Permit/Disable/Enable. Single task, so the only thing
+    //     observable here is that the round-trip doesn't fault and that
+    //     nested Forbid/Permit + Disable/Enable balance cleanly (the
+    //     real "blocks a higher-pri task" semantics is the kernel-side
+    //     exec_forbid test). After balancing, a Yield-equivalent path
+    //     (CloseLibrary→...→exit) must still make progress.
+    Forbid();
+    Forbid();
+    Permit();
+    Permit();
+    Disable();
+    Enable();
+    // If any of the above had wedged the scheduler or faulted, we'd
+    // never reach here; reaching here is the pass condition.
 
     // 5. Balance the open. Note: libcara also opened exec.library
     //    at startup, so OpenCnt is still > 0 after this close.

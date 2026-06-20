@@ -58,6 +58,12 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_SetSignal,       SYS_SetSignal
 // ---- Tasks ----
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_FindTask,        SYS_FindTask
 
+// ---- Task-switch control ----
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Disable,         SYS_Disable
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Enable,          SYS_Enable
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Forbid,          SYS_Forbid
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Permit,          SYS_Permit
+
 // ---- Semaphores ----
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_InitSemaphore,    SYS_InitSemaphore
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_ObtainSemaphore,  SYS_ObtainSemaphore

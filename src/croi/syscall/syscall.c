@@ -139,6 +139,20 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_FindTask:
         return (i64)(uptr)Croi_FindTask_Impl((STRPTR)(uptr)a0);
 
+    // ---- exec.library task-switch control ----
+    case SYS_Forbid:
+        Croi_Forbid_Impl();
+        return 0;
+    case SYS_Permit:
+        Croi_Permit_Impl();
+        return 0;
+    case SYS_Disable:
+        Croi_Disable_Impl();
+        return 0;
+    case SYS_Enable:
+        Croi_Enable_Impl();
+        return 0;
+
     // ---- exec.library semaphores ----
     case SYS_InitSemaphore:
         Croi_InitSemaphore_Impl((struct SignalSemaphore *)(uptr)a0);

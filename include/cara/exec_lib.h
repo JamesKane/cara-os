@@ -34,6 +34,13 @@ void Croi_FreeSignal_Impl(LONG sig_num);
 ULONG Croi_SetSignal_Impl(ULONG new_signals, ULONG mask);
 struct Task *Croi_FindTask_Impl(STRPTR name);
 
+// ---- Task-switch control --------------------------------------------
+
+void Croi_Forbid_Impl(void);
+void Croi_Permit_Impl(void);
+void Croi_Disable_Impl(void);
+void Croi_Enable_Impl(void);
+
 // ---- IPC ------------------------------------------------------------
 
 void Croi_PutMsg_Impl(struct MsgPort *port, struct Message *msg);
