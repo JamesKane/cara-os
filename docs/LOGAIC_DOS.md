@@ -99,7 +99,18 @@ gap.
 `IoErr()` / `SetIoErr()` read/write `pr_Result2` — pure loads/stores on
 the caller's own (now shared) Process, so they are `local` flavour.
 
-### 2.3 Architecture — U-mode handler Gleas, `server` packet ops, CaraFS via syscalls
+### 2.3 Architecture — a dos handler server task, `server` packet ops
+
+> **v0 update (L3.2):** the handler runs as a **kernel-resident server
+> task** (`Croi_SpawnKernelTask("dos.handler")`), not a U-mode Gleas. It
+> owns the CaraFS mount (Croi/S-mode), so co-locating it there lets the
+> real actions call `Carafs_*` directly — no handler-only FS syscall
+> surface needed. The reusable, load-bearing part is the **U-mode
+> server-flavour call path** (PutMsg → server task → ReplyMsg), which is
+> identical whether the server is kernel- or U-mode; apps never see the
+> seam (SASOS). A U-mode handler Gleas remains a future option. The rest
+> of this section describes the original U-mode framing; substitute
+> "kernel server task" for "handler Gleas" for v0.
 
 ```
   app  ──OpenLibrary("dos.library")──►  DosLibrary base (shared heap)

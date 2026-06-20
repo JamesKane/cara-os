@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+ba08b31 phase-3/L3.2  dos handler server task + U-mode packet round-trip
 014ca2b phase-3/L3.1  dos.library ABI foundation + Process model
 e52d812 phase-3/L2    utility.library allocating tag helpers (slice 3)
 5870c8b phase-3/L2    utility.library MapTags/FilterTagItems/FilterTagChanges (slice 2)
@@ -381,14 +382,30 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   reserved-slot CARA_IDX/naming in lvo-gen before **L3.4**; (b) `IoErr`
   casts `Sched_Current()` to `Process*` — only valid because syscalls
   only come from U-mode Gleasanna (all Processes); kernel tasks aren't.
-- **NEXT: L3.2 — server call path + handler skeleton.** Build the
-  generic `server`-flavour stub in lvo-gen (replace the `[[gnu::error]]`/
-  `Croi_LvoServerStub`): marshal args → DosPacket, read library-private
-  handler port, `PutMsg`, `WaitPort` a **per-task reply port** (add to
-  `libcara_init.c`), demarshal. Spawn the Logaic dos handler Gleas
-  owning a MsgPort; wire one ACTION_* round-trip end to end. Reusable by
-  L4/L6. (`MKL_SERVER_PORT_KOBJ` tag already exists for handing the
-  handler port to MakeLibrary.)
+- **L3.2 shipped (`ba08b31`): dos handler + U-mode packet round-trip.**
+  The dos handler is a **kernel-resident server task** (`dos.handler`,
+  pri 120) — *v0 deviation from the scoping doc*: it owns the CaraFS
+  mount (S-mode) so real actions call `Carafs_*` directly, no handler-
+  only FS syscalls. `Croi_Dos_StartHandler()` (entry.c, after dos.library
+  construction) spawns it + yields so its port publishes before tests
+  run; the loop is WaitPort/GetMsg → dispatch `dp_Type` → ReplyMsg
+  (L3.2: ACTION_NIL echo). `SYS_Dos_HandlerPort` (42) hands the port to
+  U-mode. libcara now provides `memset`/`memcpy` (freestanding-required).
+  userexec drives a full DosPacket round-trip (StandardPacket on its
+  stack → PutMsg → WaitPort own reply port → echoed result). The U-mode
+  server-stub call path is now proven end to end.
+- **NEXT: L3.3 — locks + examine (first real packet LVOs).** Add the
+  real `Lock`/`UnLock`/`DupLock`/`CurrentDir` + `Examine`/`ExNext` dos
+  LVOs. Decisions to make: (a) **server-stub codegen** — generate the
+  PutMsg/WaitPort stub in lvo-gen for `server` rows, OR hand-write the
+  stubs in `.lib_text.dos` (declared `local`) and use DosPackets. Either
+  way add a **per-task reply port to libcara** (the userexec proof made
+  its own; the stubs need a standing one). (b) handler `Carafs_*` calls
+  for `ACTION_LOCATE_OBJECT`/`EXAMINE_*` — FileLock.fl_Key = cnode;
+  `Examine`/`ExNext` over `Carafs_CnodeStat`/`Carafs_DirNext`. (c) the
+  `dos Open` (-30) vs reserved-`Open` lvo-gen name collision must be
+  fixed before L3.4 (file Open), not L3.3 — but decide the lvo-gen
+  reserved-slot CARA_IDX disambiguation approach now.
 - **Deferred exec long-tail (optional, low-value):** `MakeLibrary`/
   `MakeFunctions`/`SetFunction`/`SumLibrary` (library-author API;
   `Croi_MakeLibrary` is the substrate). Device prims (`OpenDevice`/`DoIO`/
