@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+af24dde phase-3/L1    exec.library signal semaphores (slice 5)
 7c173b3 phase-3/L1    exec.library FindTask + CopyMem/CopyMemQuick (slice 4)
 1763f81 phase-3/L1    exec.library CreateMsgPort/DeleteMsgPort/ReplyMsg (slice 3)
 5d0dce6 phase-3/L1    exec.library AllocVec / FreeVec (slice 2)
@@ -280,13 +281,21 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   heap, unlike MsgPorts — a real Phase-3 gap (move Task/Process to shared
   memory, or hand out a shared shadow, before programs read `tc_*`).
   CopyMem/CopyMemQuick are `local` (copy_ops.c, RX page).
-- **Slice 5+ (next):** semaphores (`InitSemaphore`/`ObtainSemaphore`/
-  `ReleaseSemaphore`/`AttemptSemaphore` — needs a new `<exec/semaphores.h>`
-  + `struct SignalSemaphore`; for the cooperative single-hart kernel the
-  blocking is simple), libraries (`MakeLibrary`/`SetFunction`), then the
-  `OpenDevice`/`DoIO`/… device primitives (L6). Kernel-state → syscall;
-  pure → local. Then the **stub-coverage report** + widening the conf
-  toward the full Exec autodoc (still `##pad_run`s).
+- **Slice 5 shipped (`af24dde`): signal semaphores** (Init/Obtain/
+  Release/Attempt) over the new `<exec/semaphores.h>`. Contended Obtain
+  blocks on `SIGF_SINGLE`; Release hands off to the queued waiter. To get
+  a reserved wait bit, **`AllocSignal` now reserves signals 0..15** (V36+
+  convention; returns 16..31) and `SIGB_SINGLE`=bit 4 is in
+  `exec/tasks.h`. Gotcha-to-know: **the contended cross-task path has no
+  test yet** (needs two tasks; uncontended/nesting is covered in
+  userexec). The semaphore struct is caller-owned (SASOS), so unlike
+  Task the app *can* read `ss_Owner`/`ss_NestCount` back.
+- **Slice 6+ (next):** libraries (`MakeLibrary`/`MakeFunctions`/
+  `SetFunction`/`SumLibrary`) — `Croi_MakeLibrary` is the substrate; then
+  the `OpenDevice`/`DoIO`/`SendIO`/`CheckIO`/`WaitIO`/`AbortIO` device
+  primitives (L6 builds devices on them). Kernel-state → syscall; pure →
+  local. Then the **stub-coverage report** + widening the conf toward the
+  full Exec autodoc (still `##pad_run`s).
 - **Still TODO in L1:** the **stub-coverage report** (PHASE3.md §7 Q4)
   — a check listing which declared LVOs are unimplemented stubs. Not
   built yet; settle its format as the per-library precedent. The conf
