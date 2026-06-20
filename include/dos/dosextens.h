@@ -65,19 +65,24 @@ struct DosLibrary {
 
 // AmigaDOS packet — the wire format for handler requests. dp_Link +
 // dp_Port live in the StandardPacket's Message; dp_Type is an ACTION_*.
+// CaraOS widens the result/argument slots from the classic 32-bit LONG
+// to SIPTR (pointer-width): unlike 68k AmigaDOS, dp_Res1 and the args
+// must carry real 64-bit pointers (a BPTR lock, a name pointer). dp_Type
+// stays LONG (an ACTION_* code). V36 source assigning small LONGs to
+// these still compiles.
 struct DosPacket {
     struct Message *dp_Link; // the Message this packet is bound to
     struct MsgPort *dp_Port; // reply port
     LONG dp_Type;            // ACTION_* request code
-    LONG dp_Res1;            // primary result
-    LONG dp_Res2;            // secondary result (an IoErr value)
-    LONG dp_Arg1;
-    LONG dp_Arg2;
-    LONG dp_Arg3;
-    LONG dp_Arg4;
-    LONG dp_Arg5;
-    LONG dp_Arg6;
-    LONG dp_Arg7;
+    SIPTR dp_Res1;           // primary result (BOOL / BPTR / count)
+    SIPTR dp_Res2;           // secondary result (an IoErr value)
+    SIPTR dp_Arg1;
+    SIPTR dp_Arg2;
+    SIPTR dp_Arg3;
+    SIPTR dp_Arg4;
+    SIPTR dp_Arg5;
+    SIPTR dp_Arg6;
+    SIPTR dp_Arg7;
 };
 
 // A Message with its DosPacket inline — what handlers actually receive.

@@ -501,6 +501,19 @@ int main(void)
         dos_ok = dos_ok && IoErr() == 0;
     }
 
+    // L3.3 locks: Lock the root volume, DupLock it, then a known-missing
+    // name fails with IoErr set. Lock/UnLock go through the dos handler's
+    // dispatch (ACTION_LOCATE_OBJECT/FREE_LOCK → CaraFS); DupLock/the
+    // root path exercise the FileLock plumbing.
+    BPTR rootlock = Lock((STRPTR) ":", SHARED_LOCK);
+    dos_ok = dos_ok && rootlock != BNULL;
+    BPTR duplock = DupLock(rootlock);
+    dos_ok = dos_ok && duplock != BNULL && duplock != rootlock;
+    UnLock(duplock);
+    BPTR missing = Lock((STRPTR) "no-such-file-zzz", SHARED_LOCK);
+    dos_ok = dos_ok && missing == BNULL && IoErr() == ERROR_OBJECT_NOT_FOUND;
+    UnLock(rootlock);
+
     CloseLibrary(dlib);
     if (!dos_ok) {
         CloseLibrary(lib);

@@ -17,6 +17,7 @@ cara_lvo_gen_library("${CMAKE_SOURCE_DIR}/tools/lvo-gen/dos.conf")
 add_library(cara_dos_lib STATIC
     io_err.c
     handler.c
+    ops.c
     dos_hooks.c
     trampolines.S
 )

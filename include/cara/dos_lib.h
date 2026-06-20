@@ -10,9 +10,11 @@
 #define CARA_DOS_LIB_H
 
 #include <cara/types.h>
+#include <dos/dos.h> // BPTR
 #include <exec/types.h>
 
 struct MsgPort;
+struct DosPacket;
 
 // IoErr — the calling Process's pr_Result2. The kernel reads
 // Sched_Current() and casts to struct Process * (every U-mode Gleas's
@@ -29,5 +31,16 @@ void Croi_Dos_StartHandler(void);
 // The handler's request port (nullptr until the handler is up). U-mode
 // server stubs reach it via SYS_Dos_HandlerPort.
 struct MsgPort *Croi_Dos_HandlerPort_Impl(void);
+
+// Shared packet dispatch — runs a DosPacket's ACTION_* against the
+// CaraFS mount. Called by the handler task and by the lock/file LVO
+// impls' fast path.
+void Croi_Dos_Dispatch(struct DosPacket *dp);
+
+// ---- Lock LVOs (L3.3) -----------------------------------------------
+BPTR Croi_Dos_Lock_Impl(STRPTR name, LONG accessMode);
+void Croi_Dos_UnLock_Impl(BPTR lock);
+BPTR Croi_Dos_DupLock_Impl(BPTR lock);
+BPTR Croi_Dos_CurrentDir_Impl(BPTR lock);
 
 #endif // CARA_DOS_LIB_H

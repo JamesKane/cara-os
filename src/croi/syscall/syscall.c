@@ -146,6 +146,15 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)Croi_Dos_IoErr_Impl();
     case SYS_Dos_HandlerPort:
         return (i64)(uptr)Croi_Dos_HandlerPort_Impl();
+    case SYS_Dos_Lock:
+        return (i64)(uptr)Croi_Dos_Lock_Impl((STRPTR)(uptr)a0, (LONG)a1);
+    case SYS_Dos_UnLock:
+        Croi_Dos_UnLock_Impl((BPTR)(uptr)a0);
+        return 0;
+    case SYS_Dos_DupLock:
+        return (i64)(uptr)Croi_Dos_DupLock_Impl((BPTR)(uptr)a0);
+    case SYS_Dos_CurrentDir:
+        return (i64)(uptr)Croi_Dos_CurrentDir_Impl((BPTR)(uptr)a0);
 
     // ---- utility.library allocating tag helpers ----
     case SYS_AllocateTagItems:
