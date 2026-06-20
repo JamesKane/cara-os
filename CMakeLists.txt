@@ -153,6 +153,23 @@ endif()
 # forward-investment; the file builds and stays in sync with the .conf set.
 cara_lvo_gen_aggregate()
 
+# --- LVO stub-coverage report ------------------------------------------------
+# `cmake --build build-host --target lvo-coverage` regenerates
+# docs/LVO_COVERAGE.md from the .conf set (single source of truth — see
+# docs/PHASE3.md §7 Q4). Host-only; the report is committed so it is
+# browsable on GitHub, and regenerated on demand rather than every build.
+if(CARA_TARGET STREQUAL "host")
+    add_custom_target(lvo-coverage
+        COMMAND $<TARGET_FILE:lvo-gen> --coverage
+                "${CMAKE_SOURCE_DIR}/docs/LVO_COVERAGE.md"
+                "${CMAKE_SOURCE_DIR}/tools/lvo-gen/exec.conf"
+                "${CMAKE_SOURCE_DIR}/tools/lvo-gen/intuition.conf"
+                "${CMAKE_SOURCE_DIR}/tools/lvo-gen/cruth.conf"
+        DEPENDS lvo-gen
+        VERBATIM
+        COMMENT "lvo-gen coverage → docs/LVO_COVERAGE.md")
+endif()
+
 # --- Tests -------------------------------------------------------------------
 if(CARA_TARGET STREQUAL "host")
     enable_testing()

@@ -903,6 +903,184 @@ static void emit_aistreoir(const Library *lib, FILE *out)
     }
 }
 
+// ============ Coverage report ===============================================
+
+static int load_lib(const char *path, Library *lib); // defined below
+
+static const char *flavour_str(Flavour f)
+{
+    switch (f) {
+    case FLAVOUR_LOCAL:   return "local";
+    case FLAVOUR_SYSCALL: return "syscall";
+    case FLAVOUR_SERVER:  return "server";
+    }
+    return "?";
+}
+
+// Per-library stub-coverage tallies. An ABI slot is one of: reserved
+// (ordinals 0..3 — the library-internal Open/Close/Expunge/ExtFunc
+// vectors, never application-callable), impl (a real local/syscall
+// body), server (declared, marshalling deferred), or stub (a per-LVO
+// ##pad_run placeholder → Croi_LvoUnimplemented).
+typedef struct {
+    int    impl;
+    int    server;
+    int    stub;
+    int    reserved;
+    int    highest_lvo;
+    int    highest_ord;
+} CovStats;
+
+static void cov_compute(const Library *lib, CovStats *s)
+{
+    *s = (CovStats){ 0 };
+    for (size_t i = 0; i < lib->nfuncs; i++) {
+        const Function *f = &lib->funcs[i];
+        if (f->ordinal < 4) {
+            s->reserved++;
+        } else if (f->is_pad) {
+            s->stub++;
+        } else if (f->flavour == FLAVOUR_SERVER) {
+            s->server++;
+        } else {
+            s->impl++;
+        }
+    }
+    if (lib->nfuncs) {
+        s->highest_lvo = lib->funcs[lib->nfuncs - 1].lvo;
+        s->highest_ord = lib->funcs[lib->nfuncs - 1].ordinal;
+    }
+}
+
+// Coverage % over the user-callable slots (excludes the 4 reserved).
+static int cov_pct(const CovStats *s)
+{
+    int user = s->impl + s->server + s->stub;
+    if (user == 0) {
+        return 100;
+    }
+    return (s->impl + s->server) * 100 / user;
+}
+
+static void emit_coverage_lib(FILE *out, const Library *lib, const CovStats *s)
+{
+    fprintf(out, "## %s\n\n", lib->library);
+    fprintf(out, "ABI surface declared through LVO %d (ordinal %d). "
+                 "%d user-callable slots: **%d impl**, %d server, **%d stub**; "
+                 "coverage **%d%%**.\n\n",
+            s->highest_lvo, s->highest_ord, s->impl + s->server + s->stub,
+            s->impl, s->server, s->stub, cov_pct(s));
+
+    // Implemented rows (skip reserved 0..3 and pads).
+    fprintf(out, "### Implemented (%d)\n\n", s->impl + s->server);
+    if (s->impl + s->server == 0) {
+        fprintf(out, "_none yet_\n\n");
+    } else {
+        fprintf(out, "| ord | LVO | name | flavour |\n");
+        fprintf(out, "|----:|----:|------|---------|\n");
+        for (size_t i = 0; i < lib->nfuncs; i++) {
+            const Function *f = &lib->funcs[i];
+            if (f->ordinal < 4 || f->is_pad) {
+                continue;
+            }
+            fprintf(out, "| %d | %d | `%s` | %s |\n", f->ordinal, f->lvo,
+                    f->name, flavour_str(f->flavour));
+        }
+        fprintf(out, "\n");
+    }
+
+    // Stub runs (consecutive ##pad_run slots, collapsed).
+    fprintf(out, "### Unimplemented stub slots (%d)\n\n", s->stub);
+    fprintf(out, "Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): "
+                 "the ABI slot exists so the vec index stays stable, but the "
+                 "call is unimplemented until a row replaces it.\n\n");
+    if (s->stub == 0) {
+        fprintf(out, "_none — fully declared surface is implemented_\n\n");
+    } else {
+        fprintf(out, "| ord range | LVO range | count |\n");
+        fprintf(out, "|-----------|-----------|------:|\n");
+        size_t i = 0;
+        while (i < lib->nfuncs) {
+            const Function *f = &lib->funcs[i];
+            if (f->ordinal < 4 || !f->is_pad) {
+                i++;
+                continue;
+            }
+            size_t j = i;
+            while (j < lib->nfuncs && lib->funcs[j].is_pad &&
+                   lib->funcs[j].ordinal >= 4) {
+                j++;
+            }
+            fprintf(out, "| %d..%d | %d..%d | %d |\n", lib->funcs[i].ordinal,
+                    lib->funcs[j - 1].ordinal, lib->funcs[i].lvo,
+                    lib->funcs[j - 1].lvo, (int)(j - i));
+            i = j;
+        }
+        fprintf(out, "\n");
+    }
+}
+
+static int cmd_coverage(const char *out_path, int n_confs, char **conf_paths)
+{
+    FILE *out = fopen(out_path, "w");
+    if (!out) {
+        fprintf(stderr, "lvo-gen: cannot open '%s' for writing: %s\n", out_path,
+                strerror(errno));
+        return 1;
+    }
+
+    Library  *libs  = (Library *)xcalloc((size_t)n_confs, sizeof(Library));
+    CovStats *stats = (CovStats *)xcalloc((size_t)n_confs, sizeof(CovStats));
+    for (int i = 0; i < n_confs; i++) {
+        g_errors = 0;
+        if (load_lib(conf_paths[i], &libs[i]) != 0) {
+            fprintf(stderr, "lvo-gen: coverage aborted — '%s' has %d error%s\n",
+                    conf_paths[i], g_errors, g_errors == 1 ? "" : "s");
+            fclose(out);
+            return 1;
+        }
+        cov_compute(&libs[i], &stats[i]);
+    }
+
+    fprintf(out, "<!-- AUTOGENERATED by `tools/lvo-gen --coverage`. Do not edit by hand.\n");
+    fprintf(out, "     Regenerate with `cmake --build build-host --target lvo-coverage`.\n");
+    fprintf(out, "     Source of truth: the tools/lvo-gen/*.conf files + docs/LVO.md. -->\n\n");
+    fprintf(out, "# CaraOS LVO stub-coverage report\n\n");
+    fprintf(out, "Tracks how much of each library's V36+ ABI surface is really\n");
+    fprintf(out, "implemented versus declared-but-stubbed. The policy (PHASE3.md\n");
+    fprintf(out, "§7 Q4) is **per-LVO granularity**: every unimplemented slot is\n");
+    fprintf(out, "an explicit `##pad_run` row pointing at `Croi_LvoUnimplemented`,\n");
+    fprintf(out, "so the runtime ordinal of every real function stays frozen as\n");
+    fprintf(out, "the surface fills in. A slot is one of:\n\n");
+    fprintf(out, "- **impl** — a real `local`/`syscall` function body.\n");
+    fprintf(out, "- **server** — declared; `PutMsg` marshalling deferred (LVO.md §12.2).\n");
+    fprintf(out, "- **stub** — a per-LVO `##pad_run` placeholder, unimplemented.\n");
+    fprintf(out, "- **reserved** — the 4 library-internal vectors "
+                 "(Open/Close/Expunge/ExtFunc), not application-callable.\n\n");
+    fprintf(out, "Coverage %% = (impl + server) / user-callable slots "
+                 "(i.e. excluding the 4 reserved).\n\n");
+
+    fprintf(out, "## Summary\n\n");
+    fprintf(out, "| Library | ABI slots | impl | server | stub | reserved | coverage |\n");
+    fprintf(out, "|---------|----------:|-----:|-------:|-----:|---------:|---------:|\n");
+    for (int i = 0; i < n_confs; i++) {
+        const CovStats *s = &stats[i];
+        int slots = s->impl + s->server + s->stub + s->reserved;
+        fprintf(out, "| %s | %d | %d | %d | %d | %d | %d%% |\n", libs[i].library,
+                slots, s->impl, s->server, s->stub, s->reserved, cov_pct(s));
+    }
+    fprintf(out, "\n");
+
+    for (int i = 0; i < n_confs; i++) {
+        emit_coverage_lib(out, &libs[i], &stats[i]);
+    }
+
+    fclose(out);
+    fprintf(stderr, "lvo-gen: coverage report written to %s (%d librar%s)\n",
+            out_path, n_confs, n_confs == 1 ? "y" : "ies");
+    return 0;
+}
+
 // ============ Entry point ===================================================
 
 [[noreturn]] static void usage_and_exit(int code)
@@ -914,7 +1092,9 @@ static void emit_aistreoir(const Library *lib, FILE *out)
             "      <kind> is one of: proto | lvo | vec | aistreoir\n"
             "  lvo-gen --aggregate <out> <frag1> [<frag2> ...]\n"
             "      concatenate aistreoir fragments into the final\n"
-            "      include/aistreoir/lvo_table.gen.h\n");
+            "      include/aistreoir/lvo_table.gen.h\n"
+            "  lvo-gen --coverage <out.md> <conf1> [<conf2> ...]\n"
+            "      write a Markdown stub-coverage report across the confs\n");
     exit(code);
 }
 
@@ -1042,6 +1222,12 @@ int main(int argc, char **argv)
             usage_and_exit(2);
         }
         return cmd_aggregate(argc - 3, &argv[3], argv[2]);
+    }
+    if (strcmp(argv[1], "--coverage") == 0) {
+        if (argc < 4) {
+            usage_and_exit(2);
+        }
+        return cmd_coverage(argv[2], argc - 3, &argv[3]);
     }
     usage_and_exit(2);
 }
