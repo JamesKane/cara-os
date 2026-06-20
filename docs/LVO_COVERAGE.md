@@ -24,7 +24,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 |---------|----------:|-----:|-------:|-----:|---------:|---------:|
 | exec.library | 115 | 37 | 0 | 74 | 4 | 33% |
 | intuition.library | 77 | 5 | 0 | 68 | 4 | 6% |
-| utility.library | 30 | 9 | 0 | 17 | 4 | 34% |
+| utility.library | 30 | 13 | 0 | 13 | 4 | 50% |
 | cruth.library | 23 | 9 | 10 | 0 | 4 | 100% |
 
 ## exec.library
@@ -121,9 +121,9 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 ## utility.library
 
-ABI surface declared through LVO -180 (ordinal 29). 26 user-callable slots: **9 impl**, 0 server, **17 stub**; coverage **34%**.
+ABI surface declared through LVO -180 (ordinal 29). 26 user-callable slots: **13 impl**, 0 server, **13 stub**; coverage **50%**.
 
-### Implemented (9)
+### Implemented (13)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
@@ -133,17 +133,20 @@ ABI surface declared through LVO -180 (ordinal 29). 26 user-callable slots: **9 
 | 7 | -48 | `NextTagItem` | local |
 | 8 | -54 | `FilterTagChanges` | local |
 | 9 | -60 | `MapTags` | local |
+| 10 | -66 | `AllocateTagItems` | syscall |
+| 11 | -72 | `CloneTagItems` | syscall |
+| 12 | -78 | `FreeTagItems` | syscall |
+| 13 | -84 | `RefreshTagItemClones` | syscall |
 | 14 | -90 | `TagInArray` | local |
 | 15 | -96 | `FilterTagItems` | local |
 | 16 | -102 | `CallHookPkt` | local |
 
-### Unimplemented stub slots (17)
+### Unimplemented stub slots (13)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
 | ord range | LVO range | count |
 |-----------|-----------|------:|
-| 10..13 | -66..-84 | 4 |
 | 17..29 | -108..-180 | 13 |
 
 ## cruth.library

@@ -20,6 +20,7 @@
 #include <cara/sysno.h>
 #include <cara/trap.h>
 #include <cara/types.h>
+#include <cara/utility_lib.h>
 #include <exec/libraries.h>
 #include <exec/ports.h>
 #include <exec/semaphores.h>
@@ -138,6 +139,19 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)Croi_SetSignal_Impl((ULONG)a0, (ULONG)a1);
     case SYS_FindTask:
         return (i64)(uptr)Croi_FindTask_Impl((STRPTR)(uptr)a0);
+
+    // ---- utility.library allocating tag helpers ----
+    case SYS_AllocateTagItems:
+        return (i64)(uptr)Croi_Utility_AllocateTagItems_Impl((ULONG)a0);
+    case SYS_CloneTagItems:
+        return (i64)(uptr)Croi_Utility_CloneTagItems_Impl((struct TagItem *)(uptr)a0);
+    case SYS_FreeTagItems:
+        Croi_Utility_FreeTagItems_Impl((struct TagItem *)(uptr)a0);
+        return 0;
+    case SYS_RefreshTagItemClones:
+        Croi_Utility_RefreshTagItemClones_Impl((struct TagItem *)(uptr)a0,
+                                               (struct TagItem *)(uptr)a1);
+        return 0;
 
     // ---- exec.library task-switch control ----
     case SYS_Forbid:

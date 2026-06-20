@@ -16,7 +16,9 @@ cara_lvo_gen_library("${CMAKE_SOURCE_DIR}/tools/lvo-gen/utility.conf")
 
 add_library(cara_utility_lib STATIC
     tag_ops.c
+    tag_alloc.c
     utility_hooks.c
+    trampolines.S
 )
 target_link_libraries(cara_utility_lib
     PUBLIC cara_headers

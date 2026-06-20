@@ -431,6 +431,27 @@ int main(void)
     util_ok = util_ok && chg[0].ti_Tag == 0xB && chg[0].ti_Data == 9 && chg[1].ti_Tag == TAG_DONE;
     util_ok = util_ok && orig[1].ti_Data == 9; // applied back
 
+    // Allocating helpers (slice 3, syscall flavour) — AllocateTagItems
+    // returns a cleared (all-TAG_DONE) list; CloneTagItems flattens an
+    // original (dropping TAG_IGNORE); RefreshTagItemClones restores a
+    // modified clone; FreeTagItems releases both.
+    struct TagItem *at = AllocateTagItems(4);
+    util_ok = util_ok && at != nullptr && at[0].ti_Tag == TAG_DONE;
+    at[0].ti_Tag = 0x55;
+    at[0].ti_Data = 11;
+    at[1].ti_Tag = TAG_DONE;
+    util_ok = util_ok && GetTagData(0x55, 0, at) == 11;
+    FreeTagItems(at);
+
+    struct TagItem clsrc[] = { { 0xA, 1 }, { TAG_IGNORE, 0 }, { 0xB, 2 }, { TAG_DONE, 0 } };
+    struct TagItem *cln = CloneTagItems(clsrc);
+    util_ok = util_ok && cln != nullptr;
+    util_ok = util_ok && GetTagData(0xA, 0, cln) == 1 && GetTagData(0xB, 0, cln) == 2;
+    cln[0].ti_Data = 999; // scribble, then refresh from the original
+    RefreshTagItemClones(cln, clsrc);
+    util_ok = util_ok && GetTagData(0xA, 0, cln) == 1;
+    FreeTagItems(cln);
+
     CloseLibrary(ulib);
     if (!util_ok) {
         CloseLibrary(lib);

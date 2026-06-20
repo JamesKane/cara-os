@@ -70,6 +70,13 @@ enum {
     SYS_Permit = 34,
     SYS_Disable = 35,
     SYS_Enable = 36,
+
+    // Phase 3 L2 — utility.library allocating tag helpers (the rest of
+    // utility is `local` flavour and never traps).
+    SYS_AllocateTagItems = 37,
+    SYS_CloneTagItems = 38,
+    SYS_FreeTagItems = 39,
+    SYS_RefreshTagItemClones = 40,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -117,6 +124,12 @@ enum {
 #define SYS_Permit 34
 #define SYS_Disable 35
 #define SYS_Enable 36
+
+// Phase 3 L2 — utility.library allocating tag helpers.
+#define SYS_AllocateTagItems 37
+#define SYS_CloneTagItems 38
+#define SYS_FreeTagItems 39
+#define SYS_RefreshTagItemClones 40
 #endif
 
 #endif
