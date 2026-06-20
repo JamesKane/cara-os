@@ -112,6 +112,7 @@ enum {
     SYS_Gfx_SetAPen = 70,
     SYS_Gfx_SetBPen = 71,
     SYS_Gfx_SetDrMd = 72,
+    SYS_Gfx_Blt = 73, // shared by BltBitMap/BltBitMapRastPort/ClipBlit (GfxBltArgs)
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -199,6 +200,7 @@ enum {
 #define SYS_Gfx_SetAPen 70
 #define SYS_Gfx_SetBPen 71
 #define SYS_Gfx_SetDrMd 72
+#define SYS_Gfx_Blt 73
 #endif
 
 #endif

@@ -236,3 +236,23 @@ LONG Croi_Gfx_ReadPixel_Impl(struct RastPort *rp, WORD x, WORD y)
     u16 v = *(const u16 *)(row + (usize)(u32)x * 2);
     return (LONG)v;
 }
+
+// Shared blit kernel impl for BltBitMap / BltBitMapRastPort / ClipBlit
+// (the U-mode stubs in graphics_blit.c resolve operands to src/dest
+// BitMaps and pack GfxBltArgs). Dath_BlitRect copies the rect between the
+// chunky surfaces and clips both sides; it no-ops on a format mismatch
+// (a v0 gap — §6.4). Returns 0 (V36 BltBitMap's plane count is moot for
+// chunky surfaces).
+LONG Croi_Gfx_Blt_Impl(const struct GfxBltArgs *a)
+{
+    if (!a || !a->src || !a->dest) {
+        return 0;
+    }
+    struct DathFramebuffer *s = surf_of((struct BitMap *)a->src);
+    struct DathFramebuffer *d = surf_of(a->dest);
+    if (!s || !d) {
+        return 0;
+    }
+    Dath_BlitRect(d, a->xDest, a->yDest, s, a->xSrc, a->ySrc, a->xSize, a->ySize);
+    return 0;
+}

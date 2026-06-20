@@ -698,6 +698,30 @@ int main(void)
             Draw(&grp, 7, 3); // horizontal blue line across row 3
             gfx_ok = gfx_ok && gpx[3 * 8 + 5] == 0xFF0000FFu && grp.cp_x == 7 && grp.cp_y == 3;
 
+            // L4.4 blits. BltBitMap a full copy bm→bm2 (verify pixel-for-
+            // pixel), then ClipBlit + BltBitMapRastPort via a RastPort
+            // over bm2 (verify the copied corner pixels).
+            struct BitMap *bm2 = AllocBitMap(8, 4, 32, BMF_CLEAR, nullptr);
+            gfx_ok = gfx_ok && bm2 != nullptr;
+            if (bm2) {
+                ULONG *gpx2 = (ULONG *)bm2->Planes[0];
+                BltBitMap(bm, 0, 0, bm2, 0, 0, 8, 4, 0xC0, 0xFF, nullptr);
+                for (int gi = 0; gi < 8 * 4; gi++) {
+                    if (gpx2[gi] != gpx[gi]) {
+                        gfx_ok = false;
+                    }
+                }
+                struct RastPort grp2;
+                InitRastPort(&grp2);
+                grp2.BitMap = bm2;
+                SetRast(&grp2, 0); // clear to black
+                ClipBlit(&grp, 0, 0, &grp2, 5, 1, 2, 2, 0xC0);
+                gfx_ok = gfx_ok && gpx2[1 * 8 + 5] == gpx[0]; // bm(0,0) → bm2(5,1)
+                BltBitMapRastPort(bm, 0, 0, &grp2, 7, 3, 1, 1, 0xC0);
+                gfx_ok = gfx_ok && gpx2[3 * 8 + 7] == gpx[0]; // bm(0,0) → bm2(7,3)
+                FreeBitMap(bm2);
+            }
+
             FreeBitMap(bm);
         }
         CloseLibrary(glib);

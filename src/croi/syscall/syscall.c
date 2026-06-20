@@ -221,6 +221,8 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_Gfx_SetDrMd:
         Croi_Gfx_SetDrMd_Impl((struct RastPort *)(uptr)a0, (ULONG)a1);
         return 0;
+    case SYS_Gfx_Blt:
+        return (i64)Croi_Gfx_Blt_Impl((const struct GfxBltArgs *)(uptr)a0);
 
     // ---- utility.library allocating tag helpers ----
     case SYS_AllocateTagItems:

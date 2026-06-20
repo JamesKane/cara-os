@@ -45,4 +45,20 @@ void Croi_Gfx_SetAPen_Impl(struct RastPort *rp, ULONG pen);
 void Croi_Gfx_SetBPen_Impl(struct RastPort *rp, ULONG pen);
 void Croi_Gfx_SetDrMd_Impl(struct RastPort *rp, ULONG mode);
 
+// ---- Blits (L4.4) ----------------------------------------------------
+// The wide V36 blits (BltBitMap 11 args, BltBitMapRastPort/ClipBlit 9)
+// exceed the 7-register syscall ABI, so they are `local` marshalling
+// stubs (src/croi/dath/graphics_blit.c, .lib_text.graphics) that resolve
+// their operands to source/dest BitMaps, pack this struct, and make one
+// SYS_Gfx_Blt ecall. The kernel impl runs the chunky copy (Dath_BlitRect,
+// same-format only — see §3/§6.4). Plain copy in v0 (minterm ignored).
+struct GfxBltArgs {
+    const struct BitMap *src;
+    struct BitMap *dest;
+    WORD xSrc, ySrc;
+    WORD xDest, yDest;
+    WORD xSize, ySize;
+};
+LONG Croi_Gfx_Blt_Impl(const struct GfxBltArgs *a);
+
 #endif // CARA_GRAPHICS_LIB_H
