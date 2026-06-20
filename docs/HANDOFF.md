@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+5c0426f phase-3/L5.2  intuition window ops + activation (Move/Size/ToFront/Activate/…)
 872117c phase-3/L5.1  intuition tag window opener + window RPort + ModifyIDCMP
 95a593d phase-3/L4.7  live Screen.RastPort over the framebuffer (L4 complete)
 ea39d2a phase-3/L4.6  graphics.library area fill (InitArea/AreaMove/AreaDraw/AreaEnd)
@@ -67,7 +68,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**33 passed / 0 failed** (L5.1 added `intuition_openwindowtaglist`), QEMU
+**34 passed / 0 failed** (L5.2 added `intuition_window_ops`), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -583,11 +584,21 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   tagitem.h>` in the conf so the generated proto sees `struct TagItem`.
   KERNEL_TEST verifies a tagged window's RPort draws to the right screen
   region + clips at the edge. intuition coverage **7%** (7 impl / 90
-  stub; surface declared to -606). **NEXT: L5.2** — window ops +
-  activation: `ActivateWindow`/`MoveWindow`/`SizeWindow`/`WindowToFront`/
-  `WindowToBack`/`SetWindowTitles` + `IDCMP_ACTIVEWINDOW`/`INACTIVEWINDOW`
-  (note: `MoveWindow`/`SizeWindow` must recompute the window RPort
-  sub-bitmap base/dims).
+  stub; surface declared to -606).
+- **L5.2 shipped (`5c0426f`): window ops + activation.** `MoveWindow`/
+  `SizeWindow` (clear old region, update geometry, recompute the RPort
+  sub-bitmap via the extracted `setup_rport()`, re-render; Size clamps to
+  Min/Max), `WindowToFront`/`WindowToBack` (reorder the screen window
+  list), `SetWindowTitles` ((STRPTR)-1 = unchanged), `ActivateWindow`
+  (focus + `IDCMP_ACTIVE`/`INACTIVEWINDOW` via new generic
+  `Leargas_IDCMP_PostClass`). **Fixed a latent focus bug:**
+  `Leargas_CloseWindow` now clears the active-window pointer (else it
+  dangles and a later `ActivateWindow` short-circuits on heap reuse).
+  `SYS_*` 85-90. Coverage **13%** (13 impl / 84 stub). **NEXT: L5.3** —
+  **menus** (the biggest new substrate): `struct Menu`/`MenuItem`;
+  `SetMenuStrip`/`ClearMenuStrip`/`ItemAddress`; a Leargas menu bar
+  render + menu-button router + `IDCMP_MENUPICK` (§2.3). Test via the
+  input ring like `clar_smoke`.
 - **Rich gadgets (list/cycle/slider/…) are gadtools (L8) on BOOPSI (L7);
   the file requester is asl (L9)** — not L5. L5 is the window-system core
   + menus + requesters.
