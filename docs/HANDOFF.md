@@ -299,25 +299,30 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `KERNEL_TEST(exec_forbid)` — a **real two-task test** (Forbid blocks a
   higher-pri worker across Yield; Permit releases). That's the test
   shape the **contended-semaphore path** (slice 5) still needs.
-- **Slice 7+ (next):** libraries (`MakeLibrary`/`MakeFunctions`/
-  `SetFunction`/`SumLibrary`) — `Croi_MakeLibrary` (decl in
-  `cara/exec_lib.h`) is the substrate; these are library-author API
-  (apps rarely call them), so lower apps-value. The `OpenDevice`/`DoIO`/
-  `SendIO`/`CheckIO`/`WaitIO`/`AbortIO` device primitives are **L6** (need
-  the device model first — don't try them in L1). Kernel-state → syscall;
-  pure → local. Then the **stub-coverage report** + widening the conf
-  toward the full Exec autodoc (still `##pad_run`s). Note: core exec
-  surface apps actually use (mem, lists, ports, signals, semaphores,
-  task control) is now largely done — diminishing returns on more exec;
-  consider closing L1 with the stub-coverage report and moving to L2.
-- **Still TODO in L1:** the **stub-coverage report** (PHASE3.md §7 Q4)
-  — a check listing which declared LVOs are unimplemented stubs. Not
-  built yet; settle its format as the per-library precedent. The conf
-  is *not* yet the full Exec autodoc (still `##pad_run`s); widening to
-  ABI-complete is ongoing.
+- **L1 CLOSED (`92e256d`): stub-coverage report.** `lvo-gen --coverage`
+  → `docs/LVO_COVERAGE.md` (regenerate: `cmake --build build-host
+  --target lvo-coverage`). Settles PHASE3.md §7 Q4 — per-LVO stub policy
+  (`##pad_run` → `Croi_LvoUnimplemented`, ordinal frozen). Current
+  coverage: exec **33%** (37 impl / 74 stub), intuition **6%** (5/68),
+  cruth **100%** (9 impl + 10 server). This is the L1 done-criterion (d).
+  The exec `.conf` is intentionally *not* yet the full Exec autodoc — the
+  74 stubs are the long-tail, declared as stubs so the gap is visible;
+  widening to ABI-complete is incremental and low-priority.
+- **NEXT: L2 — `utility.library`** (tag-list helpers `GetTagData`/
+  `FindTagItem`/`NextTagItem`/`CloneTagItems`/`MapTags`/`PackBoolTags` +
+  Hook/callback helpers). Small, pure (mostly `local` flavour), and a
+  prerequisite for every tag-driven V36 API (OpenWindowTagList, gadtools,
+  asl). Same recipe as L1 slices; needs a new `utility.conf` +
+  `<utility/*.h>` headers + a `cara_lvo_gen_library` call. Add it to the
+  `lvo-coverage` target's conf list.
+- **Deferred exec long-tail (optional, low-value):** `MakeLibrary`/
+  `MakeFunctions`/`SetFunction`/`SumLibrary` (library-author API;
+  `Croi_MakeLibrary` is the substrate). Device prims (`OpenDevice`/`DoIO`/
+  …) are **L6**, not L1 (need the device model first).
 
-Open questions for L1/L3 in PHASE3.md §7: BSTR/BPTR site, Process-vs-Task
-layout, `proto/` search path, stub-coverage report, which sample apps.
+Open questions still open in PHASE3.md §7: BSTR/BPTR site, Process-vs-Task
+layout, `proto/` search path, which sample apps. (§7 Q4 stub-coverage:
+RESOLVED.)
 
 ---
 
