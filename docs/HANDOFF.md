@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+3af2c52 phase-3/L3.3  dos.library locks (Lock/UnLock/DupLock/CurrentDir)
 ba08b31 phase-3/L3.2  dos handler server task + U-mode packet round-trip
 014ca2b phase-3/L3.1  dos.library ABI foundation + Process model
 e52d812 phase-3/L2    utility.library allocating tag helpers (slice 3)
@@ -394,18 +395,32 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   userexec drives a full DosPacket round-trip (StandardPacket on its
   stack → PutMsg → WaitPort own reply port → echoed result). The U-mode
   server-stub call path is now proven end to end.
-- **NEXT: L3.3 — locks + examine (first real packet LVOs).** Add the
-  real `Lock`/`UnLock`/`DupLock`/`CurrentDir` + `Examine`/`ExNext` dos
-  LVOs. Decisions to make: (a) **server-stub codegen** — generate the
-  PutMsg/WaitPort stub in lvo-gen for `server` rows, OR hand-write the
-  stubs in `.lib_text.dos` (declared `local`) and use DosPackets. Either
-  way add a **per-task reply port to libcara** (the userexec proof made
-  its own; the stubs need a standing one). (b) handler `Carafs_*` calls
-  for `ACTION_LOCATE_OBJECT`/`EXAMINE_*` — FileLock.fl_Key = cnode;
-  `Examine`/`ExNext` over `Carafs_CnodeStat`/`Carafs_DirNext`. (c) the
-  `dos Open` (-30) vs reserved-`Open` lvo-gen name collision must be
-  fixed before L3.4 (file Open), not L3.3 — but decide the lvo-gen
-  reserved-slot CARA_IDX disambiguation approach now.
+- **L3.3 locks shipped (`3af2c52`).** `Lock`/`UnLock`/`DupLock`/
+  `CurrentDir` (`syscall` flavour). **Decision (a) RESOLVED:** dos packet
+  ops are `syscall` flavour calling the shared **`Croi_Dos_Dispatch`**
+  directly (no server-stub codegen, no per-task reply port, no round-trip)
+  — CaraFS is synchronous + cooperative single-hart makes the syscall
+  atomic; the handler task shares the same dispatch for the U-mode
+  PutMsg path. `DosPacket` `dp_Res*`/`dp_Arg*` widened `LONG`→`SIPTR`
+  (carry 64-bit pointers). FileLock.fl_Key = cnode; path resolve via
+  `Carafs_DirLookup` (`/`-split, `:`→root, relative to `pr_CurrentDir`).
+  dos coverage 27% (5/13).
+- **NEXT: L3.3b — `Examine`/`ExNext`.** Add `Examine`(-102, ord16)/
+  `ExNext`(-108, ord17) (currently in the `##pad_run 4` at ords 16..19).
+  New `ACTION_EXAMINE_OBJECT`/`ACTION_EXAMINE_NEXT` in `Croi_Dos_Dispatch`:
+  `Carafs_CnodeStat`(lock's cnode) + `Carafs_DirNext` (cursor) → fill a
+  `FileInfoBlock`. **Cursor persistence:** `ExNext` resumes a listing —
+  store a `CarafsDirCursor` in the FileLock (extend the CaraOS-private
+  tail of `struct FileLock`; the lock is kernel-allocated so its size is
+  ours). Map `CarafsStat`→FIB (fib_FileName, fib_Size, fib_DirEntryType
+  from `CARAFS_T_DIR`/`_FILE`, fib_Date from `created/modified_ns`).
+- **Then L3.4 — file I/O** (`Open`/`Close`/`Read`/`Write`/`Seek`). **BLOCKER
+  to fix first:** the `dos Open`(-30) vs lvo-gen reserved-slot name
+  `Open` collision (duplicate `CARA_IDX_Open` / proto stub). Disambiguate
+  lvo-gen's reserved-slot identifiers (emit `CARA_IDX_LIB_OPEN`/`_CLOSE`/
+  `_EXPUNGE`/`_EXTFUNC` for ords 0..3, freeing the real names) — touches
+  the generated lvo.h/vec.c for all libs but is mechanical + low-risk
+  (proto already skips ords <4).
 - **Deferred exec long-tail (optional, low-value):** `MakeLibrary`/
   `MakeFunctions`/`SetFunction`/`SumLibrary` (library-author API;
   `Croi_MakeLibrary` is the substrate). Device prims (`OpenDevice`/`DoIO`/
