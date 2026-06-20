@@ -24,6 +24,8 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+6a4b462 phase-3/L2    utility.library tag walkers + Hook (slice 1)
+92e256d phase-3/L1    lvo-gen --coverage stub-coverage report (closes L1)
 2dc5e58 phase-3/L1    exec.library Forbid/Permit/Disable/Enable (slice 6)
 af24dde phase-3/L1    exec.library signal semaphores (slice 5)
 7c173b3 phase-3/L1    exec.library FindTask + CopyMem/CopyMemQuick (slice 4)
@@ -308,13 +310,33 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   The exec `.conf` is intentionally *not* yet the full Exec autodoc — the
   74 stubs are the long-tail, declared as stubs so the gap is visible;
   widening to ABI-complete is incremental and low-priority.
-- **NEXT: L2 — `utility.library`** (tag-list helpers `GetTagData`/
-  `FindTagItem`/`NextTagItem`/`CloneTagItems`/`MapTags`/`PackBoolTags` +
-  Hook/callback helpers). Small, pure (mostly `local` flavour), and a
-  prerequisite for every tag-driven V36 API (OpenWindowTagList, gadtools,
-  asl). Same recipe as L1 slices; needs a new `utility.conf` +
-  `<utility/*.h>` headers + a `cara_lvo_gen_library` call. Add it to the
-  `lvo-coverage` target's conf list.
+- **L2 slice 1 shipped (`6a4b462`): `utility.library`** tag-list
+  walkers + Hook dispatch. utility is base-less helper code → **every
+  implemented LVO is `local` flavour**, self-contained in a new
+  `.lib_text.utility` RX page (`src/croi/utility_lib/tag_ops.c`), JALR'd
+  straight from U-mode (no syscall) — exactly exec's `list_ops.c`
+  pattern. Done: `FindTagItem`, `GetTagData`, `NextTagItem` (the
+  iterator; resolves TAG_IGNORE/TAG_MORE/TAG_SKIP/TAG_DONE),
+  `PackBoolTags`, `TagInArray`, `CallHookPkt`. New headers
+  `<utility/utilitybase.h>` + `<utility/hooks.h>` (verbatim V36). Library
+  built like intuition (base + vec in SASOS shared heap, entry.c
+  MakeLibrary), but vec targets are local impls not trampolines. Coverage
+  **23%** (6 impl / 20 stub). userexec opens it and exercises all six.
+  **New-library recipe, captured:** new `<lib>.conf` (`##base_type`
+  needs a `<lib>/<lib>base.h>`); `src/croi/<owner>/` with the local
+  impls (`LIBTEXT_<lib>` section macro) + reserved hooks (ordinary kernel
+  text); `add_subdirectory` in `src/CMakeLists.txt`; whole-archive the
+  static lib into `croi`; `KEEP(*(.lib_text.<lib>))` in `croi.lds`;
+  `extern <lib>_lib_vec[]` + MakeLibrary block in `entry.c`; add the conf
+  to the `lvo-coverage` target; `add_dependencies(<app> cara_<lib>_gen)`.
+- **NEXT: L2 slice 2** (optional) — `MapTags`/`FilterTagItems`/
+  `FilterTagChanges` (pure, `local`; need `MAP_*`/`FILTERTAGS_*` consts
+  in a utility header), and the allocating helpers
+  `AllocateTagItems`/`CloneTagItems`/`FreeTagItems`/`RefreshTagItemClones`
+  (need a tag-pool allocator → likely `syscall` flavour). Then **L3 —
+  `dos.library`** (the big one: handler Gleas, `server`-flavour packet
+  ops, retires the `Croi_Fs_*` stopgap; BSTR/BPTR + Process-vs-Task open
+  questions land here).
 - **Deferred exec long-tail (optional, low-value):** `MakeLibrary`/
   `MakeFunctions`/`SetFunction`/`SumLibrary` (library-author API;
   `Croi_MakeLibrary` is the substrate). Device prims (`OpenDevice`/`DoIO`/
