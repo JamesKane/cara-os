@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+014ca2b phase-3/L3.1  dos.library ABI foundation + Process model
 e52d812 phase-3/L2    utility.library allocating tag helpers (slice 3)
 5870c8b phase-3/L2    utility.library MapTags/FilterTagItems/FilterTagChanges (slice 2)
 6a4b462 phase-3/L2    utility.library tag walkers + Hook (slice 1)
@@ -366,14 +367,28 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   stopgap** (delete the app-facing name-in-root `SYS_Fs_Read/Write`,
   repoint Clar to dos Open/Read/Write/Close; the handler-only FS syscalls
   stay).
-- **NEXT: L3.1** — dos ABI headers (`dos/dos.h`, `dos/dosextens.h`) +
-  `dos.conf` (full autodoc, mostly stubs) + Logaic constructs
-  dos.library at boot + **the Task→shared-heap-Process move** in
-  `Croi_SpawnUserTask` (`Croi_Alloc`→`Croi_AllocShared`) + `FindTask`
-  returns it + `IoErr`/`SetIoErr` (`local`, over `pr_Result2`). Done
-  when a V36 program opens dos.library, casts `FindTask(NULL)` to
-  `Process *`, reads `pr_*` without faulting, and `SetIoErr(42);
-  IoErr()==42`.
+- **L3.1 shipped (`014ca2b`): dos ABI + Process model.** New headers
+  `<dos/dos.h>` + `<dos/dosextens.h>`; `dos.conf` (to IoErr -132, rest
+  stubs); `dos.library` constructed at boot (Logaic, `src/logaic/dos/`);
+  `IoErr()` (syscall). **The Task→shared-heap-Process move landed**
+  (`Croi_SpawnUserTask`/`...FromElf` now `Croi_AllocShared(sizeof(struct
+  Process))`, Task at `pr_Task` offset 0; `Croi_Free` auto-routes) — so
+  `(struct Process*)FindTask(NULL)` is legal in U-mode and **the L1
+  FindTask-opacity gap is fixed**. BPTR decided as real pointer (`void*`,
+  no `>>2`, per existing `exec/types.h`); BSTR widened to BPTR. dos
+  coverage 5%. **GOTCHAS for later slices:** (a) dos file `Open` (-30)
+  collides with lvo-gen's reserved-slot name `Open` — must disambiguate
+  reserved-slot CARA_IDX/naming in lvo-gen before **L3.4**; (b) `IoErr`
+  casts `Sched_Current()` to `Process*` — only valid because syscalls
+  only come from U-mode Gleasanna (all Processes); kernel tasks aren't.
+- **NEXT: L3.2 — server call path + handler skeleton.** Build the
+  generic `server`-flavour stub in lvo-gen (replace the `[[gnu::error]]`/
+  `Croi_LvoServerStub`): marshal args → DosPacket, read library-private
+  handler port, `PutMsg`, `WaitPort` a **per-task reply port** (add to
+  `libcara_init.c`), demarshal. Spawn the Logaic dos handler Gleas
+  owning a MsgPort; wire one ACTION_* round-trip end to end. Reusable by
+  L4/L6. (`MKL_SERVER_PORT_KOBJ` tag already exists for handing the
+  handler port to MakeLibrary.)
 - **Deferred exec long-tail (optional, low-value):** `MakeLibrary`/
   `MakeFunctions`/`SetFunction`/`SumLibrary` (library-author API;
   `Croi_MakeLibrary` is the substrate). Device prims (`OpenDevice`/`DoIO`/
