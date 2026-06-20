@@ -49,6 +49,31 @@ static void _libcara_ecall1_noreturn(long n, long a0)
 
 extern int main(void);
 
+// Freestanding requires memset/memcpy to be available — the compiler
+// may emit calls to them for struct initialisers / copies (e.g. a large
+// `= {0}`). libcara provides them for every Gleas.
+void *memset(void *dst, int c, __SIZE_TYPE__ n);
+void *memcpy(void *dst, const void *src, __SIZE_TYPE__ n);
+
+void *memset(void *dst, int c, __SIZE_TYPE__ n)
+{
+    unsigned char *p = (unsigned char *)dst;
+    while (n--) {
+        *p++ = (unsigned char)c;
+    }
+    return dst;
+}
+
+void *memcpy(void *dst, const void *src, __SIZE_TYPE__ n)
+{
+    unsigned char *d = (unsigned char *)dst;
+    const unsigned char *s = (const unsigned char *)src;
+    while (n--) {
+        *d++ = *s++;
+    }
+    return dst;
+}
+
 [[noreturn]] void _start(void);
 
 [[noreturn]] void _start(void)

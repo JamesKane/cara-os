@@ -144,6 +144,8 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     // ---- dos.library (syscall-flavour rows) ----
     case SYS_Dos_IoErr:
         return (i64)Croi_Dos_IoErr_Impl();
+    case SYS_Dos_HandlerPort:
+        return (i64)(uptr)Croi_Dos_HandlerPort_Impl();
 
     // ---- utility.library allocating tag helpers ----
     case SYS_AllocateTagItems:

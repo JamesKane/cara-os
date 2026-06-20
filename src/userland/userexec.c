@@ -55,6 +55,7 @@
 #define USEREXEC_EXIT_FORBID_FAIL 0xBADB
 #define USEREXEC_EXIT_UTIL_FAIL 0xBADC
 #define USEREXEC_EXIT_DOS_FAIL 0xBADD
+#define USEREXEC_EXIT_SRV_FAIL 0xBADE
 
 // Inline ecall for SYS_LOG_WRITE — used to surface progress markers
 // in the kernel log alongside the existing kernel-side messages so
@@ -72,6 +73,17 @@ static void log_msg(int level, const char *tag, const char *msg)
     register long a3 __asm__("a3") = len;
     register long a7 __asm__("a7") = SYS_LOG_WRITE;
     __asm__ volatile("ecall" ::"r"(a0), "r"(a1), "r"(a2), "r"(a3), "r"(a7) : "memory");
+}
+
+// Fetch the dos handler's MsgPort (SYS_Dos_HandlerPort) — a one-off
+// inline ecall used only by the L3.2 server round-trip proof below. The
+// eventual server-flavour LVO stubs read this from DOSBase lib-private.
+static long dos_handler_port_call(void)
+{
+    register long r0 __asm__("a0");
+    register long r7 __asm__("a7") = SYS_Dos_HandlerPort;
+    __asm__ volatile("ecall" : "=r"(r0) : "r"(r7) : "memory");
+    return r0;
 }
 
 // Exercise the L1 exec.library list LVOs (local flavour) through the
@@ -493,6 +505,40 @@ int main(void)
     if (!dos_ok) {
         CloseLibrary(lib);
         return (int)USEREXEC_EXIT_DOS_FAIL;
+    }
+
+    // 4j. dos server-flavour call path (L3.2) — drive a full DosPacket
+    //     round-trip to the kernel-resident dos handler task: build a
+    //     StandardPacket on our stack, PutMsg it to the handler port,
+    //     block on our reply port, and read the echoed result back. This
+    //     is the U-mode → PutMsg → server → ReplyMsg path the real packet
+    //     LVOs (L3.3+) build on. ACTION_NIL just echoes dp_Arg1.
+    struct MsgPort *rp = CreateMsgPort();
+    struct MsgPort *hp = (struct MsgPort *)(IPTR)dos_handler_port_call();
+    bool srv_ok = (rp != nullptr && hp != nullptr);
+    if (srv_ok) {
+        struct StandardPacket sp = { 0 };
+        sp.sp_Msg.mn_Node.ln_Type = NT_MESSAGE;
+        sp.sp_Msg.mn_Node.ln_Name = (char *)&sp.sp_Pkt; // AmigaDOS convention
+        sp.sp_Msg.mn_Length = sizeof(sp);
+        sp.sp_Msg.mn_ReplyPort = rp;
+        sp.sp_Pkt.dp_Link = &sp.sp_Msg;
+        sp.sp_Pkt.dp_Port = rp;
+        sp.sp_Pkt.dp_Type = ACTION_NIL;
+        sp.sp_Pkt.dp_Arg1 = 0x5AFE;
+
+        PutMsg(hp, &sp.sp_Msg);
+        (void)WaitPort(rp);
+        (void)GetMsg(rp);
+
+        srv_ok = (sp.sp_Pkt.dp_Res1 == 0x5AFE && sp.sp_Pkt.dp_Res2 == 0);
+    }
+    if (rp) {
+        DeleteMsgPort(rp);
+    }
+    if (!srv_ok) {
+        CloseLibrary(lib);
+        return (int)USEREXEC_EXIT_SRV_FAIL;
     }
 
     // 5. Balance the open. Note: libcara also opened exec.library

@@ -19,6 +19,7 @@
 #include <cara/alloc.h>
 #include <cara/carafs_bind.h>
 #include <cara/dath.h>
+#include <cara/dos_lib.h>
 #include <cara/exec_lib.h>
 #include <cara/exec_lib_image.h>
 #include <cara/fdt.h>
@@ -648,6 +649,11 @@ static void console_putc(char c)
             Croi_Halt();
         }
     }
+
+    // ---- Start the dos handler server task (L3.2). It must be up
+    //      (port published) before any Gleas issues a packet op, so this
+    //      yields the handler to its first WaitPort before returning.
+    Croi_Dos_StartHandler();
 
     // ---- Run the in-kernel test suite. ----
     Test_RunAll();

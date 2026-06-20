@@ -80,6 +80,7 @@ enum {
 
     // Phase 3 L3 — dos.library (the non-packet, syscall-flavour rows).
     SYS_Dos_IoErr = 41,
+    SYS_Dos_HandlerPort = 42, // fetch the dos handler's MsgPort (server path)
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -136,6 +137,7 @@ enum {
 
 // Phase 3 L3 — dos.library.
 #define SYS_Dos_IoErr 41
+#define SYS_Dos_HandlerPort 42
 #endif
 
 #endif

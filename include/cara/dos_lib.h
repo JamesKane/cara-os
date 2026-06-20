@@ -12,10 +12,22 @@
 #include <cara/types.h>
 #include <exec/types.h>
 
+struct MsgPort;
+
 // IoErr — the calling Process's pr_Result2. The kernel reads
 // Sched_Current() and casts to struct Process * (every U-mode Gleas's
 // Task is embedded at the front of a shared-heap Process; see
 // docs/LOGAIC_DOS.md §2.2).
 LONG Croi_Dos_IoErr_Impl(void);
+
+// Spawn the dos handler server task (a kernel-resident server behind
+// dos.library's packet ops — docs/LOGAIC_DOS.md §2.3). Call once at boot
+// after Sched_Init; it yields so the handler publishes its port before
+// returning.
+void Croi_Dos_StartHandler(void);
+
+// The handler's request port (nullptr until the handler is up). U-mode
+// server stubs reach it via SYS_Dos_HandlerPort.
+struct MsgPort *Croi_Dos_HandlerPort_Impl(void);
 
 #endif // CARA_DOS_LIB_H
