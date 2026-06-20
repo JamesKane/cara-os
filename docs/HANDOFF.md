@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+5870c8b phase-3/L2    utility.library MapTags/FilterTagItems/FilterTagChanges (slice 2)
 6a4b462 phase-3/L2    utility.library tag walkers + Hook (slice 1)
 92e256d phase-3/L1    lvo-gen --coverage stub-coverage report (closes L1)
 2dc5e58 phase-3/L1    exec.library Forbid/Permit/Disable/Enable (slice 6)
@@ -329,14 +330,22 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   static lib into `croi`; `KEEP(*(.lib_text.<lib>))` in `croi.lds`;
   `extern <lib>_lib_vec[]` + MakeLibrary block in `entry.c`; add the conf
   to the `lvo-coverage` target; `add_dependencies(<app> cara_<lib>_gen)`.
-- **NEXT: L2 slice 2** (optional) — `MapTags`/`FilterTagItems`/
-  `FilterTagChanges` (pure, `local`; need `MAP_*`/`FILTERTAGS_*` consts
-  in a utility header), and the allocating helpers
-  `AllocateTagItems`/`CloneTagItems`/`FreeTagItems`/`RefreshTagItemClones`
-  (need a tag-pool allocator → likely `syscall` flavour). Then **L3 —
+- **L2 slice 2 shipped (`5870c8b`): `MapTags`/`FilterTagItems`/
+  `FilterTagChanges`** — the pure tag-transform trio, all `local`
+  (in-place, `.lib_text.utility` RX page). `MAP_*`/`TAGFILTER_*` consts
+  now in `<utility/tagitem.h>`. Documented flat-list operation (avoids
+  in-place compaction across TAG_MORE chains; the common usage).
+  utility coverage **34%** (9 impl / 17 stub). userexec exercises all.
+- **NEXT: L2 slice 3 (optional, low-priority)** — the allocating helpers
+  `AllocateTagItems`/`CloneTagItems`/`FreeTagItems`/`RefreshTagItemClones`.
+  These need to allocate, so they can't be `local` — make them `syscall`
+  flavour (kernel impl in a new `src/croi/utility_lib/tag_alloc.c`, the
+  AllocVec size-header trick for FreeTagItems). Rarely used by apps;
+  could stay stubbed indefinitely. **Recommended instead: jump to L3 —
   `dos.library`** (the big one: handler Gleas, `server`-flavour packet
   ops, retires the `Croi_Fs_*` stopgap; BSTR/BPTR + Process-vs-Task open
-  questions land here).
+  questions land here). utility's apps-used + tag-driven-API surface is
+  now sufficient for L5.
 - **Deferred exec long-tail (optional, low-value):** `MakeLibrary`/
   `MakeFunctions`/`SetFunction`/`SumLibrary` (library-author API;
   `Croi_MakeLibrary` is the substrate). Device prims (`OpenDevice`/`DoIO`/
