@@ -161,6 +161,129 @@ LIBTEXT_U BOOL Croi_Utility_TagInArray(Tag tagValue, Tag *tagArray, struct Utili
     return FALSE;
 }
 
+// MapTags — remap the ti_Tag of each real entry in tagList using
+// mapList (a flat oldTag→newTag map: ti_Tag = match, ti_Data = new tag).
+// Entries not in mapList become TAG_IGNORE (MAP_REMOVE_NOT_FOUND) or are
+// left untouched (MAP_KEEP_NOT_FOUND). In-place.
+LIBTEXT_U void Croi_Utility_MapTags(struct TagItem *tagList, struct TagItem *mapList, ULONG mapType,
+                                    struct UtilityBase *base)
+{
+    (void)base;
+    struct TagItem *ti = tagList;
+    while (ti) {
+        Tag t = ti->ti_Tag;
+        if (t == TAG_DONE) {
+            break;
+        } else if (t == TAG_IGNORE) {
+            ti++;
+            continue;
+        } else if (t == TAG_MORE) {
+            ti = (struct TagItem *)ti->ti_Data;
+            continue;
+        } else if (t == TAG_SKIP) {
+            ti += ti->ti_Data + 1;
+            continue;
+        }
+        bool found = false;
+        for (struct TagItem *m = mapList; m && m->ti_Tag != TAG_DONE; m++) {
+            if (m->ti_Tag == t) {
+                ti->ti_Tag = (Tag)m->ti_Data;
+                found = true;
+                break;
+            }
+        }
+        if (!found && mapType == MAP_REMOVE_NOT_FOUND) {
+            ti->ti_Tag = TAG_IGNORE;
+        }
+        ti++;
+    }
+}
+
+// FilterTagItems — keep only the entries of a flat tagList whose tag is
+// (AND) / is not (NOT) present in filterArray, compacting in place and
+// re-terminating with TAG_DONE. Returns the number of entries kept.
+// Operates on a flat (unchained) list — the common usage; TAG_IGNORE
+// entries are dropped.
+LIBTEXT_U ULONG Croi_Utility_FilterTagItems(struct TagItem *tagList, Tag *filterArray, ULONG logic,
+                                            struct UtilityBase *base)
+{
+    (void)base;
+    if (!tagList) {
+        return 0;
+    }
+    struct TagItem *rd = tagList;
+    struct TagItem *wr = tagList;
+    ULONG count = 0;
+    while (rd->ti_Tag != TAG_DONE) {
+        Tag t = rd->ti_Tag;
+        if (t != TAG_IGNORE) {
+            bool in = false;
+            for (Tag *f = filterArray; f && *f != TAG_DONE; f++) {
+                if (*f == t) {
+                    in = true;
+                    break;
+                }
+            }
+            bool keep = (logic == TAGFILTER_AND) ? in : !in;
+            if (keep) {
+                if (wr != rd) {
+                    *wr = *rd;
+                }
+                wr++;
+                count++;
+            }
+        }
+        rd++;
+    }
+    wr->ti_Tag = TAG_DONE;
+    wr->ti_Data = 0;
+    return count;
+}
+
+// FilterTagChanges — drop entries of changeList whose value already
+// matches the same tag in originalList (no real change), compacting in
+// place. A tag absent from originalList counts as a change (kept). If
+// apply is TRUE, the surviving new values are written back into
+// originalList. Flat-list operation.
+LIBTEXT_U void Croi_Utility_FilterTagChanges(struct TagItem *changeList,
+                                             struct TagItem *originalList, BOOL apply,
+                                             struct UtilityBase *base)
+{
+    (void)base;
+    if (!changeList) {
+        return;
+    }
+    struct TagItem *rd = changeList;
+    struct TagItem *wr = changeList;
+    while (rd->ti_Tag != TAG_DONE) {
+        Tag t = rd->ti_Tag;
+        if (t == TAG_IGNORE) {
+            rd++;
+            continue;
+        }
+        struct TagItem *orig = nullptr;
+        for (struct TagItem *o = originalList; o && o->ti_Tag != TAG_DONE; o++) {
+            if (o->ti_Tag == t) {
+                orig = o;
+                break;
+            }
+        }
+        bool changed = (orig == nullptr) || (orig->ti_Data != rd->ti_Data);
+        if (changed) {
+            if (apply && orig) {
+                orig->ti_Data = rd->ti_Data;
+            }
+            if (wr != rd) {
+                *wr = *rd;
+            }
+            wr++;
+        }
+        rd++;
+    }
+    wr->ti_Tag = TAG_DONE;
+    wr->ti_Data = 0;
+}
+
 // CallHookPkt — invoke a Hook: hook->h_Entry(hook, object, paramPacket).
 LIBTEXT_U ULONG Croi_Utility_CallHookPkt(struct Hook *hook, APTR object, APTR paramPacket,
                                          struct UtilityBase *base)

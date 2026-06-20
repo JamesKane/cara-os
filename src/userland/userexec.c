@@ -404,6 +404,33 @@ int main(void)
     hk.h_Entry = ue_hook_fn;
     util_ok = util_ok && CallHookPkt(&hk, (APTR)(IPTR)10, (APTR)(IPTR)5) == 15;
 
+    // MapTags (slice 2): remap 0xA→0x100; 0xB not in map → TAG_IGNORE.
+    struct TagItem mt[] = { { 0xA, 1 }, { 0xB, 2 }, { TAG_DONE, 0 } };
+    struct TagItem mmap[] = { { 0xA, 0x100 }, { TAG_DONE, 0 } };
+    MapTags(mt, mmap, MAP_REMOVE_NOT_FOUND);
+    util_ok = util_ok && mt[0].ti_Tag == 0x100 && mt[0].ti_Data == 1;
+    util_ok = util_ok && mt[1].ti_Tag == TAG_IGNORE;
+    // GetTagData should now find the remapped tag and skip the ignored one.
+    util_ok = util_ok && GetTagData(0x100, 0, mt) == 1;
+    util_ok = util_ok && GetTagData(0xB, 77, mt) == 77;
+
+    // FilterTagItems: AND keeps only 0xB; NOT keeps 0xA and 0xC.
+    struct TagItem fi[] = { { 0xA, 1 }, { 0xB, 2 }, { 0xC, 3 }, { TAG_DONE, 0 } };
+    Tag fkeep[] = { 0xB, TAG_DONE };
+    util_ok = util_ok && FilterTagItems(fi, fkeep, TAGFILTER_AND) == 1;
+    util_ok = util_ok && fi[0].ti_Tag == 0xB && fi[1].ti_Tag == TAG_DONE;
+    struct TagItem fi2[] = { { 0xA, 1 }, { 0xB, 2 }, { 0xC, 3 }, { TAG_DONE, 0 } };
+    util_ok = util_ok && FilterTagItems(fi2, fkeep, TAGFILTER_NOT) == 2;
+    util_ok = util_ok && fi2[0].ti_Tag == 0xA && fi2[1].ti_Tag == 0xC && fi2[2].ti_Tag == TAG_DONE;
+
+    // FilterTagChanges: 0xA unchanged (dropped), 0xB changed (kept); with
+    // apply the original's 0xB is updated to the new value.
+    struct TagItem orig[] = { { 0xA, 5 }, { 0xB, 2 }, { TAG_DONE, 0 } };
+    struct TagItem chg[] = { { 0xA, 5 }, { 0xB, 9 }, { TAG_DONE, 0 } };
+    FilterTagChanges(chg, orig, TRUE);
+    util_ok = util_ok && chg[0].ti_Tag == 0xB && chg[0].ti_Data == 9 && chg[1].ti_Tag == TAG_DONE;
+    util_ok = util_ok && orig[1].ti_Data == 9; // applied back
+
     CloseLibrary(ulib);
     if (!util_ok) {
         CloseLibrary(lib);

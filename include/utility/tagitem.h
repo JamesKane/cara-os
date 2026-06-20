@@ -43,4 +43,14 @@ struct TagItem {
 
 #define TAG_USER ((Tag)0x80000000UL) // first caller-defined tag value
 
+// MapTags(): what to do with a tagList entry whose tag isn't in the
+// mapList. REMOVE turns it into TAG_IGNORE; KEEP leaves it untouched.
+#define MAP_REMOVE_NOT_FOUND 0
+#define MAP_KEEP_NOT_FOUND 1
+
+// FilterTagItems()/TagInArray() logic: AND keeps entries whose tag IS in
+// the filter array; NOT keeps entries whose tag is NOT in it.
+#define TAGFILTER_AND 0
+#define TAGFILTER_NOT 1
+
 #endif // UTILITY_TAGITEM_H
