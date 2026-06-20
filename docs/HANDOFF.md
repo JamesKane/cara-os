@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+c9f6492 phase-3/L4.5  graphics.library text + fonts (OpenFont/SetFont/Text/TextLength)
 7d51b32 phase-3/L4.4  graphics.library blits (BltBitMap/BltBitMapRastPort/ClipBlit)
 15db462 phase-3/L4.3  graphics.library pen state + primitives (Move/Draw/RectFill/...)
 ce1c41b phase-3/L4.2  graphics.library BitMap alloc + RastPort init + SetRast
@@ -519,10 +520,26 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   need it). v0: plain copy, **same-format only** (`Dath_BlitRect` no-ops
   on mismatch), `ClipBlit` clips to the BitMap rect (no layers).
   `ScrollRaster` deferred (overlap-safety). Coverage **10%** (15 impl /
-  135 stub). **NEXT: L4.5** — text + fonts: `OpenFont`/`CloseFont`/
-  `SetFont`/`Text`/`TextLength` over `dath_font_8x8` as a `TextFont`, +
-  GfxBase `DefaultFont`. Fill `struct TextFont` (text.h). `Text` →
-  `Dath_DrawString`; this binds `rp.Font` (InitRastPort leaves it null).
+  135 stub).
+- **L4.5 shipped (`c9f6492`): text + fonts.** `OpenFont`/`CloseFont`/
+  `SetFont`/`Text`/`TextLength` over the Dath 8x8 font. `struct TextFont`
+  filled (ABI); v0 has **one face** — OpenFont returns a single
+  shared-heap `TextFont` over `dath_font_8x8` regardless of the
+  `TextAttr`, and the rasteriser renders from `dath_font_8x8` directly
+  (the strike-format char data is unpopulated). `Text` → `Dath_DrawChar`
+  loop, FgPen/BgPen, cursor advance; **v0 treats cp_y as the glyph TOP**
+  (not the AmigaDOS baseline, so cp_y=0 is visible / matches Leargas).
+  All ≤3 args → normal syscall trampolines (`SYS_Gfx_*` 74-78). Coverage
+  **13%** (20 impl / 130 stub). **The core graphics surface is now in**
+  (alloc, RastPort, pen, primitives, blits, text) — what intuition + a
+  basic paint app need.
+- **NEXT (both optional / apps-gated):** **L4.6** — areas/flood
+  (`InitArea`/`AreaMove`/`AreaDraw`/`AreaEnd`/`Flood`); needs a new
+  span/edge-list fill the Dath set lacks; gate on the paint app actually
+  using it. **L4.7** — convergence: repoint Leargas chrome through real
+  `graphics.library` RastPorts so `Screen.RastPort` (today `nullptr`) is
+  live; pure refactor, may slip to L5. Or move on to **L5
+  (intuition.library widen)**, which is the bigger apps unblock.
 - **L4 reference: `graphics.library` (Dath): SCOPED (`docs/DATH_GRAPHICS.md`).**
   Read that doc before cutting L4 code. Decisions locked there: (1) **chunky
   RTG bitmaps, not planar** — `struct BitMap` kept ABI-shaped but opaque,
