@@ -190,6 +190,43 @@ struct NewWindow {
     UWORD Type; // WBENCHSCREEN / CUSTOMSCREEN, mirroring the screen
 };
 
+// ---- WA_* window-attribute tags (V36+) — OpenWindowTagList ----------------
+//
+// The tag idiom for OpenWindowTagList/OpenWindowTags (L5.1). Values are
+// the canonical V36+ numbers (WA_Dummy == TAG_USER + 99). The opener
+// builds a NewWindow from these (the boolean WA_* map to WFLG_* flags).
+#define WA_Dummy (0x80000000UL + 99)
+#define WA_Left (WA_Dummy + 0x01)
+#define WA_Top (WA_Dummy + 0x02)
+#define WA_Width (WA_Dummy + 0x03)
+#define WA_Height (WA_Dummy + 0x04)
+#define WA_DetailPen (WA_Dummy + 0x05)
+#define WA_BlockPen (WA_Dummy + 0x06)
+#define WA_IDCMP (WA_Dummy + 0x07)
+#define WA_Flags (WA_Dummy + 0x08)
+#define WA_Gadgets (WA_Dummy + 0x09)
+#define WA_Checkmark (WA_Dummy + 0x0A)
+#define WA_Title (WA_Dummy + 0x0B)
+#define WA_ScreenTitle (WA_Dummy + 0x0C)
+#define WA_CustomScreen (WA_Dummy + 0x0D)
+#define WA_SuperBitMap (WA_Dummy + 0x0E)
+#define WA_MinWidth (WA_Dummy + 0x0F)
+#define WA_MinHeight (WA_Dummy + 0x10)
+#define WA_MaxWidth (WA_Dummy + 0x11)
+#define WA_MaxHeight (WA_Dummy + 0x12)
+#define WA_InnerWidth (WA_Dummy + 0x13)
+#define WA_InnerHeight (WA_Dummy + 0x14)
+#define WA_SizeGadget (WA_Dummy + 0x1E)
+#define WA_DragBar (WA_Dummy + 0x1F)
+#define WA_DepthGadget (WA_Dummy + 0x20)
+#define WA_CloseGadget (WA_Dummy + 0x21)
+#define WA_Backdrop (WA_Dummy + 0x22)
+#define WA_ReportMouse (WA_Dummy + 0x23)
+#define WA_Borderless (WA_Dummy + 0x25)
+#define WA_Activate (WA_Dummy + 0x26)
+#define WA_RMBTrap (WA_Dummy + 0x27)
+#define WA_GimmeZeroZero (WA_Dummy + 0x2D)
+
 // ---- struct IntuiMessage (V36+ public field set) --------------------------
 //
 // What a program reads from its window's UserPort. The ExecMessage

@@ -310,6 +310,12 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_CloseWindow:
         Croi_CloseWindow_Impl((struct Window *)(uptr)a0);
         return 0;
+    case SYS_OpenWindowTagList:
+        return (i64)(uptr)Croi_OpenWindowTagList_Impl((struct NewWindow *)(uptr)a0,
+                                                      (struct TagItem *)(uptr)a1);
+    case SYS_ModifyIDCMP:
+        Croi_ModifyIDCMP_Impl((struct Window *)(uptr)a0, (ULONG)a1);
+        return 0;
 
     // ---- intuition.library gadgets ----
     case SYS_AddGadget:

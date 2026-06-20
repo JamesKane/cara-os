@@ -122,6 +122,10 @@ enum {
     SYS_Gfx_AreaMove = 80,
     SYS_Gfx_AreaDraw = 81,
     SYS_Gfx_AreaEnd = 82,
+
+    // Phase 3 L5 — more intuition.library (the original 5 are 16-20).
+    SYS_OpenWindowTagList = 83,
+    SYS_ModifyIDCMP = 84,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -219,6 +223,8 @@ enum {
 #define SYS_Gfx_AreaMove 80
 #define SYS_Gfx_AreaDraw 81
 #define SYS_Gfx_AreaEnd 82
+#define SYS_OpenWindowTagList 83
+#define SYS_ModifyIDCMP 84
 #endif
 
 #endif

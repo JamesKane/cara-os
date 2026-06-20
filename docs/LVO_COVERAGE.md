@@ -23,7 +23,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | Library | ABI slots | impl | server | stub | reserved | coverage |
 |---------|----------:|-----:|-------:|-----:|---------:|---------:|
 | exec.library | 115 | 37 | 0 | 74 | 4 | 33% |
-| intuition.library | 77 | 5 | 0 | 68 | 4 | 6% |
+| intuition.library | 101 | 7 | 0 | 90 | 4 | 7% |
 | utility.library | 30 | 13 | 0 | 13 | 4 | 50% |
 | dos.library | 33 | 19 | 0 | 10 | 4 | 65% |
 | graphics.library | 154 | 24 | 0 | 126 | 4 | 16% |
@@ -97,19 +97,21 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 ## intuition.library
 
-ABI surface declared through LVO -462 (ordinal 76). 73 user-callable slots: **5 impl**, 0 server, **68 stub**; coverage **6%**.
+ABI surface declared through LVO -606 (ordinal 100). 97 user-callable slots: **7 impl**, 0 server, **90 stub**; coverage **7%**.
 
-### Implemented (5)
+### Implemented (7)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
 | 6 | -42 | `AddGadget` | syscall |
 | 11 | -72 | `CloseWindow` | syscall |
+| 24 | -150 | `ModifyIDCMP` | syscall |
 | 33 | -204 | `OpenWindow` | syscall |
 | 37 | -228 | `RemoveGadget` | syscall |
 | 76 | -462 | `ActivateGadget` | syscall |
+| 100 | -606 | `OpenWindowTagList` | syscall |
 
-### Unimplemented stub slots (68)
+### Unimplemented stub slots (90)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
@@ -117,9 +119,11 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 |-----------|-----------|------:|
 | 4..5 | -30..-36 | 2 |
 | 7..10 | -48..-66 | 4 |
-| 12..32 | -78..-198 | 21 |
+| 12..23 | -78..-144 | 12 |
+| 25..32 | -156..-198 | 8 |
 | 34..36 | -210..-222 | 3 |
 | 38..75 | -234..-456 | 38 |
+| 77..99 | -468..-600 | 23 |
 
 ## utility.library
 

@@ -142,8 +142,13 @@ int main(void)
     if (w.pub.BorderTop != LEARGAS_WINDOW_DEFAULT_BORDER_TOP) {
         return fail("BorderTop not seeded for DRAGBAR window", 17);
     }
-    if (w.pub.RPort || w.pub.BorderRPort || w.pub.WLayer) {
-        return fail("V36+-deviation pointers not nullptr", 18);
+    // L5.1: RPort + BorderRPort are now live (a sub-bitmap RastPort over
+    // the screen content area); WLayer stays nullptr (no layers in v0).
+    if (!w.pub.RPort || !w.pub.BorderRPort || w.pub.RPort->BitMap == nullptr) {
+        return fail("window RPort not live", 18);
+    }
+    if (w.pub.WLayer) {
+        return fail("WLayer should be nullptr in v0", 26);
     }
 
     // Borderless windows zero out all border insets.

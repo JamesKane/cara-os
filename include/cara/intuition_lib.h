@@ -35,6 +35,13 @@ struct IntuitionBase;
 struct Window *Croi_OpenWindow_Impl(struct NewWindow *nw);
 void Croi_CloseWindow_Impl(struct Window *w);
 
+// ---- Tag opener + IDCMP (L5.1) --------------------------------------
+struct TagItem;
+// OpenWindowTagList(nw, tags): build a NewWindow from WA_* tags over the
+// optional template nw, then Leargas_OpenWindow. nw may be nullptr.
+struct Window *Croi_OpenWindowTagList_Impl(struct NewWindow *nw, struct TagItem *tags);
+void Croi_ModifyIDCMP_Impl(struct Window *w, ULONG idcmpFlags);
+
 // ---- Gadgets --------------------------------------------------------
 
 UWORD Croi_AddGadget_Impl(struct Window *w, struct Gadget *g, ULONG position);

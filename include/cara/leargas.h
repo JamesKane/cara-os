@@ -279,6 +279,14 @@ struct LeargasWindow {
     char title_buf[LEARGAS_WINDOW_TITLE_MAX];
     i32 idcmp_sigbit; // signal bit backing pub.UserPort, or -1 if none (LF)
     bool initialised;
+
+    // L5.1: window content RPort — a graphics.library RastPort over a
+    // "sub-bitmap" view onto the screen framebuffer (pub.RPort points
+    // here). bmext.surf has the screen's stride but is offset/sized to
+    // the window's content area, so drawing is window-relative and
+    // auto-clips to the window (docs/LEARGAS_INTUITION.md §2.2).
+    struct RastPort rp;
+    struct DathBitMapExt bmext;
 };
 
 // Initialise a caller-provided LeargasWindow from a NewWindow

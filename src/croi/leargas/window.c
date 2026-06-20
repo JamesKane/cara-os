@@ -122,6 +122,50 @@ static u32 copy_bounded(char *dst, u32 dst_cap, const char *src)
     w->pub.UserData = nullptr;
     w->pub.MoreFlags = 0;
 
+    // L5.1: build the window content RPort — a "sub-bitmap" view onto the
+    // screen framebuffer (docs/LEARGAS_INTUITION.md §2.2). surf keeps the
+    // screen stride but is offset to the window's content origin and
+    // sized to the inner area, so drawing into window->RPort is
+    // window-relative, auto-clips to the window, and lands directly on
+    // the screen (v0: no backing store, no occlusion). Pure data — no
+    // Croi_Gfx call — so this stays dual-target.
+    struct LeargasScreen *ls = Leargas_Screen_FromPub(target);
+    if (ls && ls->fb && ls->fb->base) {
+        struct DathFramebuffer *sfb = ls->fb;
+        i32 ox = w->pub.LeftEdge + w->pub.BorderLeft;
+        i32 oy = w->pub.TopEdge + w->pub.BorderTop;
+        i32 cw = w->pub.Width - w->pub.BorderLeft - w->pub.BorderRight;
+        i32 ch = w->pub.Height - w->pub.BorderTop - w->pub.BorderBottom;
+        if (cw < 0) {
+            cw = 0;
+        }
+        if (ch < 0) {
+            ch = 0;
+        }
+        w->bmext.surf = *sfb; // inherit stride/format/bpp
+        w->bmext.surf.base = (u8 *)sfb->base + (usize)(u32)oy * sfb->stride +
+                             (usize)(u32)ox * sfb->bpp;
+        w->bmext.surf.width = (u32)cw;
+        w->bmext.surf.height = (u32)ch;
+        w->bmext.bm = (struct BitMap){ 0 };
+        w->bmext.bm.BytesPerRow = (UWORD)((u32)cw * sfb->bpp);
+        w->bmext.bm.Rows = (UWORD)ch;
+        w->bmext.bm.Depth = (UBYTE)(sfb->bpp == 2 ? 16 : 32);
+        w->bmext.bm.Planes[0] = (PLANEPTR)w->bmext.surf.base;
+
+        w->rp = (struct RastPort){ 0 };
+        w->rp.BitMap = &w->bmext.bm;
+        w->rp.Mask = 0xFF;
+        w->rp.FgPen = 1;
+        w->rp.BgPen = 0;
+        w->rp.DrawMode = JAM2;
+        w->rp.LinePtrn = (UWORD)0xFFFF;
+        w->rp.PenWidth = 1;
+        w->rp.PenHeight = 1;
+        w->pub.RPort = &w->rp;
+        w->pub.BorderRPort = &w->rp; // v0: share the content RPort
+    }
+
     w->initialised = true;
     return CARA_EOK;
 }

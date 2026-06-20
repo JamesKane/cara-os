@@ -36,8 +36,10 @@
 .balign 4
 
 // ---- Windows ----
-CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_OpenWindow,      SYS_OpenWindow
-CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_CloseWindow,     SYS_CloseWindow
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_OpenWindow,        SYS_OpenWindow
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_CloseWindow,       SYS_CloseWindow
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_OpenWindowTagList, SYS_OpenWindowTagList
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_ModifyIDCMP,       SYS_ModifyIDCMP
 
 // ---- Gadgets ----
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AddGadget,       SYS_AddGadget
