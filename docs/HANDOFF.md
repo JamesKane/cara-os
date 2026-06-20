@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+ce1c41b phase-3/L4.2  graphics.library BitMap alloc + RastPort init + SetRast
 8eff42f phase-3/L4.1  graphics.library ABI + GfxBase + boot construction
 d10983b phase-3/L3.7  retire Croi_Fs_* stopgap, Clar uses dos.library (closes L3)
 7db275d phase-3/L3.6  dos.library process I/O + console + Delay (Output/Input/Delay)
@@ -483,11 +484,23 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   into croi, keeping `cara_dath` the pure dual-target rasteriser;
   `Croi_MakeLibrary` block in entry.c. userexec opens it v36 + checks
   version. Coverage **0%** (0 impl / 150 stub / 4 reserved) — expected
-  baseline; drawing LVOs land next. **NEXT: L4.2** — `AllocBitMap`/
-  `FreeBitMap` (chunky surface in shared heap via `DathBitMapExt`),
-  `InitRastPort`, `SetRast` — the first `syscall`-flavour gfx rows + the
-  `.lib_text.graphics` trampolines + `Croi_Gfx_*_Impl` over `Dath_*`, and
-  the `DathBitMapExt` bridge type. Then fill `struct BitMap`/`RastPort`.
+  baseline; drawing LVOs land next.
+- **L4.2 shipped (`ce1c41b`): BitMap alloc + RastPort init + SetRast.**
+  `struct BitMap`/`RastPort` filled to V36 ABI; the `DathBitMapExt`
+  bridge (`{BitMap bm; DathFramebuffer surf;}`, BitMap at offset 0).
+  `AllocBitMap` allocates a chunky surface in the **shared heap**
+  (`Croi_AllocShared` — U-mode-readable pixels; depth<=16→RGB565 else
+  RGBA8888), `Planes[0]` = chunky buffer; `FreeBitMap`; `InitRastPort`
+  (V36 defaults); `SetRast`→`Dath_Clear`. **Pen model refinement:** pens
+  are *indices* into a v0 default 8-entry palette (the minimal ColorMap),
+  not raw colours — `RastPort.FgPen` is a `BYTE`, so the scope's loose
+  "direct-colour" wording (§3/§6.2) became a small fixed palette;
+  `SetRGB4`/`LoadRGB4` will override it later. First `syscall` gfx rows
+  (`.lib_text.graphics` trampolines, `SYS_Gfx_*` 61-64); coverage **2%**
+  (4 impl / 146 stub). **NEXT: L4.3** — pen state + primitives:
+  `SetAPen`/`SetBPen`/`SetDrMd`, `Move`/`Draw`, `WritePixel`/`ReadPixel`,
+  `RectFill` (over `Dath_DrawLine`/`Pixel`/`FillRect`; `Move`/`Draw`
+  update `rp.cp_x/cp_y`).
 - **L4 reference: `graphics.library` (Dath): SCOPED (`docs/DATH_GRAPHICS.md`).**
   Read that doc before cutting L4 code. Decisions locked there: (1) **chunky
   RTG bitmaps, not planar** — `struct BitMap` kept ABI-shaped but opaque,
