@@ -39,7 +39,7 @@ target_link_libraries(userexec PRIVATE
     cara_headers
     libcara_user
 )
-add_dependencies(userexec cara_exec_lib_gen)
+add_dependencies(userexec cara_exec_lib_gen cara_utility_lib_gen)
 target_link_options(userexec PRIVATE
     -nostdlib
     -fuse-ld=${CARA_RV64_LDLLD_PATH}

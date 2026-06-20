@@ -164,6 +164,7 @@ if(CARA_TARGET STREQUAL "host")
                 "${CMAKE_SOURCE_DIR}/docs/LVO_COVERAGE.md"
                 "${CMAKE_SOURCE_DIR}/tools/lvo-gen/exec.conf"
                 "${CMAKE_SOURCE_DIR}/tools/lvo-gen/intuition.conf"
+                "${CMAKE_SOURCE_DIR}/tools/lvo-gen/utility.conf"
                 "${CMAKE_SOURCE_DIR}/tools/lvo-gen/cruth.conf"
         DEPENDS lvo-gen
         VERBATIM

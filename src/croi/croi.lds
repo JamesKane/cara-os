@@ -192,6 +192,12 @@ SECTIONS
          * intuition's base + vec table live in the SASOS shared heap,
          * but its vec entries point at these trampolines. */
         KEEP(*(.lib_text.intuition))
+        /* utility.library's LVOs are `local` flavour — their impl
+         * bodies (src/croi/utility_lib/tag_ops.c) live here in the
+         * shared RX+U region and are JALR'd directly from U-mode, with
+         * no trampoline. utility's base + vec table live in the SASOS
+         * shared heap (entry.c); the vec entries point in here. */
+        KEEP(*(.lib_text.utility))
         . = ALIGN(4K);
         __exec_lib_end = .;
     } > LIB_VIRT AT > RAM_PHYS :lib_exec

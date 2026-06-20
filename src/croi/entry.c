@@ -41,6 +41,7 @@
 #include <exec/libraries.h>
 #include <intuition/intuitionbase.h>
 #include <utility/tagitem.h>
+#include <utility/utilitybase.h>
 
 // Boot-time PCIe inventory. Populated by Croi_Pci_Init from the FDT
 // before the test runner so kernel tests (test_pci.c) can assert
@@ -74,6 +75,13 @@ extern const usize exec_lib_vec_count;
 // (entry.c below), so we only need the vec here.
 extern void *intuition_lib_vec[];
 extern const usize intuition_lib_vec_count;
+
+// Generated likewise from tools/lvo-gen/utility.conf. utility.library is
+// all `local`-flavour LVOs: its vec entries point at impls in the
+// shared RX page (.lib_text.utility), and like intuition its base + vec
+// table are allocated in the SASOS shared heap at construction time.
+extern void *utility_lib_vec[];
+extern const usize utility_lib_vec_count;
 
 // Clar (the Phase 1 Workbench Gleas) embedded in the .user_elf section
 // (src/croi/CMakeLists.txt user_blob.S). Spawned as the foreground task
@@ -561,6 +569,41 @@ static void console_putc(char c)
         struct Library *base = Croi_MakeLibrary(mklib_tags);
         if (!base) {
             LOG_FATAL("entry", "Croi_MakeLibrary(intuition.library) failed");
+            Croi_Halt();
+        }
+    }
+
+    // ---- Construct utility.library (L2).
+    //      Same shared-heap layout as intuition (base + negative-side
+    //      vec table in the SASOS heap, SUM=1 so the lower-half VA is
+    //      writable from S-mode and readable from U-mode). The only
+    //      difference: utility's vec entries point at `local` impls in
+    //      the .lib_text.utility RX page rather than syscall trampolines.
+    {
+        usize priv_size = sizeof(struct UtilityBase) - sizeof(struct Library);
+        usize neg_size = sizeof(void *) * utility_lib_vec_count;
+        usize block_size = neg_size + sizeof(struct Library) + priv_size;
+
+        u8 *block = (u8 *)Croi_AllocShared(block_size);
+        if (!block) {
+            LOG_FATAL("entry", "AllocShared(utility.library, %llu bytes) failed", (u64)block_size);
+            Croi_Halt();
+        }
+        struct Library *ubase = (struct Library *)(block + neg_size);
+
+        struct TagItem mklib_tags[] = {
+            { MKL_NAME, (IPTR) "utility.library" },
+            { MKL_BASE, (IPTR)ubase },
+            { MKL_VEC_TABLE, (IPTR)utility_lib_vec },
+            { MKL_VEC_COUNT, (IPTR)utility_lib_vec_count },
+            { MKL_VERSION, 36 },
+            { MKL_REVISION, 0 },
+            { MKL_PRIVATE_SIZE, (IPTR)priv_size },
+            { TAG_END, 0 },
+        };
+        struct Library *base = Croi_MakeLibrary(mklib_tags);
+        if (!base) {
+            LOG_FATAL("entry", "Croi_MakeLibrary(utility.library) failed");
             Croi_Halt();
         }
     }

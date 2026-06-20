@@ -24,6 +24,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 |---------|----------:|-----:|-------:|-----:|---------:|---------:|
 | exec.library | 115 | 37 | 0 | 74 | 4 | 33% |
 | intuition.library | 77 | 5 | 0 | 68 | 4 | 6% |
+| utility.library | 30 | 6 | 0 | 20 | 4 | 23% |
 | cruth.library | 23 | 9 | 10 | 0 | 4 | 100% |
 
 ## exec.library
@@ -117,6 +118,31 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 | 12..32 | -78..-198 | 21 |
 | 34..36 | -210..-222 | 3 |
 | 38..75 | -234..-456 | 38 |
+
+## utility.library
+
+ABI surface declared through LVO -180 (ordinal 29). 26 user-callable slots: **6 impl**, 0 server, **20 stub**; coverage **23%**.
+
+### Implemented (6)
+
+| ord | LVO | name | flavour |
+|----:|----:|------|---------|
+| 4 | -30 | `FindTagItem` | local |
+| 5 | -36 | `GetTagData` | local |
+| 6 | -42 | `PackBoolTags` | local |
+| 7 | -48 | `NextTagItem` | local |
+| 14 | -90 | `TagInArray` | local |
+| 16 | -102 | `CallHookPkt` | local |
+
+### Unimplemented stub slots (20)
+
+Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
+
+| ord range | LVO range | count |
+|-----------|-----------|------:|
+| 8..13 | -54..-84 | 6 |
+| 15..15 | -96..-96 | 1 |
+| 17..29 | -108..-180 | 13 |
 
 ## cruth.library
 

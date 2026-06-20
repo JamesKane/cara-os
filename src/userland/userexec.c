@@ -33,6 +33,10 @@
 #include <exec/tasks.h>
 #include <exec/types.h>
 #include <proto/exec.h>
+#include <proto/utility.h>
+#include <utility/hooks.h>
+#include <utility/tagitem.h>
+#include <utility/utilitybase.h>
 
 #define USEREXEC_EXIT_OK 0xCA1A
 #define USEREXEC_EXIT_BAD_VERSION 0xBAD1
@@ -46,6 +50,7 @@
 #define USEREXEC_EXIT_COPY_FAIL 0xBAD9
 #define USEREXEC_EXIT_SEM_FAIL 0xBADA
 #define USEREXEC_EXIT_FORBID_FAIL 0xBADB
+#define USEREXEC_EXIT_UTIL_FAIL 0xBADC
 
 // Inline ecall for SYS_LOG_WRITE — used to surface progress markers
 // in the kernel log alongside the existing kernel-side messages so
@@ -132,6 +137,22 @@ static bool list_ops_ok(void)
     Enqueue(&l, &lo);
     Enqueue(&l, &hi);
     return le_order(&l, "HML");
+}
+
+// Referenced by the <proto/utility.h> inline stubs. libcara bootstraps
+// only SysBase; UtilityBase is this program's to set from the
+// OpenLibrary return (the V36+ idiom), exactly like userintuition does
+// for IntuitionBase.
+struct UtilityBase *UtilityBase;
+
+// A trivial Hook callback for the CallHookPkt exercise: returns
+// object + message so the test can assert the dispatch wired the args
+// through. Lives in the program's own U-mode text (0x10000 region),
+// which the .lib_text.utility CallHookPkt impl JALRs back into.
+static ULONG ue_hook_fn(struct Hook *h, APTR object, APTR message)
+{
+    (void)h;
+    return (ULONG)(IPTR)object + (ULONG)(IPTR)message;
 }
 
 int main(void);
@@ -334,6 +355,60 @@ int main(void)
     Enable();
     // If any of the above had wedged the scheduler or faulted, we'd
     // never reach here; reaching here is the pass condition.
+
+    // 4h. utility.library (L2) — open it and exercise the tag-list
+    //     walkers + the Hook dispatcher. These are `local` LVOs: each
+    //     stub JALRs straight into the .lib_text.utility RX page (no
+    //     syscall), operating on TagItem arrays in our own stack memory.
+    struct Library *ulib = OpenLibrary((STRPTR) "utility.library", 36);
+    if (!ulib) {
+        CloseLibrary(lib);
+        return (int)USEREXEC_EXIT_UTIL_FAIL;
+    }
+    UtilityBase = (struct UtilityBase *)ulib;
+
+    bool util_ok = (UtilityBase->ub_LibNode.lib_Version == 36);
+
+    struct TagItem tl[] = {
+        { 0x1001, 42 },
+        { TAG_IGNORE, 0 },
+        { 0x1002, 99 },
+        { TAG_DONE, 0 },
+    };
+    // GetTagData: present (honouring TAG_IGNORE) + default fallback.
+    util_ok = util_ok && GetTagData(0x1001, 0, tl) == 42;
+    util_ok = util_ok && GetTagData(0x1002, 0, tl) == 99;
+    util_ok = util_ok && GetTagData(0x9999, 7, tl) == 7;
+    // FindTagItem: hit + miss.
+    struct TagItem *ft = FindTagItem(0x1002, tl);
+    util_ok = util_ok && ft != nullptr && ft->ti_Data == 99;
+    util_ok = util_ok && FindTagItem(0x9999, tl) == nullptr;
+    // NextTagItem: skips TAG_IGNORE, returns the two real items then ends.
+    struct TagItem *cur = tl;
+    struct TagItem *n0 = NextTagItem(&cur);
+    struct TagItem *n1 = NextTagItem(&cur);
+    struct TagItem *n2 = NextTagItem(&cur);
+    util_ok = util_ok && n0 != nullptr && n0->ti_Tag == 0x1001;
+    util_ok = util_ok && n1 != nullptr && n1->ti_Tag == 0x1002;
+    util_ok = util_ok && n2 == nullptr;
+    // TagInArray.
+    Tag arr[] = { 0x10, 0x20, 0x30, TAG_DONE };
+    util_ok = util_ok && TagInArray(0x20, arr);
+    util_ok = util_ok && !TagInArray(0x40, arr);
+    // PackBoolTags: 0x1001 true → set bit 0x1; 0x1002 false → clear 0x2.
+    struct TagItem bmap[] = { { 0x1001, 0x1 }, { 0x1002, 0x2 }, { TAG_DONE, 0 } };
+    struct TagItem btags[] = { { 0x1001, 1 }, { 0x1002, 0 }, { TAG_DONE, 0 } };
+    util_ok = util_ok && PackBoolTags(0x2, btags, bmap) == 0x1;
+    // CallHookPkt: dispatch through our callback (10 + 5 == 15).
+    struct Hook hk = { 0 };
+    hk.h_Entry = ue_hook_fn;
+    util_ok = util_ok && CallHookPkt(&hk, (APTR)(IPTR)10, (APTR)(IPTR)5) == 15;
+
+    CloseLibrary(ulib);
+    if (!util_ok) {
+        CloseLibrary(lib);
+        return (int)USEREXEC_EXIT_UTIL_FAIL;
+    }
 
     // 5. Balance the open. Note: libcara also opened exec.library
     //    at startup, so OpenCnt is still > 0 after this close.
