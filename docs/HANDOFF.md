@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+7db275d phase-3/L3.6  dos.library process I/O + console + Delay (Output/Input/Delay)
 cf310c9 phase-3/L3.5  dos.library mutation + info (CreateDir/DeleteFile/Rename/Info)
 7c0584e phase-3/L3.4  dos.library file I/O (Open/Close/Read/Write/Seek)
 1b64e8e lvo-gen        disambiguate reserved-slot identifiers (LIB_OPEN etc.)
@@ -57,7 +58,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**31 passed / 0 failed**, QEMU boot smoke ok (two boots: partition +
+**32 passed / 0 failed**, QEMU boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
 
@@ -440,12 +441,21 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   **CaraFS has no attribute setters**; revisit when one lands. dos
   coverage **88%** (16 impl / 2 stub; only Input/Output left in the
   declared surface).
-- **NEXT: L3.6 — process/CLI + console.** `Output`(-60)/`Input`(-54)
-  (return the Process's pr_COS/pr_CIS console FileHandles), a minimal
-  **console handler** for stdout/stdin (v0: a log-backed write so
-  Output→Write reaches the kernel log; stub Input), and `Delay`(-198)
-  (a `syscall` shim over `Croi_Time`, or a small timer dependency). Then
-  **L3.7 — retire `Croi_Fs_*`**: delete the app-facing name-in-root
+- **L3.6 shipped (`7db275d`): process I/O + console + Delay.**
+  `Output`(-60)/`Input`(-54) return the Process's `pr_COS`/`pr_CIS`,
+  lazily populated with a v0 console FileHandle. The console is inline in
+  `Croi_Dos_Dispatch` via a kernel-private handle **kind**
+  (`CARA_FH_CONSOLE`, vs `CARA_FH_FILE` for CaraFS handles):
+  `ACTION_WRITE` → kernel log (tag `cout`, chunked to the log record
+  cap), `ACTION_READ` → immediate EOF (stub stdin), `ACTION_SEEK` →
+  error. `Delay`(-198) is a `syscall` busy-yield shim over `Croi_Time`
+  (spin-yield until `ticks/50 s`; 1 tick = 20 ms). **Also fixed** a
+  latent non-idempotency: CaraFS persists across the boot smoke's two
+  boots, so the L3.5 mutation test hit EXISTS on boot2 — the test now
+  clears `uexec-dir`/`ren-*.txt` first. dos coverage **65%** (19 impl /
+  10 stub; ABI now declared through `Delay` at ordinal 32, widening the
+  pad gap, hence the percentage drop).
+- **NEXT: L3.7 — retire `Croi_Fs_*`**: delete the app-facing name-in-root
   `SYS_Fs_Read`/`Write` path, repoint **Clar** to dos
   `Open`/`Read`/`Write`/`Close`, update the boot smoke so Clar's drawer
   file persists *via dos* (the criterion that closes L3).
