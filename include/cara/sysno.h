@@ -96,6 +96,9 @@ enum {
     SYS_Dos_Rename = 55,
     SYS_Dos_Info = 56,
     SYS_Dos_CreateDir = 57,
+    SYS_Dos_Output = 58, // Process pr_COS (lazily-created console handle)
+    SYS_Dos_Input = 59,  // Process pr_CIS
+    SYS_Dos_Delay = 60,  // spin-yield shim over Croi_Time
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -168,6 +171,9 @@ enum {
 #define SYS_Dos_Rename 55
 #define SYS_Dos_Info 56
 #define SYS_Dos_CreateDir 57
+#define SYS_Dos_Output 58
+#define SYS_Dos_Input 59
+#define SYS_Dos_Delay 60
 #endif
 
 #endif

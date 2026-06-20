@@ -558,6 +558,13 @@ int main(void)
 
     // L3.5 mutation + info. CreateDir, DeleteFile (removes the L3.4 file
     // and confirms it's gone), Rename (file moved old→new), Info.
+    // CaraFS persists across reboots (the boot smoke runs userexec twice
+    // on the same volume), so clear any objects a prior boot left behind
+    // first — otherwise CreateDir/Rename into fixed names hit EXISTS on
+    // the second boot. DeleteFile removes empty dirs too.
+    (void)DeleteFile((STRPTR) "uexec-dir");
+    (void)DeleteFile((STRPTR) "ren-a.txt");
+    (void)DeleteFile((STRPTR) "ren-b.txt");
     BPTR ndir = CreateDir((STRPTR) "uexec-dir");
     dos_ok = dos_ok && ndir != BNULL;
     if (ndir) {
@@ -586,6 +593,20 @@ int main(void)
     if (il) {
         UnLock(il);
     }
+
+    // L3.6 process I/O + console + Delay. Output()/Input() return the
+    // Process's standard streams (lazily-created console handles, stable
+    // across calls). Write to stdout (log-backed); a stdin Read returns
+    // EOF (0) in v0. Delay(1) exercises the Croi_Time spin-yield shim.
+    BPTR out = Output();
+    dos_ok = dos_ok && out != BNULL && Output() == out; // idempotent
+    static const char hello[] = "userexec: hello via dos.library Output()\n";
+    LONG hlen = (LONG)(sizeof(hello) - 1);
+    dos_ok = dos_ok && Write(out, (APTR)hello, hlen) == hlen;
+    BPTR in = Input();
+    char inbuf[8];
+    dos_ok = dos_ok && in != BNULL && in != out && Read(in, inbuf, sizeof(inbuf)) == 0;
+    Delay(1); // ~20 ms; returns void — just prove the path is wired
 
     CloseLibrary(dlib);
     if (!dos_ok) {

@@ -227,9 +227,17 @@ allocates and hands back as `BPTR`s (`MKBADDR`). `fl_Task` /
   file back, contents match.
 - **L3.5 — mutation + info.** `CreateDir`/`DeleteFile`/`Rename`/
   `SetProtection`/`SetComment`/`SetFileDate`; `Info`.
-- **L3.6 — process/CLI + console handler.** `Output`/`Input`,
-  console-handler `Write`/`Read` (stdout/stdin), `Delay`. (`IoErr` from
-  L3.1.)
+- **L3.6 — process/CLI + console handler.** ✅ `Output`/`Input` return the
+  Process's `pr_COS`/`pr_CIS`, lazily populated with a v0 console
+  FileHandle (kernel-private `kind = CARA_FH_CONSOLE`, distinct from a
+  CaraFS file handle). The console "handler" is inline in
+  `Croi_Dos_Dispatch`: `ACTION_WRITE` → kernel log (chunked to the log
+  record cap), `ACTION_READ` → immediate EOF (stub stdin), `ACTION_SEEK` →
+  error. `Delay(ticks)` is a `syscall` shim: busy-yield over `Croi_Time`
+  until `ticks/50 s` elapse (1 tick = 20 ms). (`IoErr` from L3.1.)
+  *Done when:* `Write(Output(), …)` returns the byte count, `Read(Input(),
+  …)` returns 0, and `Output()` is idempotent. Console output appears in
+  the boot log under the `cout` tag.
 - **L3.7 — retire the stopgap.** Delete the app-facing `SYS_Fs_Read/
   Write` name-in-root path; repoint **Clar** to dos
   `Open`/`Read`/`Write`/`Close`; keep the handler-only kernel FS
@@ -248,11 +256,15 @@ allocates and hands back as `BPTR`s (`MKBADDR`). `fl_Task` /
 2. **Handler concurrency.** v0 is one handler Gleas, synchronous. Two
    Gleasanna both doing FS will serialise on its MsgPort — fine for
    correctness, revisit if it bottlenecks.
-3. **Console handler shape.** Minimal stdout (log-backed) vs. a real
-   console window via intuition (needs L5). v0: log-backed stdout +
-   stub stdin; upgrade after L5.
-4. **`Delay` / `WaitForChar` timing.** Needs a timer signal source;
-   may pull a small `timer.device`-shaped dependency forward from L6, or
-   a `syscall` shim over `Croi_Time` for v0.
+3. **Console handler shape.** *Resolved (L3.6):* v0 is log-backed stdout +
+   stub (EOF) stdin, routed inline in the dos dispatch via a handle-kind
+   discriminator rather than a separate console handler task. A real
+   console window via intuition (needs L5) is a later upgrade; the
+   FileHandle/ACTION_* seam stays the same so apps don't change.
+4. **`Delay` / `WaitForChar` timing.** *Partially resolved (L3.6):*
+   `Delay` is a `syscall` busy-yield shim over `Croi_Time` (cooperative
+   single-hart, so other tasks still run while the wall clock advances).
+   A deadline-timer block (and `WaitForChar`, which also needs real
+   stdin) can pull a `timer.device`-shaped dependency forward from L6.
 5. **Seglist / `LoadSeg`.** Out of scope for the apps (they're spawned
    from embedded ELFs, not AmigaDOS overlays); keep stubbed.

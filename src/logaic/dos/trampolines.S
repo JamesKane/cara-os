@@ -39,3 +39,6 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosDeleteFile, SYS_Dos_DeleteFile
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosRename,     SYS_Dos_Rename
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosInfo,       SYS_Dos_Info
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosCreateDir,  SYS_Dos_CreateDir
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosInput,      SYS_Dos_Input
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosOutput,     SYS_Dos_Output
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosDelay,      SYS_Dos_Delay

@@ -132,6 +132,14 @@ static int dos_resolve(const char *path, u64 base, u64 *out, char *namebuf, u32 
     return CARA_EOK;
 }
 
+// A FileHandle's kind. Most are CaraFS files; a Process's standard
+// streams (pr_COS/pr_CIS) are CONSOLE handles routed to the v0 console
+// (log-backed stdout, EOF stdin) instead of CaraFS.
+enum {
+    CARA_FH_FILE = 0,
+    CARA_FH_CONSOLE = 1,
+};
+
 // An open FileHandle is the head of this kernel-private extension: the
 // authoritative cnode + byte position live here (the public fh_Args /
 // fh_Pos are LONG and can't hold a 64-bit cnode/offset). Mirrors
@@ -140,7 +148,41 @@ struct DosFileExt {
     struct FileHandle fh; // offset 0 — the BPTR points here
     u64 cnode;
     u64 pos;
+    u32 kind; // CARA_FH_FILE / CARA_FH_CONSOLE
 };
+
+// v0 console stdout: emit `len` bytes through the kernel log (chunked to
+// the log record's message capacity). docs/LOGAIC_DOS.md §6.
+static void console_write(const void *buf, usize len)
+{
+    const char *p = (const char *)buf;
+    char line[CARA_LOG_MSG_LEN];
+    usize i = 0;
+    do {
+        usize n = 0;
+        while (i < len && n < sizeof(line) - 1) {
+            line[n++] = p[i++];
+        }
+        line[n] = 0;
+        Croi_Log(LOG_LV_INFO, "cout", "%s", line);
+    } while (i < len);
+}
+
+// Build a v0 console FileHandle (CARA_FH_CONSOLE). The dos handler owns
+// the console in v0, so fh_Type is its port; routing is by `kind`.
+BPTR Croi_Dos_MakeConsoleHandle(void)
+{
+    struct DosFileExt *fe = (struct DosFileExt *)Croi_AllocShared(sizeof(struct DosFileExt));
+    if (!fe) {
+        return BNULL;
+    }
+    fe->fh = (struct FileHandle){ 0 };
+    fe->fh.fh_Type = g_dos_handler_port;
+    fe->cnode = 0;
+    fe->pos = 0;
+    fe->kind = CARA_FH_CONSOLE;
+    return MKBADDR(&fe->fh);
+}
 
 static u32 dos_strlen(const char *s)
 {
@@ -375,6 +417,7 @@ void Croi_Dos_Dispatch(struct DosPacket *dp)
         fe->fh.fh_Args = (LONG)fcnode;
         fe->cnode = fcnode;
         fe->pos = 0;
+        fe->kind = CARA_FH_FILE;
         dp->dp_Res1 = (SIPTR)(uptr)MKBADDR(&fe->fh);
         dp->dp_Res2 = 0;
         break;
@@ -387,6 +430,11 @@ void Croi_Dos_Dispatch(struct DosPacket *dp)
         void *buf = (void *)(uptr)dp->dp_Arg2;
         usize len = (usize)dp->dp_Arg3;
         usize nread = 0;
+        if (fe && fe->kind == CARA_FH_CONSOLE) {
+            dp->dp_Res1 = 0; // v0 stdin: immediate EOF
+            dp->dp_Res2 = 0;
+            break;
+        }
         if (!fe || Carafs_FileRead(&g_carafs, fe->cnode, fe->pos, buf, len, &nread) != CARA_EOK) {
             dp->dp_Res1 = -1;
             dp->dp_Res2 = ERROR_SEEK_ERROR;
@@ -404,6 +452,12 @@ void Croi_Dos_Dispatch(struct DosPacket *dp)
         struct DosFileExt *fe = (struct DosFileExt *)BADDR((BPTR)(uptr)dp->dp_Arg1);
         const void *buf = (const void *)(uptr)dp->dp_Arg2;
         usize len = (usize)dp->dp_Arg3;
+        if (fe && fe->kind == CARA_FH_CONSOLE) {
+            console_write(buf, len); // v0 stdout → kernel log
+            dp->dp_Res1 = (SIPTR)len;
+            dp->dp_Res2 = 0;
+            break;
+        }
         if (!fe || Carafs_FileWrite(&g_carafs, fe->cnode, fe->pos, buf, len) != CARA_EOK) {
             dp->dp_Res1 = -1;
             dp->dp_Res2 = ERROR_DISK_FULL;
@@ -419,8 +473,8 @@ void Croi_Dos_Dispatch(struct DosPacket *dp)
         // dp_Arg1 = FileHandle, dp_Arg2 = position, dp_Arg3 = mode.
         // Returns the previous position (-1 = error).
         struct DosFileExt *fe = (struct DosFileExt *)BADDR((BPTR)(uptr)dp->dp_Arg1);
-        if (!fe) {
-            dp->dp_Res1 = -1;
+        if (!fe || fe->kind == CARA_FH_CONSOLE) {
+            dp->dp_Res1 = -1; // can't seek a console (or a null handle)
             dp->dp_Res2 = ERROR_SEEK_ERROR;
             break;
         }

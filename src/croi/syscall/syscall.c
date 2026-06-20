@@ -177,6 +177,13 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)Croi_Dos_Info_Impl((BPTR)(uptr)a0, (struct InfoData *)(uptr)a1);
     case SYS_Dos_CreateDir:
         return (i64)(uptr)Croi_Dos_CreateDir_Impl((STRPTR)(uptr)a0);
+    case SYS_Dos_Output:
+        return (i64)(uptr)Croi_Dos_Output_Impl();
+    case SYS_Dos_Input:
+        return (i64)(uptr)Croi_Dos_Input_Impl();
+    case SYS_Dos_Delay:
+        Croi_Dos_Delay_Impl((LONG)a0);
+        return 0;
 
     // ---- utility.library allocating tag helpers ----
     case SYS_AllocateTagItems:

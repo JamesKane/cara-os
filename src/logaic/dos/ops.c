@@ -10,6 +10,7 @@
 #include <cara/dos_lib.h>
 #include <cara/sched.h>
 #include <cara/shared.h>
+#include <cara/time.h>
 #include <cara/types.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
@@ -218,4 +219,43 @@ BPTR Croi_Dos_CreateDir_Impl(STRPTR name)
     Croi_Dos_Dispatch(&dp);
     set_ioerr(dp.dp_Res2);
     return (BPTR)(uptr)dp.dp_Res1;
+}
+
+// ---- Process I/O + console + Delay (L3.6) ---------------------------
+
+// Lazily fetch/create a Process standard stream. *slot is pr_COS/pr_CIS.
+static BPTR ensure_console(BPTR *slot)
+{
+    if (*slot == BNULL) {
+        *slot = Croi_Dos_MakeConsoleHandle();
+    }
+    return *slot;
+}
+
+// Output() -> the Process's standard output (pr_COS), a console handle.
+BPTR Croi_Dos_Output_Impl(void)
+{
+    struct Process *p = (struct Process *)Sched_Current();
+    return p ? ensure_console(&p->pr_COS) : BNULL;
+}
+
+// Input() -> the Process's standard input (pr_CIS), a console handle.
+BPTR Croi_Dos_Input_Impl(void)
+{
+    struct Process *p = (struct Process *)Sched_Current();
+    return p ? ensure_console(&p->pr_CIS) : BNULL;
+}
+
+// Delay(ticks) -- wait ticks/50 s (1 tick = 20 ms). v0 busy-yield over
+// Croi_Time: in the cooperative single-hart model this lets other tasks
+// run while the wall clock advances (docs/LOGAIC_DOS.md s6).
+void Croi_Dos_Delay_Impl(LONG ticks)
+{
+    if (ticks <= 0) {
+        return;
+    }
+    u64 deadline = Croi_Time_Now() + (u64)ticks * 20000000ull; // 20 ms/tick
+    while (Croi_Time_Now() < deadline) {
+        Croi_Yield();
+    }
 }

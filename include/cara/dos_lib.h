@@ -60,4 +60,15 @@ LONG Croi_Dos_Rename_Impl(STRPTR oldName, STRPTR newName);
 LONG Croi_Dos_Info_Impl(BPTR lock, struct InfoData *parameterBlock);
 BPTR Croi_Dos_CreateDir_Impl(STRPTR name);
 
+// ---- Process I/O + console + Delay (L3.6) ---------------------------
+// Output/Input return the calling Process's pr_COS/pr_CIS, lazily
+// populating them with a v0 console FileHandle on first use.
+BPTR Croi_Dos_Output_Impl(void);
+BPTR Croi_Dos_Input_Impl(void);
+// Delay(ticks) — busy-yield until ticks/50 s have elapsed (1 tick = 20ms).
+void Croi_Dos_Delay_Impl(LONG ticks);
+// Build a v0 console FileHandle (log-backed stdout, EOF stdin). Lives in
+// the handler TU because it shares the kernel-private DosFileExt layout.
+BPTR Croi_Dos_MakeConsoleHandle(void);
+
 #endif // CARA_DOS_LIB_H

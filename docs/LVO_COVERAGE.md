@@ -25,7 +25,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | exec.library | 115 | 37 | 0 | 74 | 4 | 33% |
 | intuition.library | 77 | 5 | 0 | 68 | 4 | 6% |
 | utility.library | 30 | 13 | 0 | 13 | 4 | 50% |
-| dos.library | 22 | 16 | 0 | 2 | 4 | 88% |
+| dos.library | 33 | 19 | 0 | 10 | 4 | 65% |
 | cruth.library | 23 | 9 | 10 | 0 | 4 | 100% |
 
 ## exec.library
@@ -152,9 +152,9 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 ## dos.library
 
-ABI surface declared through LVO -132 (ordinal 21). 18 user-callable slots: **16 impl**, 0 server, **2 stub**; coverage **88%**.
+ABI surface declared through LVO -198 (ordinal 32). 29 user-callable slots: **19 impl**, 0 server, **10 stub**; coverage **65%**.
 
-### Implemented (16)
+### Implemented (19)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
@@ -162,6 +162,8 @@ ABI surface declared through LVO -132 (ordinal 21). 18 user-callable slots: **16
 | 5 | -36 | `Close` | syscall |
 | 6 | -42 | `Read` | syscall |
 | 7 | -48 | `Write` | syscall |
+| 8 | -54 | `Input` | syscall |
+| 9 | -60 | `Output` | syscall |
 | 10 | -66 | `Seek` | syscall |
 | 11 | -72 | `DeleteFile` | syscall |
 | 12 | -78 | `Rename` | syscall |
@@ -174,14 +176,15 @@ ABI surface declared through LVO -132 (ordinal 21). 18 user-callable slots: **16
 | 19 | -120 | `CreateDir` | syscall |
 | 20 | -126 | `CurrentDir` | syscall |
 | 21 | -132 | `IoErr` | syscall |
+| 32 | -198 | `Delay` | syscall |
 
-### Unimplemented stub slots (2)
+### Unimplemented stub slots (10)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
 | ord range | LVO range | count |
 |-----------|-----------|------:|
-| 8..9 | -54..-60 | 2 |
+| 22..31 | -138..-192 | 10 |
 
 ## cruth.library
 
