@@ -118,6 +118,10 @@ enum {
     SYS_Gfx_SetFont = 76,
     SYS_Gfx_OpenFont = 77,
     SYS_Gfx_CloseFont = 78,
+    SYS_Gfx_InitArea = 79,
+    SYS_Gfx_AreaMove = 80,
+    SYS_Gfx_AreaDraw = 81,
+    SYS_Gfx_AreaEnd = 82,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -211,6 +215,10 @@ enum {
 #define SYS_Gfx_SetFont 76
 #define SYS_Gfx_OpenFont 77
 #define SYS_Gfx_CloseFont 78
+#define SYS_Gfx_InitArea 79
+#define SYS_Gfx_AreaMove 80
+#define SYS_Gfx_AreaDraw 81
+#define SYS_Gfx_AreaEnd 82
 #endif
 
 #endif

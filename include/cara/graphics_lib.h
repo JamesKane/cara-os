@@ -70,4 +70,11 @@ void Croi_Gfx_SetFont_Impl(struct RastPort *rp, struct TextFont *textFont);
 struct TextFont *Croi_Gfx_OpenFont_Impl(struct TextAttr *textAttr);
 void Croi_Gfx_CloseFont_Impl(struct TextFont *textFont);
 
+// ---- Area* polygon fill (L4.6) ---------------------------------------
+struct AreaInfo;
+void Croi_Gfx_InitArea_Impl(struct AreaInfo *areaInfo, APTR vectorBuffer, WORD maxVectors);
+LONG Croi_Gfx_AreaMove_Impl(struct RastPort *rp, WORD x, WORD y);
+LONG Croi_Gfx_AreaDraw_Impl(struct RastPort *rp, WORD x, WORD y);
+LONG Croi_Gfx_AreaEnd_Impl(struct RastPort *rp);
+
 #endif // CARA_GRAPHICS_LIB_H

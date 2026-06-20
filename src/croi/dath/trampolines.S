@@ -40,3 +40,7 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxText,          SYS_Gfx_Text
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxSetFont,       SYS_Gfx_SetFont
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxOpenFont,      SYS_Gfx_OpenFont
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxCloseFont,     SYS_Gfx_CloseFont
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxInitArea,      SYS_Gfx_InitArea
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxAreaMove,      SYS_Gfx_AreaMove
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxAreaDraw,      SYS_Gfx_AreaDraw
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxAreaEnd,       SYS_Gfx_AreaEnd

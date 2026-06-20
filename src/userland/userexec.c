@@ -758,6 +758,31 @@ int main(void)
                 FreeBitMap(btf);
             }
 
+            // L4.6 area fill. Fill a right triangle (2,2)-(13,2)-(13,13)
+            // into a 16x16 bitmap and check an interior pixel is set, an
+            // exterior pixel is not.
+            struct BitMap *bar = AllocBitMap(16, 16, 32, BMF_CLEAR, nullptr);
+            gfx_ok = gfx_ok && bar != nullptr;
+            if (bar) {
+                struct AreaInfo ai;
+                UBYTE areabuf[5 * 8]; // 8 vectors
+                struct RastPort grp4;
+                InitRastPort(&grp4);
+                grp4.BitMap = bar;
+                grp4.AreaInfo = &ai;
+                InitArea(&ai, areabuf, 8);
+                SetRast(&grp4, 0); // black
+                SetAPen(&grp4, 1); // white
+                gfx_ok = gfx_ok && AreaMove(&grp4, 2, 2) == 0;
+                gfx_ok = gfx_ok && AreaDraw(&grp4, 13, 2) == 0;
+                gfx_ok = gfx_ok && AreaDraw(&grp4, 13, 13) == 0;
+                gfx_ok = gfx_ok && AreaEnd(&grp4) == 0;
+                ULONG *gpx4 = (ULONG *)bar->Planes[0];
+                gfx_ok = gfx_ok && gpx4[6 * 16 + 10] == 0xFFFFFFFFu; // interior
+                gfx_ok = gfx_ok && gpx4[11 * 16 + 3] != 0xFFFFFFFFu; // exterior
+                FreeBitMap(bar);
+            }
+
             FreeBitMap(bm);
         }
         CloseLibrary(glib);

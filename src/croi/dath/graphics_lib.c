@@ -343,3 +343,154 @@ void Croi_Gfx_Text_Impl(struct RastPort *rp, STRPTR string, ULONG count)
     }
     rp->cp_x = (WORD)x;
 }
+
+// ---- Area* polygon fill (L4.6) ---------------------------------------
+// Per-vector flags in the AreaInfo's (kernel-managed, app-allocated)
+// FlagTbl. The buffer is opaque to the app, so the encoding is ours.
+enum {
+    CARA_AREA_MOVE = 0,
+    CARA_AREA_DRAW = 1,
+};
+// Cap on vertices per polygon / intersections per scanline (v0; larger
+// polygons are clamped — logged-by-omission, documented in §6.3).
+static constexpr i32 CARA_AREA_MAXPTS = 64;
+
+// Even-odd scanline fill of one closed polygon (auto-closes last→first).
+static void fill_polygon(const struct DathFramebuffer *fb, const i32 *xs, const i32 *ys, i32 n,
+                         DathColor c)
+{
+    if (n < 3) {
+        return;
+    }
+    i32 ymin = ys[0];
+    i32 ymax = ys[0];
+    for (i32 k = 1; k < n; k++) {
+        ymin = ys[k] < ymin ? ys[k] : ymin;
+        ymax = ys[k] > ymax ? ys[k] : ymax;
+    }
+    if (ymin < 0) {
+        ymin = 0;
+    }
+    if (ymax >= (i32)fb->height) {
+        ymax = (i32)fb->height - 1;
+    }
+    for (i32 y = ymin; y <= ymax; y++) {
+        i32 xint[CARA_AREA_MAXPTS];
+        i32 cnt = 0;
+        for (i32 k = 0; k < n; k++) {
+            i32 x0 = xs[k], y0 = ys[k];
+            i32 j = (k + 1) % n;
+            i32 x1 = xs[j], y1 = ys[j];
+            i32 ylo = y0 < y1 ? y0 : y1;
+            i32 yhi = y0 < y1 ? y1 : y0;
+            // Half-open [ylo, yhi) so shared vertices count once.
+            if (y >= ylo && y < yhi && cnt < CARA_AREA_MAXPTS) {
+                xint[cnt++] = x0 + (i32)(((i64)(y - y0) * (x1 - x0)) / (y1 - y0));
+            }
+        }
+        for (i32 a = 0; a < cnt; a++) {
+            for (i32 b = a + 1; b < cnt; b++) {
+                if (xint[b] < xint[a]) {
+                    i32 t = xint[a];
+                    xint[a] = xint[b];
+                    xint[b] = t;
+                }
+            }
+        }
+        for (i32 p = 0; p + 1 < cnt; p += 2) {
+            i32 xa = xint[p];
+            i32 xb = xint[p + 1];
+            if (xb >= xa) {
+                Dath_FillRect(fb, xa, y, xb - xa + 1, 1, c);
+            }
+        }
+    }
+}
+
+// InitArea(ai, buffer, maxVectors) — bind a caller buffer (5 bytes/vector:
+// 2 WORDs coords then 1 flag byte) to the AreaInfo.
+void Croi_Gfx_InitArea_Impl(struct AreaInfo *areaInfo, APTR vectorBuffer, WORD maxVectors)
+{
+    if (!areaInfo) {
+        return;
+    }
+    areaInfo->VctrTbl = (WORD *)vectorBuffer;
+    areaInfo->VctrPtr = (WORD *)vectorBuffer;
+    areaInfo->FlagTbl = (BYTE *)((WORD *)vectorBuffer + (i32)maxVectors * 2);
+    areaInfo->FlagPtr = areaInfo->FlagTbl;
+    areaInfo->Count = 0;
+    areaInfo->MaxCount = maxVectors;
+    areaInfo->FirstX = 0;
+    areaInfo->FirstY = 0;
+}
+
+// Append one vertex with `flag`. Returns 0 ok, -1 if no AreaInfo / full.
+static LONG area_append(struct RastPort *rp, WORD x, WORD y, BYTE flag)
+{
+    if (!rp || !rp->AreaInfo) {
+        return -1;
+    }
+    struct AreaInfo *ai = rp->AreaInfo;
+    if (ai->Count >= ai->MaxCount) {
+        return -1;
+    }
+    i32 i = ai->Count;
+    ai->VctrTbl[i * 2] = x;
+    ai->VctrTbl[i * 2 + 1] = y;
+    ai->FlagTbl[i] = flag;
+    ai->Count++;
+    if (flag == CARA_AREA_MOVE) {
+        ai->FirstX = x;
+        ai->FirstY = y;
+    }
+    return 0;
+}
+
+// AreaMove(rp, x, y) — begin a new polygon at (x,y).
+LONG Croi_Gfx_AreaMove_Impl(struct RastPort *rp, WORD x, WORD y)
+{
+    return area_append(rp, x, y, CARA_AREA_MOVE);
+}
+
+// AreaDraw(rp, x, y) — add a vertex to the current polygon.
+LONG Croi_Gfx_AreaDraw_Impl(struct RastPort *rp, WORD x, WORD y)
+{
+    return area_append(rp, x, y, CARA_AREA_DRAW);
+}
+
+// AreaEnd(rp) — scanline-fill all accumulated polygons in FgPen, reset.
+LONG Croi_Gfx_AreaEnd_Impl(struct RastPort *rp)
+{
+    if (!rp || !rp->BitMap || !rp->AreaInfo) {
+        return -1;
+    }
+    struct DathFramebuffer *fb = surf_of(rp->BitMap);
+    if (!fb) {
+        return -1;
+    }
+    struct AreaInfo *ai = rp->AreaInfo;
+    DathColor fg = fg_color(rp, fb);
+    i32 n = ai->Count;
+    i32 i = 0;
+    while (i < n) {
+        // A polygon runs from a MOVE through the following DRAWs.
+        i32 px[CARA_AREA_MAXPTS];
+        i32 py[CARA_AREA_MAXPTS];
+        i32 pc = 0;
+        px[pc] = ai->VctrTbl[i * 2];
+        py[pc] = ai->VctrTbl[i * 2 + 1];
+        pc++;
+        i++;
+        while (i < n && ai->FlagTbl[i] != CARA_AREA_MOVE && pc < CARA_AREA_MAXPTS) {
+            px[pc] = ai->VctrTbl[i * 2];
+            py[pc] = ai->VctrTbl[i * 2 + 1];
+            pc++;
+            i++;
+        }
+        fill_polygon(fb, px, py, pc, fg);
+    }
+    ai->Count = 0;
+    ai->VctrPtr = ai->VctrTbl;
+    ai->FlagPtr = ai->FlagTbl;
+    return 0;
+}

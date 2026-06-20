@@ -13,11 +13,26 @@
 #include <exec/types.h>
 
 struct Layer;    // <graphics/layers.h>
-struct TmpRas;   // areafill scratch
-struct AreaInfo; // areafill vertex list
+struct TmpRas;   // areafill scratch (unused on CaraOS — chunky fill)
 struct GelsInfo; // sprite/GEL state (unused on CaraOS — no chipset)
 struct BitMap;   // <graphics/gfx.h>
 struct TextFont; // <graphics/text.h>
+
+// V36+ struct AreaInfo (graphics/rastport.h) — the vertex accumulator for
+// the Area* polygon-fill calls. InitArea points VctrTbl/FlagTbl at a
+// caller buffer (5 bytes/vector: 2 WORDs coords + 1 flag byte); AreaMove/
+// AreaDraw append; AreaEnd scanline-fills and resets. The app sets
+// rp->AreaInfo to one of these. See docs/DATH_GRAPHICS.md §5 (L4.6).
+struct AreaInfo {
+    WORD *VctrTbl; // base of the coordinate table (2 WORDs per vector)
+    WORD *VctrPtr; // next free coordinate slot
+    BYTE *FlagTbl; // base of the per-vector flag table
+    BYTE *FlagPtr; // next free flag slot
+    WORD Count;    // vectors accumulated so far
+    WORD MaxCount; // capacity (from InitArea)
+    WORD FirstX;   // first point of the current polygon
+    WORD FirstY;
+};
 
 // V36+ DrawMode (SetDrMd): JAM1 draws FgPen only, JAM2 draws Fg over Bg,
 // COMPLEMENT XORs, INVERSVID swaps fg/bg for text.

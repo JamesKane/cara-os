@@ -26,7 +26,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | intuition.library | 77 | 5 | 0 | 68 | 4 | 6% |
 | utility.library | 30 | 13 | 0 | 13 | 4 | 50% |
 | dos.library | 33 | 19 | 0 | 10 | 4 | 65% |
-| graphics.library | 154 | 20 | 0 | 130 | 4 | 13% |
+| graphics.library | 154 | 24 | 0 | 126 | 4 | 16% |
 | cruth.library | 23 | 9 | 10 | 0 | 4 | 100% |
 
 ## exec.library
@@ -189,9 +189,9 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 ## graphics.library
 
-ABI surface declared through LVO -924 (ordinal 153). 150 user-callable slots: **20 impl**, 0 server, **130 stub**; coverage **13%**.
+ABI surface declared through LVO -924 (ordinal 153). 150 user-callable slots: **24 impl**, 0 server, **126 stub**; coverage **16%**.
 
-### Implemented (20)
+### Implemented (24)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
@@ -205,6 +205,10 @@ ABI surface declared through LVO -924 (ordinal 153). 150 user-callable slots: **
 | 38 | -234 | `SetRast` | syscall |
 | 39 | -240 | `Move` | syscall |
 | 40 | -246 | `Draw` | syscall |
+| 41 | -252 | `AreaMove` | syscall |
+| 42 | -258 | `AreaDraw` | syscall |
+| 43 | -264 | `AreaEnd` | syscall |
+| 46 | -282 | `InitArea` | syscall |
 | 50 | -306 | `RectFill` | syscall |
 | 52 | -318 | `ReadPixel` | syscall |
 | 53 | -324 | `WritePixel` | syscall |
@@ -216,7 +220,7 @@ ABI surface declared through LVO -924 (ordinal 153). 150 user-callable slots: **
 | 152 | -918 | `AllocBitMap` | syscall |
 | 153 | -924 | `FreeBitMap` | syscall |
 
-### Unimplemented stub slots (130)
+### Unimplemented stub slots (126)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
@@ -225,7 +229,8 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 | 5..7 | -36..-48 | 3 |
 | 13..31 | -84..-192 | 19 |
 | 33..37 | -204..-228 | 5 |
-| 41..49 | -252..-300 | 9 |
+| 44..45 | -270..-276 | 2 |
+| 47..49 | -288..-300 | 3 |
 | 51..51 | -312..-312 | 1 |
 | 54..55 | -330..-336 | 2 |
 | 59..90 | -360..-546 | 32 |

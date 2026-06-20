@@ -237,6 +237,15 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_Gfx_CloseFont:
         Croi_Gfx_CloseFont_Impl((struct TextFont *)(uptr)a0);
         return 0;
+    case SYS_Gfx_InitArea:
+        Croi_Gfx_InitArea_Impl((struct AreaInfo *)(uptr)a0, (APTR)(uptr)a1, (WORD)a2);
+        return 0;
+    case SYS_Gfx_AreaMove:
+        return (i64)Croi_Gfx_AreaMove_Impl((struct RastPort *)(uptr)a0, (WORD)a1, (WORD)a2);
+    case SYS_Gfx_AreaDraw:
+        return (i64)Croi_Gfx_AreaDraw_Impl((struct RastPort *)(uptr)a0, (WORD)a1, (WORD)a2);
+    case SYS_Gfx_AreaEnd:
+        return (i64)Croi_Gfx_AreaEnd_Impl((struct RastPort *)(uptr)a0);
 
     // ---- utility.library allocating tag helpers ----
     case SYS_AllocateTagItems:
