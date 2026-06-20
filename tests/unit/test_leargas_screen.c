@@ -91,9 +91,16 @@ int main(void)
         return fail("DefaultTitle not initialised", 13);
     }
 
-    // Pointer-where-V36+-embeds fields are nullptr in Phase 1.
-    if (s.pub.RastPort || s.pub.ViewPort || s.pub.BitMap || s.pub.LayerInfo) {
-        return fail("Phase 1 deviation fields not nullptr", 14);
+    // L4.7: RastPort + BitMap are now live (a graphics.library RastPort
+    // over the screen surface); ViewPort + LayerInfo remain nullptr.
+    if (!s.pub.RastPort || !s.pub.BitMap) {
+        return fail("Screen RastPort/BitMap not live", 14);
+    }
+    if (s.pub.RastPort->BitMap != s.pub.BitMap) {
+        return fail("Screen RastPort.BitMap != Screen.BitMap", 24);
+    }
+    if (s.pub.ViewPort || s.pub.LayerInfo) {
+        return fail("ViewPort/LayerInfo should be nullptr in v0", 25);
     }
 
     // NULL title is tolerated (init produces an empty string).

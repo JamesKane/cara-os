@@ -96,6 +96,31 @@ static u32 copy_bounded(char *dst, u32 dst_cap, const char *src)
     s->pub.ExtData = nullptr;
     s->pub.UserData = nullptr;
 
+    // L4.7: build a live RastPort + BitMap over the screen framebuffer.
+    // The BitMap is the head of a DathBitMapExt whose surf mirrors *fb,
+    // so graphics.library calls (surf_of) draw to the same pixels the
+    // Leargas chrome renders to. Pure data setup — no Croi_Gfx call, so
+    // this stays dual-target (the RastPort defaults mirror InitRastPort).
+    s->bmext.surf = *fb;
+    s->bmext.bm = (struct BitMap){ 0 };
+    s->bmext.bm.BytesPerRow = (UWORD)fb->stride;
+    s->bmext.bm.Rows = (UWORD)fb->height;
+    s->bmext.bm.Depth = (UBYTE)(fb->bpp == 2 ? 16 : 32);
+    s->bmext.bm.Planes[0] = (PLANEPTR)fb->base;
+
+    s->rp = (struct RastPort){ 0 };
+    s->rp.BitMap = &s->bmext.bm;
+    s->rp.Mask = 0xFF;
+    s->rp.FgPen = 1;
+    s->rp.BgPen = 0;
+    s->rp.DrawMode = JAM2;
+    s->rp.LinePtrn = (UWORD)0xFFFF;
+    s->rp.PenWidth = 1;
+    s->rp.PenHeight = 1;
+
+    s->pub.RastPort = &s->rp;
+    s->pub.BitMap = &s->bmext.bm;
+
     s->initialised = true;
     return CARA_EOK;
 }

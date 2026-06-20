@@ -16,6 +16,7 @@ add_library(cara_kernel_tests STATIC
     test_usermode.c
     test_userelf.c
     test_dath.c
+    test_graphics.c
     test_exec_lib.c
     test_userexec.c
     test_userintuition.c

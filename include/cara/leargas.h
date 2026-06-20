@@ -16,7 +16,9 @@
 #define CARA_LEARGAS_H
 
 #include <cara/dath.h>
+#include <cara/graphics_lib.h> // struct DathBitMapExt (L4.7 screen RastPort)
 #include <cara/types.h>
+#include <graphics/rastport.h>
 #include <intuition/intuition.h>
 #include <intuition/screens.h>
 
@@ -198,6 +200,13 @@ struct LeargasScreen {
     char default_title_buf[LEARGAS_SCREEN_TITLE_MAX];
     DathColor pen0; // background colour painted by OpenScreen
     bool initialised;
+
+    // L4.7: a live graphics.library RastPort + BitMap over the screen
+    // surface (pub.RastPort / pub.BitMap point here). The BitMap is the
+    // head of a DathBitMapExt whose surf mirrors *fb, so the graphics
+    // rasteriser (surf_of) draws to the same pixels Leargas chrome does.
+    struct RastPort rp;
+    struct DathBitMapExt bmext;
 };
 
 // Initialise a caller-provided LeargasScreen from a DathFramebuffer
