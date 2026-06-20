@@ -35,3 +35,8 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxWritePixel,    SYS_Gfx_WritePixel
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxSetAPen,       SYS_Gfx_SetAPen
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxSetBPen,       SYS_Gfx_SetBPen
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxSetDrMd,       SYS_Gfx_SetDrMd
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxTextLength,    SYS_Gfx_TextLength
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxText,          SYS_Gfx_Text
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxSetFont,       SYS_Gfx_SetFont
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxOpenFont,      SYS_Gfx_OpenFont
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GfxCloseFont,     SYS_Gfx_CloseFont

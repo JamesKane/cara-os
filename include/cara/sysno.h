@@ -113,6 +113,11 @@ enum {
     SYS_Gfx_SetBPen = 71,
     SYS_Gfx_SetDrMd = 72,
     SYS_Gfx_Blt = 73, // shared by BltBitMap/BltBitMapRastPort/ClipBlit (GfxBltArgs)
+    SYS_Gfx_TextLength = 74,
+    SYS_Gfx_Text = 75,
+    SYS_Gfx_SetFont = 76,
+    SYS_Gfx_OpenFont = 77,
+    SYS_Gfx_CloseFont = 78,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -201,6 +206,11 @@ enum {
 #define SYS_Gfx_SetBPen 71
 #define SYS_Gfx_SetDrMd 72
 #define SYS_Gfx_Blt 73
+#define SYS_Gfx_TextLength 74
+#define SYS_Gfx_Text 75
+#define SYS_Gfx_SetFont 76
+#define SYS_Gfx_OpenFont 77
+#define SYS_Gfx_CloseFont 78
 #endif
 
 #endif

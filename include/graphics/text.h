@@ -11,6 +11,7 @@
 #ifndef GRAPHICS_TEXT_H
 #define GRAPHICS_TEXT_H
 
+#include <exec/ports.h>
 #include <exec/types.h>
 
 // V36+ ta_Style bits.
@@ -38,6 +39,29 @@ struct TextAttr {
     UBYTE ta_Flags;
 };
 
-struct TextFont; // forward; full type lands with Phase 3.
+// V36+ struct TextFont (graphics/text.h) — a live font handle. Field
+// order/offsets are ABI. On CaraOS the AmigaOS strike-format char data
+// (tf_CharData/tf_CharLoc/…) is not populated in v0 — graphics.library
+// has one face, the Dath 8x8 bitmap font, and the rasteriser renders
+// from it directly; this struct is the descriptor apps read (tf_YSize/
+// tf_XSize/tf_Baseline) and the handle SetFont/Text take. See
+// docs/DATH_GRAPHICS.md §5 (L4.5).
+struct TextFont {
+    struct Message tf_Message; // ln_Name = font name; on the font list
+    UWORD tf_YSize;            // font height (pixels)
+    UBYTE tf_Style;            // FS*/FSF_* style bits
+    UBYTE tf_Flags;            // FPF_* flags
+    UWORD tf_XSize;            // nominal width (pixels) — monospace in v0
+    UWORD tf_Baseline;         // distance from top to baseline
+    UWORD tf_BoldSmear;        // pixels to smear for algorithmic bold
+    UWORD tf_Accessors;        // open count
+    UBYTE tf_LoChar;           // first glyph codepoint
+    UBYTE tf_HiChar;           // last glyph codepoint
+    APTR tf_CharData;          // strike data (unused in v0)
+    UWORD tf_Modulo;           // bytes per row of strike (unused)
+    APTR tf_CharLoc;           // per-glyph bit offset/width (unused)
+    APTR tf_CharSpace;         // per-glyph spacing (unused)
+    APTR tf_CharKern;          // per-glyph kerning (unused)
+};
 
 #endif // GRAPHICS_TEXT_H

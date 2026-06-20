@@ -14,6 +14,7 @@
 #include <exec/types.h>
 #include <graphics/gfx.h>
 #include <graphics/rastport.h>
+#include <graphics/text.h>
 
 // v0 default palette — the minimal ColorMap (docs/DATH_GRAPHICS.md §6.2).
 // Pen indices map to packed 0xRRGGBB; converted to the target surface
@@ -255,4 +256,90 @@ LONG Croi_Gfx_Blt_Impl(const struct GfxBltArgs *a)
     }
     Dath_BlitRect(d, a->xDest, a->yDest, s, a->xSrc, a->ySrc, a->xSize, a->ySize);
     return 0;
+}
+
+// The single v0 system font — a TextFont describing dath_font_8x8, lazily
+// allocated in the shared heap (U-mode-readable). graphics.library has
+// one face in v0, so OpenFont returns this regardless of the TextAttr and
+// the rasteriser always renders from dath_font_8x8 (§5).
+static struct TextFont *g_system_font = nullptr;
+
+static struct TextFont *gfx_system_font(void)
+{
+    if (!g_system_font) {
+        struct TextFont *tf = (struct TextFont *)Croi_AllocShared(sizeof(*tf));
+        if (!tf) {
+            return nullptr;
+        }
+        *tf = (struct TextFont){ 0 };
+        tf->tf_YSize = (UWORD)dath_font_8x8.height;
+        tf->tf_XSize = (UWORD)dath_font_8x8.width;
+        tf->tf_Baseline = (UWORD)(dath_font_8x8.height - 1);
+        tf->tf_LoChar = (UBYTE)dath_font_8x8.first_glyph;
+        tf->tf_HiChar = (UBYTE)dath_font_8x8.last_glyph;
+        tf->tf_Style = FS_NORMAL;
+        tf->tf_Flags = FPF_ROMFONT;
+        tf->tf_Accessors = 1;
+        g_system_font = tf;
+    }
+    return g_system_font;
+}
+
+// OpenFont(textAttr) — v0 returns the single system font regardless of
+// the requested attributes (one face until diskfont/more ROM fonts).
+struct TextFont *Croi_Gfx_OpenFont_Impl(struct TextAttr *textAttr)
+{
+    (void)textAttr;
+    return gfx_system_font();
+}
+
+// CloseFont — no-op; the system font persists for the session.
+void Croi_Gfx_CloseFont_Impl(struct TextFont *textFont)
+{
+    (void)textFont;
+}
+
+// SetFont(rp, tf) — bind the RastPort's font + cache its metrics.
+void Croi_Gfx_SetFont_Impl(struct RastPort *rp, struct TextFont *textFont)
+{
+    if (!rp || !textFont) {
+        return;
+    }
+    rp->Font = textFont;
+    rp->TxHeight = textFont->tf_YSize;
+    rp->TxWidth = textFont->tf_XSize;
+    rp->TxBaseline = textFont->tf_Baseline;
+}
+
+// TextLength(rp, string, count) — pixel width of `count` chars. Monospace
+// v0: count * the system font's width (rp->Font is the same single face).
+LONG Croi_Gfx_TextLength_Impl(struct RastPort *rp, STRPTR string, ULONG count)
+{
+    (void)rp;
+    (void)string;
+    return (LONG)(count * dath_font_8x8.width);
+}
+
+// Text(rp, string, count) — render `count` chars from the graphics cursor
+// in FgPen over BgPen (Dath_DrawChar), advancing the cursor. v0 treats
+// cp_y as the glyph TOP (not the AmigaDOS baseline) so cp_y=0 is visible
+// and it matches Leargas chrome rendering (§5).
+void Croi_Gfx_Text_Impl(struct RastPort *rp, STRPTR string, ULONG count)
+{
+    if (!rp || !rp->BitMap || !string) {
+        return;
+    }
+    struct DathFramebuffer *fb = surf_of(rp->BitMap);
+    if (!fb) {
+        return;
+    }
+    DathColor fg = fg_color(rp, fb);
+    DathColor bg = pen_to_color((ULONG)(UBYTE)rp->BgPen, fb);
+    i32 x = rp->cp_x;
+    i32 y = rp->cp_y;
+    for (ULONG i = 0; i < count; i++) {
+        Dath_DrawChar(fb, &dath_font_8x8, x, y, (char)string[i], fg, bg);
+        x += (i32)dath_font_8x8.width;
+    }
+    rp->cp_x = (WORD)x;
 }

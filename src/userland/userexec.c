@@ -37,6 +37,7 @@
 #include <graphics/gfx.h>
 #include <graphics/gfxbase.h>
 #include <graphics/rastport.h>
+#include <graphics/text.h>
 #include <proto/dos.h>
 #include <proto/exec.h>
 #include <proto/graphics.h>
@@ -720,6 +721,41 @@ int main(void)
                 BltBitMapRastPort(bm, 0, 0, &grp2, 7, 3, 1, 1, 0xC0);
                 gfx_ok = gfx_ok && gpx2[3 * 8 + 7] == gpx[0]; // bm(0,0) → bm2(7,3)
                 FreeBitMap(bm2);
+            }
+
+            // L4.5 text + fonts. OpenFont (single v0 system font),
+            // SetFont, TextLength, then Text 'A' into a 16x8 bitmap and
+            // verify some-but-not-all pixels lit (a real glyph) + cursor.
+            struct TextAttr ta = { (STRPTR) "topaz.font", 8, FS_NORMAL, FPF_ROMFONT };
+            struct TextFont *tf = OpenFont(&ta);
+            gfx_ok = gfx_ok && tf != nullptr && tf->tf_YSize == 8;
+            struct BitMap *btf = AllocBitMap(16, 8, 32, BMF_CLEAR, nullptr);
+            gfx_ok = gfx_ok && btf != nullptr;
+            if (tf && btf) {
+                struct RastPort grp3;
+                InitRastPort(&grp3);
+                grp3.BitMap = btf;
+                SetFont(&grp3, tf);
+                gfx_ok = gfx_ok && grp3.Font == tf && grp3.TxHeight == 8;
+                gfx_ok = gfx_ok && TextLength(&grp3, (STRPTR) "AB", 2) == 16;
+                SetRast(&grp3, 0); // black
+                SetAPen(&grp3, 1); // white
+                Move(&grp3, 0, 0);
+                Text(&grp3, (STRPTR) "A", 1);
+                ULONG *gpx3 = (ULONG *)btf->Planes[0];
+                int lit = 0;
+                for (int gi = 0; gi < 16 * 8; gi++) {
+                    if (gpx3[gi] == 0xFFFFFFFFu) {
+                        lit++;
+                    }
+                }
+                gfx_ok = gfx_ok && lit > 0 && lit < 16 * 8 && grp3.cp_x == 8;
+            }
+            if (tf) {
+                CloseFont(tf);
+            }
+            if (btf) {
+                FreeBitMap(btf);
             }
 
             FreeBitMap(bm);

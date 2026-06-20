@@ -61,4 +61,13 @@ struct GfxBltArgs {
 };
 LONG Croi_Gfx_Blt_Impl(const struct GfxBltArgs *a);
 
+// ---- Text + fonts (L4.5) ---------------------------------------------
+struct TextFont;
+struct TextAttr;
+LONG Croi_Gfx_TextLength_Impl(struct RastPort *rp, STRPTR string, ULONG count);
+void Croi_Gfx_Text_Impl(struct RastPort *rp, STRPTR string, ULONG count);
+void Croi_Gfx_SetFont_Impl(struct RastPort *rp, struct TextFont *textFont);
+struct TextFont *Croi_Gfx_OpenFont_Impl(struct TextAttr *textAttr);
+void Croi_Gfx_CloseFont_Impl(struct TextFont *textFont);
+
 #endif // CARA_GRAPHICS_LIB_H
