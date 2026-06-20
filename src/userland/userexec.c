@@ -34,8 +34,10 @@
 #include <exec/semaphores.h>
 #include <exec/tasks.h>
 #include <exec/types.h>
+#include <graphics/gfxbase.h>
 #include <proto/dos.h>
 #include <proto/exec.h>
+#include <proto/graphics.h>
 #include <proto/utility.h>
 #include <utility/hooks.h>
 #include <utility/tagitem.h>
@@ -56,6 +58,7 @@
 #define USEREXEC_EXIT_UTIL_FAIL 0xBADC
 #define USEREXEC_EXIT_DOS_FAIL 0xBADD
 #define USEREXEC_EXIT_SRV_FAIL 0xBADE
+#define USEREXEC_EXIT_GFX_FAIL 0xBADF
 
 // Inline ecall for SYS_LOG_WRITE — used to surface progress markers
 // in the kernel log alongside the existing kernel-side messages so
@@ -164,6 +167,9 @@ struct UtilityBase *UtilityBase;
 // Referenced by the <proto/dos.h> inline stubs (same idiom as
 // UtilityBase / IntuitionBase — this program owns the global).
 struct DosLibrary *DOSBase;
+
+// Referenced by the <proto/graphics.h> inline stubs (same idiom).
+struct GfxBase *GfxBase;
 
 // A trivial Hook callback for the CallHookPkt exercise: returns
 // object + message so the test can assert the dispatch wired the args
@@ -646,6 +652,22 @@ int main(void)
     if (!srv_ok) {
         CloseLibrary(lib);
         return (int)USEREXEC_EXIT_SRV_FAIL;
+    }
+
+    // 4k. graphics.library (L4.1) — open it and prove the library base is
+    //     constructed: read GfxBase->LibNode.lib_Version (==36). The
+    //     drawing + BitMap LVOs are stubs until later L4 slices; this
+    //     slice only proves the ABI + boot construction.
+    struct Library *glib = OpenLibrary((STRPTR) "graphics.library", 36);
+    bool gfx_ok = glib != nullptr;
+    if (gfx_ok) {
+        GfxBase = (struct GfxBase *)glib;
+        gfx_ok = GfxBase->LibNode.lib_Version == 36;
+        CloseLibrary(glib);
+    }
+    if (!gfx_ok) {
+        CloseLibrary(lib);
+        return (int)USEREXEC_EXIT_GFX_FAIL;
     }
 
     // 5. Balance the open. Note: libcara also opened exec.library

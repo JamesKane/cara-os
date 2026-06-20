@@ -32,3 +32,27 @@ else()
         PRIVATE cara_flags
     )
 endif()
+
+# graphics.library (L4) — the V36+ API surface over the Dath rasteriser
+# (docs/DATH_GRAPHICS.md). Kernel-only: it builds the library base + vec
+# table and (later slices) the syscall trampolines + Croi_Gfx_*_Impl
+# marshals onto Dath_*. Kept in a separate static lib (like cara_dos_lib)
+# so cara_dath stays the pure dual-target rasteriser; whole-archived into
+# croi by src/croi/CMakeLists.txt so the vec/trampolines aren't GC'd.
+if(CARA_TARGET STREQUAL "riscv64")
+    cara_lvo_gen_library("${CMAKE_SOURCE_DIR}/tools/lvo-gen/graphics.conf")
+
+    add_library(cara_graphics_lib STATIC
+        graphics_hooks.c
+    )
+    target_link_libraries(cara_graphics_lib
+        PUBLIC cara_headers
+        PRIVATE cara_kernel_flags
+    )
+
+    if(CARA_LVO_GEN_BIN)
+        set(_gfx_vec_c "${CARA_LVO_GEN_OUT_DIR}/src/croi/dath/graphics_vec.c")
+        target_sources(cara_graphics_lib PRIVATE "${_gfx_vec_c}")
+        add_dependencies(cara_graphics_lib cara_graphics_lib_gen)
+    endif()
+endif()

@@ -41,6 +41,7 @@
 #include <cara/xhci.h>
 #include <dos/dosextens.h>
 #include <exec/libraries.h>
+#include <graphics/gfxbase.h>
 #include <intuition/intuitionbase.h>
 #include <utility/tagitem.h>
 #include <utility/utilitybase.h>
@@ -91,6 +92,13 @@ extern const usize utility_lib_vec_count;
 // packet ops (server flavour, in the dos handler Gleas) arrive later.
 extern void *dos_lib_vec[];
 extern const usize dos_lib_vec_count;
+
+// Generated likewise from tools/lvo-gen/graphics.conf (L4.1). graphics.
+// library is Dath-owned; like intuition/utility/dos its base + vec table
+// live in the SASOS shared heap. L4.1 ships only the ABI + reserved
+// hooks (every drawing/alloc LVO is a stub until later L4 slices).
+extern void *graphics_lib_vec[];
+extern const usize graphics_lib_vec_count;
 
 // Clar (the Phase 1 Workbench Gleas) embedded in the .user_elf section
 // (src/croi/CMakeLists.txt user_blob.S). Spawned as the foreground task
@@ -646,6 +654,40 @@ static void console_putc(char c)
         struct Library *base = Croi_MakeLibrary(mklib_tags);
         if (!base) {
             LOG_FATAL("entry", "Croi_MakeLibrary(dos.library) failed");
+            Croi_Halt();
+        }
+    }
+
+    // ---- Construct graphics.library (L4.1).
+    //      Same shared-heap layout as intuition/utility/dos. L4.1 ships
+    //      only the ABI + reserved hooks; the RastPort drawing + BitMap
+    //      allocation LVOs (syscall flavour onto the Dath rasteriser)
+    //      arrive with later L4 slices.
+    {
+        usize priv_size = sizeof(struct GfxBase) - sizeof(struct Library);
+        usize neg_size = sizeof(void *) * graphics_lib_vec_count;
+        usize block_size = neg_size + sizeof(struct Library) + priv_size;
+
+        u8 *block = (u8 *)Croi_AllocShared(block_size);
+        if (!block) {
+            LOG_FATAL("entry", "AllocShared(graphics.library, %llu bytes) failed", (u64)block_size);
+            Croi_Halt();
+        }
+        struct Library *gbase = (struct Library *)(block + neg_size);
+
+        struct TagItem mklib_tags[] = {
+            { MKL_NAME, (IPTR) "graphics.library" },
+            { MKL_BASE, (IPTR)gbase },
+            { MKL_VEC_TABLE, (IPTR)graphics_lib_vec },
+            { MKL_VEC_COUNT, (IPTR)graphics_lib_vec_count },
+            { MKL_VERSION, 36 },
+            { MKL_REVISION, 0 },
+            { MKL_PRIVATE_SIZE, (IPTR)priv_size },
+            { TAG_END, 0 },
+        };
+        struct Library *base = Croi_MakeLibrary(mklib_tags);
+        if (!base) {
+            LOG_FATAL("entry", "Croi_MakeLibrary(graphics.library) failed");
             Croi_Halt();
         }
     }
