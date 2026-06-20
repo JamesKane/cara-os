@@ -155,6 +155,10 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)(uptr)Croi_Dos_DupLock_Impl((BPTR)(uptr)a0);
     case SYS_Dos_CurrentDir:
         return (i64)(uptr)Croi_Dos_CurrentDir_Impl((BPTR)(uptr)a0);
+    case SYS_Dos_Examine:
+        return (i64)Croi_Dos_Examine_Impl((BPTR)(uptr)a0, (struct FileInfoBlock *)(uptr)a1);
+    case SYS_Dos_ExNext:
+        return (i64)Croi_Dos_ExNext_Impl((BPTR)(uptr)a0, (struct FileInfoBlock *)(uptr)a1);
 
     // ---- utility.library allocating tag helpers ----
     case SYS_AllocateTagItems:

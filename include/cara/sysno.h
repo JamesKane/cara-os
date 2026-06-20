@@ -85,6 +85,8 @@ enum {
     SYS_Dos_UnLock = 44,
     SYS_Dos_DupLock = 45,
     SYS_Dos_CurrentDir = 46,
+    SYS_Dos_Examine = 47,
+    SYS_Dos_ExNext = 48,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -146,6 +148,8 @@ enum {
 #define SYS_Dos_UnLock 44
 #define SYS_Dos_DupLock 45
 #define SYS_Dos_CurrentDir 46
+#define SYS_Dos_Examine 47
+#define SYS_Dos_ExNext 48
 #endif
 
 #endif

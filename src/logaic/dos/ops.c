@@ -76,3 +76,29 @@ BPTR Croi_Dos_CurrentDir_Impl(BPTR lock)
     p->pr_CurrentDir = lock;
     return old;
 }
+
+// Examine(lock, fib) → BOOL. Stat the locked object into fib (and reset
+// the lock's cursor for ExNext).
+LONG Croi_Dos_Examine_Impl(BPTR lock, struct FileInfoBlock *fib)
+{
+    struct DosPacket dp = { 0 };
+    dp.dp_Type = ACTION_EXAMINE_OBJECT;
+    dp.dp_Arg1 = (SIPTR)(uptr)lock;
+    dp.dp_Arg2 = (SIPTR)(uptr)fib;
+    Croi_Dos_Dispatch(&dp);
+    set_ioerr(dp.dp_Res2);
+    return (LONG)dp.dp_Res1;
+}
+
+// ExNext(lock, fib) → BOOL. Fill fib with the next directory entry;
+// DOSFALSE at end-of-listing (IoErr ERROR_NO_MORE_ENTRIES).
+LONG Croi_Dos_ExNext_Impl(BPTR lock, struct FileInfoBlock *fib)
+{
+    struct DosPacket dp = { 0 };
+    dp.dp_Type = ACTION_EXAMINE_NEXT;
+    dp.dp_Arg1 = (SIPTR)(uptr)lock;
+    dp.dp_Arg2 = (SIPTR)(uptr)fib;
+    Croi_Dos_Dispatch(&dp);
+    set_ioerr(dp.dp_Res2);
+    return (LONG)dp.dp_Res1;
+}

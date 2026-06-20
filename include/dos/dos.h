@@ -62,6 +62,7 @@
 #define ERROR_DISK_WRITE_PROTECTED 214
 #define ERROR_SEEK_ERROR 219
 #define ERROR_DISK_FULL 221
+#define ERROR_NO_MORE_ENTRIES 232
 
 // V36+ DateStamp — days/minutes/ticks since 1978-01-01 (50 ticks/sec).
 struct DateStamp {

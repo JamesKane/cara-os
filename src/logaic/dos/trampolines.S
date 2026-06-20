@@ -23,4 +23,10 @@
 .section .lib_text.dos, "ax"
 .balign 4
 
-CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosIoErr, SYS_Dos_IoErr
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosIoErr,      SYS_Dos_IoErr
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosLock,       SYS_Dos_Lock
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosUnLock,     SYS_Dos_UnLock
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosDupLock,    SYS_Dos_DupLock
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosCurrentDir, SYS_Dos_CurrentDir
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosExamine,    SYS_Dos_Examine
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosExNext,     SYS_Dos_ExNext

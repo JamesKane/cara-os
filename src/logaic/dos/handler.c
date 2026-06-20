@@ -38,6 +38,17 @@
 // until the handler's first run.
 static struct MsgPort *g_dos_handler_port = nullptr;
 
+// A FileLock returned to U-mode is the public head of this kernel-
+// private extension: the public struct (offset 0, the BPTR target)
+// plus the ExNext resume cursor and the object's own name (for Examine,
+// which can't recover a name from a cnode alone). The lock is kernel-
+// allocated, so its true size is ours.
+struct DosLockExt {
+    struct FileLock fl;            // offset 0 — the BPTR points here
+    struct CarafsDirCursor cursor; // ExNext listing position
+    char name[108];                // the locked object's own name (NUL-term)
+};
+
 // A FileLock stores the locked object's CaraFS cnode in fl_Key (an
 // opaque BPTR-width key, docs/LOGAIC_DOS.md §4).
 static u64 lock_cnode(BPTR lock)
@@ -49,14 +60,39 @@ static u64 lock_cnode(BPTR lock)
     return (u64)(uptr)fl->fl_Key;
 }
 
+// Fill a (user-supplied) FileInfoBlock from a CaraFS stat + the object's
+// name. Date conversion (CaraFS ns → AmigaDOS DateStamp) is deferred —
+// fib_Date is left zeroed for v0.
+static void fill_fib(struct FileInfoBlock *fib, const struct CarafsStat *st, const char *name,
+                     u32 name_len)
+{
+    unsigned char *z = (unsigned char *)fib;
+    for (u32 i = 0; i < sizeof(*fib); i++) {
+        z[i] = 0;
+    }
+    fib->fib_DiskKey = (LONG)st->cnode;
+    fib->fib_DirEntryType = (st->type == CARAFS_T_DIR) ? ST_USERDIR : ST_FILE;
+    fib->fib_EntryType = fib->fib_DirEntryType;
+    fib->fib_Size = (LONG)st->size_bytes;
+    fib->fib_NumBlocks = (LONG)st->blocks_used;
+    fib->fib_Protection = (LONG)st->fib_protection;
+    u32 n = name_len < sizeof(fib->fib_FileName) - 1 ? name_len : sizeof(fib->fib_FileName) - 1;
+    for (u32 i = 0; i < n; i++) {
+        fib->fib_FileName[i] = name[i];
+    }
+    fib->fib_FileName[n] = 0;
+}
+
 // Resolve `path` (an AmigaDOS name) relative to the `base` directory
 // cnode into a target cnode. A leading volume prefix ("X:") resets to
 // root; remaining '/'-separated components are walked with DirLookup.
 // An empty path resolves to `base`. CARA_ENOENT on a missing component.
-static int dos_resolve(const char *path, u64 base, u64 *out)
+static int dos_resolve(const char *path, u64 base, u64 *out, char *namebuf, u32 namecap)
 {
     u64 cur = base;
     const char *p = path;
+    const char *last = ""; // final component (for the lock's own name)
+    u32 last_len = 0;
     for (const char *q = path; q && *q; q++) {
         if (*q == ':') {
             cur = g_carafs.sb.root_cnode;
@@ -82,6 +118,15 @@ static int dos_resolve(const char *path, u64 base, u64 *out)
             return CARA_ENOENT;
         }
         cur = c;
+        last = start;
+        last_len = len;
+    }
+    if (namebuf && namecap) {
+        u32 n = last_len < namecap - 1 ? last_len : namecap - 1;
+        for (u32 i = 0; i < n; i++) {
+            namebuf[i] = last[i];
+        }
+        namebuf[n] = 0;
     }
     *out = cur;
     return CARA_EOK;
@@ -107,24 +152,84 @@ void Croi_Dos_Dispatch(struct DosPacket *dp)
         // dp_Arg3 = mode. Returns a FileLock BPTR or 0.
         const char *name = (const char *)(uptr)dp->dp_Arg2;
         u64 base = lock_cnode((BPTR)(uptr)dp->dp_Arg1);
-        u64 cnode;
-        if (dos_resolve(name, base, &cnode) != CARA_EOK) {
-            dp->dp_Res1 = 0;
-            dp->dp_Res2 = ERROR_OBJECT_NOT_FOUND;
-            break;
-        }
-        struct FileLock *fl = (struct FileLock *)Croi_AllocShared(sizeof(struct FileLock));
-        if (!fl) {
+        struct DosLockExt *ext = (struct DosLockExt *)Croi_AllocShared(sizeof(struct DosLockExt));
+        if (!ext) {
             dp->dp_Res1 = 0;
             dp->dp_Res2 = ERROR_NO_FREE_STORE;
             break;
         }
-        fl->fl_Link = BNULL;
-        fl->fl_Key = (BPTR)(uptr)cnode;
-        fl->fl_Access = (LONG)dp->dp_Arg3;
-        fl->fl_Task = g_dos_handler_port;
-        fl->fl_Volume = BNULL;
-        dp->dp_Res1 = (SIPTR)(uptr)MKBADDR(fl);
+        u64 cnode;
+        if (dos_resolve(name, base, &cnode, ext->name, sizeof(ext->name)) != CARA_EOK) {
+            Croi_Free(ext);
+            dp->dp_Res1 = 0;
+            dp->dp_Res2 = ERROR_OBJECT_NOT_FOUND;
+            break;
+        }
+        ext->fl.fl_Link = BNULL;
+        ext->fl.fl_Key = (BPTR)(uptr)cnode;
+        ext->fl.fl_Access = (LONG)dp->dp_Arg3;
+        ext->fl.fl_Task = g_dos_handler_port;
+        ext->fl.fl_Volume = BNULL;
+        ext->cursor = (struct CarafsDirCursor){ 0 };
+        dp->dp_Res1 = (SIPTR)(uptr)MKBADDR(&ext->fl);
+        dp->dp_Res2 = 0;
+        break;
+    }
+
+    case ACTION_EXAMINE_OBJECT: {
+        // dp_Arg1 = lock BPTR, dp_Arg2 = FileInfoBlock *. Stats the
+        // locked object and resets its cursor so a following ExNext
+        // lists from the start (for a directory lock).
+        BPTR lock = (BPTR)(uptr)dp->dp_Arg1;
+        struct FileInfoBlock *fib = (struct FileInfoBlock *)(uptr)dp->dp_Arg2;
+        struct CarafsStat st;
+        if (!fib || Carafs_CnodeStat(&g_carafs, lock_cnode(lock), &st) != CARA_EOK) {
+            dp->dp_Res1 = DOSFALSE;
+            dp->dp_Res2 = ERROR_OBJECT_NOT_FOUND;
+            break;
+        }
+        const char *nm = "";
+        u32 nl = 0;
+        if (lock) {
+            struct DosLockExt *ext = (struct DosLockExt *)BADDR(lock);
+            nm = ext->name;
+            while (ext->name[nl]) {
+                nl++;
+            }
+            ext->cursor = (struct CarafsDirCursor){ 0 }; // restart ExNext
+        }
+        fill_fib(fib, &st, nm, nl);
+        dp->dp_Res1 = DOSTRUE;
+        dp->dp_Res2 = 0;
+        break;
+    }
+
+    case ACTION_EXAMINE_NEXT: {
+        // dp_Arg1 = dir lock BPTR, dp_Arg2 = FileInfoBlock *. Advances
+        // the lock's cursor; DOSFALSE + ERROR_NO_MORE_ENTRIES past the end.
+        BPTR lock = (BPTR)(uptr)dp->dp_Arg1;
+        struct FileInfoBlock *fib = (struct FileInfoBlock *)(uptr)dp->dp_Arg2;
+        if (!lock || !fib) {
+            dp->dp_Res1 = DOSFALSE;
+            dp->dp_Res2 = ERROR_OBJECT_WRONG_TYPE;
+            break;
+        }
+        struct DosLockExt *ext = (struct DosLockExt *)BADDR(lock);
+        struct CarafsDirEntry e;
+        int rc = Carafs_DirNext(&g_carafs, lock_cnode(lock), &ext->cursor, &e);
+        if (rc != CARA_EOK) {
+            dp->dp_Res1 = DOSFALSE;
+            dp->dp_Res2 = ERROR_NO_MORE_ENTRIES;
+            break;
+        }
+        struct CarafsStat st;
+        if (Carafs_CnodeStat(&g_carafs, e.cnode, &st) != CARA_EOK) {
+            dp->dp_Res1 = DOSFALSE;
+            dp->dp_Res2 = ERROR_OBJECT_NOT_FOUND;
+            break;
+        }
+        fill_fib(fib, &st, (const char *)e.name, e.name_len);
+        dp->dp_Res1 = DOSTRUE;
         dp->dp_Res2 = 0;
         break;
     }

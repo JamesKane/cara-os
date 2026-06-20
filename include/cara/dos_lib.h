@@ -38,9 +38,12 @@ struct MsgPort *Croi_Dos_HandlerPort_Impl(void);
 void Croi_Dos_Dispatch(struct DosPacket *dp);
 
 // ---- Lock LVOs (L3.3) -----------------------------------------------
+struct FileInfoBlock;
 BPTR Croi_Dos_Lock_Impl(STRPTR name, LONG accessMode);
 void Croi_Dos_UnLock_Impl(BPTR lock);
 BPTR Croi_Dos_DupLock_Impl(BPTR lock);
 BPTR Croi_Dos_CurrentDir_Impl(BPTR lock);
+LONG Croi_Dos_Examine_Impl(BPTR lock, struct FileInfoBlock *fib);
+LONG Croi_Dos_ExNext_Impl(BPTR lock, struct FileInfoBlock *fib);
 
 #endif // CARA_DOS_LIB_H

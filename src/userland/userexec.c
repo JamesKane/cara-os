@@ -512,6 +512,21 @@ int main(void)
     UnLock(duplock);
     BPTR missing = Lock((STRPTR) "no-such-file-zzz", SHARED_LOCK);
     dos_ok = dos_ok && missing == BNULL && IoErr() == ERROR_OBJECT_NOT_FOUND;
+
+    // L3.3b: Examine the root (a directory) then ExNext-walk it. The boot
+    // volume seeds at least S/ in the root, so the listing is non-empty.
+    struct FileInfoBlock fib;
+    dos_ok = dos_ok && Examine(rootlock, &fib) == DOSTRUE;
+    dos_ok = dos_ok && fib.fib_DirEntryType > 0; // root is a directory
+    int dent = 0;
+    while (ExNext(rootlock, &fib) == DOSTRUE) {
+        dent++;
+        if (dent > 64) {
+            break; // guard against a runaway listing
+        }
+    }
+    dos_ok = dos_ok && dent >= 1 && IoErr() == ERROR_NO_MORE_ENTRIES;
+
     UnLock(rootlock);
 
     CloseLibrary(dlib);
