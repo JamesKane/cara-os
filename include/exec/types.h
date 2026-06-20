@@ -29,8 +29,8 @@ typedef int32_t LONG; // V36+ 32-bit, NOT C `long` on RV64
 typedef uint32_t ULONG;
 
 typedef void *APTR;
-typedef void *BPTR; // opaque pointer-sized; non-BCPL on CaraOS
-typedef LONG BSTR;  // BCPL string descriptor — opaque to CaraOS
+typedef void *BPTR; // opaque pointer-sized; non-BCPL on CaraOS (real ptr, no >>2)
+typedef BPTR BSTR;  // BPTR to a length-prefixed string (pointer-width)
 typedef char *STRPTR;
 typedef ULONG CPTR; // legacy 32-bit absolute pointer
 typedef WORD RPTR;  // relative pointer

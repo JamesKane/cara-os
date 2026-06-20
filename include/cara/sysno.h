@@ -77,6 +77,9 @@ enum {
     SYS_CloneTagItems = 38,
     SYS_FreeTagItems = 39,
     SYS_RefreshTagItemClones = 40,
+
+    // Phase 3 L3 — dos.library (the non-packet, syscall-flavour rows).
+    SYS_Dos_IoErr = 41,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -130,6 +133,9 @@ enum {
 #define SYS_CloneTagItems 38
 #define SYS_FreeTagItems 39
 #define SYS_RefreshTagItemClones 40
+
+// Phase 3 L3 — dos.library.
+#define SYS_Dos_IoErr 41
 #endif
 
 #endif

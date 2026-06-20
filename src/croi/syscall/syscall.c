@@ -12,6 +12,7 @@
 // Croi_*_Impl helper from src/croi/exec_lib/.
 
 #include <cara/carafs_bind.h>
+#include <cara/dos_lib.h>
 #include <cara/exec_lib.h>
 #include <cara/intuition_lib.h>
 #include <cara/log.h>
@@ -139,6 +140,10 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)Croi_SetSignal_Impl((ULONG)a0, (ULONG)a1);
     case SYS_FindTask:
         return (i64)(uptr)Croi_FindTask_Impl((STRPTR)(uptr)a0);
+
+    // ---- dos.library (syscall-flavour rows) ----
+    case SYS_Dos_IoErr:
+        return (i64)Croi_Dos_IoErr_Impl();
 
     // ---- utility.library allocating tag helpers ----
     case SYS_AllocateTagItems:

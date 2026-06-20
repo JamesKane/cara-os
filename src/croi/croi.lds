@@ -198,6 +198,10 @@ SECTIONS
          * no trampoline. utility's base + vec table live in the SASOS
          * shared heap (entry.c); the vec entries point in here. */
         KEEP(*(.lib_text.utility))
+        /* dos.library's `syscall`-flavour trampolines (IoErr in L3.1;
+         * the packet ops are `server` flavour). Same shared RX+U region;
+         * dos's base + vec live in the SASOS shared heap. */
+        KEEP(*(.lib_text.dos))
         . = ALIGN(4K);
         __exec_lib_end = .;
     } > LIB_VIRT AT > RAM_PHYS :lib_exec

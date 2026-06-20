@@ -23,6 +23,8 @@
 // status code matches the expected value (CARA_USEREXEC_EXIT_OK).
 
 #include <cara/sysno.h>
+#include <dos/dos.h>
+#include <dos/dosextens.h>
 #include <exec/execbase.h>
 #include <exec/libraries.h>
 #include <exec/lists.h>
@@ -32,6 +34,7 @@
 #include <exec/semaphores.h>
 #include <exec/tasks.h>
 #include <exec/types.h>
+#include <proto/dos.h>
 #include <proto/exec.h>
 #include <proto/utility.h>
 #include <utility/hooks.h>
@@ -51,6 +54,7 @@
 #define USEREXEC_EXIT_SEM_FAIL 0xBADA
 #define USEREXEC_EXIT_FORBID_FAIL 0xBADB
 #define USEREXEC_EXIT_UTIL_FAIL 0xBADC
+#define USEREXEC_EXIT_DOS_FAIL 0xBADD
 
 // Inline ecall for SYS_LOG_WRITE — used to surface progress markers
 // in the kernel log alongside the existing kernel-side messages so
@@ -144,6 +148,10 @@ static bool list_ops_ok(void)
 // OpenLibrary return (the V36+ idiom), exactly like userintuition does
 // for IntuitionBase.
 struct UtilityBase *UtilityBase;
+
+// Referenced by the <proto/dos.h> inline stubs (same idiom as
+// UtilityBase / IntuitionBase — this program owns the global).
+struct DosLibrary *DOSBase;
 
 // A trivial Hook callback for the CallHookPkt exercise: returns
 // object + message so the test can assert the dispatch wired the args
@@ -456,6 +464,35 @@ int main(void)
     if (!util_ok) {
         CloseLibrary(lib);
         return (int)USEREXEC_EXIT_UTIL_FAIL;
+    }
+
+    // 4i. dos.library (L3.1) — open it, then prove the Process model:
+    //     FindTask(NULL) now returns a Task embedded at the front of a
+    //     shared-heap struct Process, so it is castable to Process* and
+    //     U-readable/writable (the L1 FindTask-opacity gap is gone).
+    //     Write pr_Result2 directly and read it back through IoErr()
+    //     (the dos syscall reads Sched_Current()->pr_Result2).
+    struct Library *dlib = OpenLibrary((STRPTR) "dos.library", 36);
+    if (!dlib) {
+        CloseLibrary(lib);
+        return (int)USEREXEC_EXIT_DOS_FAIL;
+    }
+    DOSBase = (struct DosLibrary *)dlib;
+
+    bool dos_ok = (DOSBase->dl_lib.lib_Version == 36);
+    struct Process *me = (struct Process *)FindTask(nullptr);
+    dos_ok = dos_ok && me != nullptr;
+    if (me) {
+        me->pr_Result2 = 4242;              // a normal U-mode store
+        dos_ok = dos_ok && IoErr() == 4242; // dos syscall reads it back
+        me->pr_Result2 = 0;
+        dos_ok = dos_ok && IoErr() == 0;
+    }
+
+    CloseLibrary(dlib);
+    if (!dos_ok) {
+        CloseLibrary(lib);
+        return (int)USEREXEC_EXIT_DOS_FAIL;
     }
 
     // 5. Balance the open. Note: libcara also opened exec.library

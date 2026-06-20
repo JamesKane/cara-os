@@ -204,11 +204,11 @@ always visible.
 1. **`proto/` placement.** LVO-gen emits `proto/<lib>.h`; confirm the
    generated-header search path so app source `#include <proto/dos.h>`
    resolves in both the host app-build and the Gleas build.
-2. **BSTR/BPTR.** ✅ **RESOLVED (L3 scope, `docs/LOGAIC_DOS.md` §2.1).**
-   Real BCPL pointers — `BPTR = addr >> 2` — widened from 32-bit `LONG`
-   to `IPTR` (the same widening as `ti_Data`); `BADDR`/`MKBADDR` macros;
-   conversion only at the dos.library boundary. BSTR = BPTR to a
-   length-prefixed string, converted at the same edge.
+2. **BSTR/BPTR.** ✅ **RESOLVED (L3.1, `docs/LOGAIC_DOS.md` §2.1).**
+   `BPTR` = a real pointer-width value (`void *`, no `>>2` shift) —
+   conforming to the in-tree `typedef void *BPTR` in `<exec/types.h>`;
+   `BADDR`/`MKBADDR` are identity casts. `BSTR` widened to `BPTR`.
+   Conversion only at the dos.library boundary.
 3. **Process vs Task.** ✅ **RESOLVED (L3 scope, `docs/LOGAIC_DOS.md`
    §2.2).** A U-mode Gleas's `struct Task` is embedded at the front of a
    `struct Process` allocated in the SASOS shared heap, so

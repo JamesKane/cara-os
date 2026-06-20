@@ -48,27 +48,29 @@ ABI. A `BPTR` is a machine address shifted right by 2 (a long-word
 address); a `BSTR` is a `BPTR` to a length-prefixed string (first byte
 = length, then the characters, **not** NUL-terminated).
 
-**Decision: a `BPTR` is a real BCPL pointer — `value = addr >> 2` — but
-widened from the classic 32-bit `LONG` to pointer width (`IPTR`),** the
-same widening CaraOS already applied to `ti_Data` (utility/tagitem.h).
-Sv39 user addresses don't fit in 32 bits, but `(addr >> 2) << 2 == addr`
-for any 4-byte-aligned address regardless of width, and every BCPL
-object dos hands out is long-word aligned. The classic macros work:
+**Decision (honouring the representation already chosen in
+`<exec/types.h>`): a `BPTR` is a *real* pointer-width value — `void *`,
+with no `>>2` BCPL shift.** `BADDR`/`MKBADDR` are therefore identity
+casts. (The earlier draft proposed `addr >> 2`; the in-tree
+`typedef void *BPTR` predates this doc, so dos conforms to it rather than
+redefining a load-bearing exec type.) Pointer width is mandatory anyway —
+Sv39 addresses don't fit in 32 bits — so `BSTR` is also widened from the
+stale `typedef LONG BSTR` to `typedef BPTR BSTR`.
 
 ```c
-typedef IPTR BPTR;          // <dos/dos.h>
-typedef BPTR BSTR;
-#define BADDR(b)   ((void *)(((IPTR)(b)) << 2))
-#define MKBADDR(p) ((BPTR)(((IPTR)(p)) >> 2))
+// <exec/types.h>: typedef void *BPTR;  typedef BPTR BSTR;
+#define BADDR(b)   ((void *)(b))    // <dos/dos.h>
+#define MKBADDR(p) ((BPTR)(p))
+#define BNULL      ((BPTR)0)
 ```
 
 A recompiled V36 program that does `BADDR(lock)` to read `fl_Key` gets a
-real pointer. (A program that *stores a BPTR in a 32-bit LONG* breaks —
-the same, accepted, cleanroom-recompile compatibility class as the
-`ti_Data` widening.) **Conversion happens only at the dos boundary:**
-the handler and the library stubs work in native pointers internally and
-expose BPTRs at the ABI edge. BSTR↔C-string conversion gets two helpers
-(`Logaic_BstrToC`, `Logaic_CToBstr`) used at that same edge.
+real pointer (identity). Only code doing raw numeric BPTR arithmetic
+(`lock << 2`) breaks — already broken under SASOS, accepted
+cleanroom-recompile class. **Conversion happens only at the dos
+boundary:** the handler and stubs work in native pointers internally and
+expose BPTRs (which here *are* native pointers) at the ABI edge. BSTR↔C
+conversion gets helpers (`Logaic_BstrToC`/`Logaic_CToBstr`) at that edge.
 
 ### 2.2 Process vs Task — the Gleas Task moves into a shared-heap Process
 

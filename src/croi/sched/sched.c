@@ -13,6 +13,7 @@
 #include <cara/sched.h>
 #include <cara/shared.h>
 #include <cara/types.h>
+#include <dos/dosextens.h> // struct Process — U-mode Tasks live at pr_Task
 
 extern void croi_ctx_switch(u64 *from, u64 *to);
 extern void task_trampoline(void);
@@ -270,11 +271,17 @@ void Croi_Enable(void)
     if (!g_inited || !user_text_kva || user_text_size == 0) {
         return nullptr;
     }
-    struct Task *t = (struct Task *)Croi_Alloc(sizeof(struct Task));
-    if (!t) {
+    // U-mode tasks live at the front of a struct Process in the SASOS
+    // shared heap (docs/LOGAIC_DOS.md §2.2): pr_Task is at offset 0, so
+    // this Task pointer == the Process, FindTask()'s result is
+    // U-readable and castable to struct Process *, and Croi_Free routes
+    // the shared block by range. Kernel tasks stay on the kernel heap.
+    struct Process *proc = (struct Process *)Croi_AllocShared(sizeof(struct Process));
+    if (!proc) {
         return nullptr;
     }
-    *t = (struct Task){ 0 };
+    *proc = (struct Process){ 0 };
+    struct Task *t = &proc->pr_Task;
     task_init_node(t, name, clamp_pri(pri));
     t->tc_State = TS_READY;
 
@@ -380,11 +387,14 @@ void Croi_Enable(void)
     if (!g_inited || !elf_blob || elf_size == 0) {
         return nullptr;
     }
-    struct Task *t = (struct Task *)Croi_Alloc(sizeof(struct Task));
-    if (!t) {
+    // U-mode task at the front of a shared-heap struct Process — see the
+    // note in Croi_SpawnUserTask and docs/LOGAIC_DOS.md §2.2.
+    struct Process *proc = (struct Process *)Croi_AllocShared(sizeof(struct Process));
+    if (!proc) {
         return nullptr;
     }
-    *t = (struct Task){ 0 };
+    *proc = (struct Process){ 0 };
+    struct Task *t = &proc->pr_Task;
     task_init_node(t, name, clamp_pri(pri));
     t->tc_State = TS_READY;
 

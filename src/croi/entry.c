@@ -38,6 +38,7 @@
 #include <cara/trap.h>
 #include <cara/types.h>
 #include <cara/xhci.h>
+#include <dos/dosextens.h>
 #include <exec/libraries.h>
 #include <intuition/intuitionbase.h>
 #include <utility/tagitem.h>
@@ -82,6 +83,13 @@ extern const usize intuition_lib_vec_count;
 // table are allocated in the SASOS shared heap at construction time.
 extern void *utility_lib_vec[];
 extern const usize utility_lib_vec_count;
+
+// Generated likewise from tools/lvo-gen/dos.conf (L3.1). dos.library is
+// Logaic-owned; like intuition/utility its base + vec table live in the
+// SASOS shared heap. L3.1 implements only IoErr (syscall); the file/lock
+// packet ops (server flavour, in the dos handler Gleas) arrive later.
+extern void *dos_lib_vec[];
+extern const usize dos_lib_vec_count;
 
 // Clar (the Phase 1 Workbench Gleas) embedded in the .user_elf section
 // (src/croi/CMakeLists.txt user_blob.S). Spawned as the foreground task
@@ -604,6 +612,39 @@ static void console_putc(char c)
         struct Library *base = Croi_MakeLibrary(mklib_tags);
         if (!base) {
             LOG_FATAL("entry", "Croi_MakeLibrary(utility.library) failed");
+            Croi_Halt();
+        }
+    }
+
+    // ---- Construct dos.library (L3.1).
+    //      Same shared-heap layout as intuition/utility. L3.1 ships only
+    //      the ABI + IoErr; the file/lock packet ops (server flavour) and
+    //      the dos handler Gleas arrive with later L3 slices.
+    {
+        usize priv_size = sizeof(struct DosLibrary) - sizeof(struct Library);
+        usize neg_size = sizeof(void *) * dos_lib_vec_count;
+        usize block_size = neg_size + sizeof(struct Library) + priv_size;
+
+        u8 *block = (u8 *)Croi_AllocShared(block_size);
+        if (!block) {
+            LOG_FATAL("entry", "AllocShared(dos.library, %llu bytes) failed", (u64)block_size);
+            Croi_Halt();
+        }
+        struct Library *dbase = (struct Library *)(block + neg_size);
+
+        struct TagItem mklib_tags[] = {
+            { MKL_NAME, (IPTR) "dos.library" },
+            { MKL_BASE, (IPTR)dbase },
+            { MKL_VEC_TABLE, (IPTR)dos_lib_vec },
+            { MKL_VEC_COUNT, (IPTR)dos_lib_vec_count },
+            { MKL_VERSION, 36 },
+            { MKL_REVISION, 0 },
+            { MKL_PRIVATE_SIZE, (IPTR)priv_size },
+            { TAG_END, 0 },
+        };
+        struct Library *base = Croi_MakeLibrary(mklib_tags);
+        if (!base) {
+            LOG_FATAL("entry", "Croi_MakeLibrary(dos.library) failed");
             Croi_Halt();
         }
     }
