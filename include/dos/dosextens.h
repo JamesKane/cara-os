@@ -116,6 +116,23 @@ struct FileHandle {
     LONG fh_Arg2;
 };
 
+// Info() result block — volume statistics (3rd Edition dos/dosextens.h).
+struct InfoData {
+    LONG id_NumSoftErrors;
+    LONG id_UnitNumber;
+    LONG id_DiskState;
+    LONG id_NumBlocks;
+    LONG id_NumBlocksUsed;
+    LONG id_BytesPerBlock;
+    LONG id_DiskType;
+    BPTR id_VolumeNode;
+    LONG id_InUse;
+};
+
+#define ID_VALIDATING 81
+#define ID_VALIDATED 82
+#define ID_DOS_DISK 0x444F5300 // 'DOS\0'
+
 // Packet ACTION_* request codes (the subset L3 implements; more land
 // with later slices). Values are the canonical AmigaDOS codes.
 #define ACTION_NIL 0

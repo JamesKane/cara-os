@@ -92,6 +92,10 @@ enum {
     SYS_Dos_Read = 51,
     SYS_Dos_Write = 52,
     SYS_Dos_Seek = 53,
+    SYS_Dos_DeleteFile = 54,
+    SYS_Dos_Rename = 55,
+    SYS_Dos_Info = 56,
+    SYS_Dos_CreateDir = 57,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -160,6 +164,10 @@ enum {
 #define SYS_Dos_Read 51
 #define SYS_Dos_Write 52
 #define SYS_Dos_Seek 53
+#define SYS_Dos_DeleteFile 54
+#define SYS_Dos_Rename 55
+#define SYS_Dos_Info 56
+#define SYS_Dos_CreateDir 57
 #endif
 
 #endif

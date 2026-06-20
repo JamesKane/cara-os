@@ -167,3 +167,55 @@ LONG Croi_Dos_Seek_Impl(BPTR file, LONG position, LONG mode)
     set_ioerr(dp.dp_Res2);
     return (LONG)dp.dp_Res1;
 }
+
+// DeleteFile(name) → BOOL.
+LONG Croi_Dos_DeleteFile_Impl(STRPTR name)
+{
+    struct Process *p = (struct Process *)Sched_Current();
+    struct DosPacket dp = { 0 };
+    dp.dp_Type = ACTION_DELETE_OBJECT;
+    dp.dp_Arg1 = (SIPTR)(uptr)(p ? p->pr_CurrentDir : BNULL);
+    dp.dp_Arg2 = (SIPTR)(uptr)name;
+    Croi_Dos_Dispatch(&dp);
+    set_ioerr(dp.dp_Res2);
+    return (LONG)dp.dp_Res1;
+}
+
+// Rename(oldName, newName) → BOOL.
+LONG Croi_Dos_Rename_Impl(STRPTR oldName, STRPTR newName)
+{
+    struct Process *p = (struct Process *)Sched_Current();
+    struct DosPacket dp = { 0 };
+    dp.dp_Type = ACTION_RENAME_OBJECT;
+    dp.dp_Arg1 = (SIPTR)(uptr)(p ? p->pr_CurrentDir : BNULL);
+    dp.dp_Arg2 = (SIPTR)(uptr)oldName;
+    dp.dp_Arg3 = (SIPTR)(uptr)newName;
+    Croi_Dos_Dispatch(&dp);
+    set_ioerr(dp.dp_Res2);
+    return (LONG)dp.dp_Res1;
+}
+
+// Info(lock, parameterBlock) → BOOL. Fills volume statistics.
+LONG Croi_Dos_Info_Impl(BPTR lock, struct InfoData *parameterBlock)
+{
+    struct DosPacket dp = { 0 };
+    dp.dp_Type = ACTION_DISK_INFO;
+    dp.dp_Arg1 = (SIPTR)(uptr)lock;
+    dp.dp_Arg2 = (SIPTR)(uptr)parameterBlock;
+    Croi_Dos_Dispatch(&dp);
+    set_ioerr(dp.dp_Res2);
+    return (LONG)dp.dp_Res1;
+}
+
+// CreateDir(name) → BPTR lock on the new directory (0 on failure).
+BPTR Croi_Dos_CreateDir_Impl(STRPTR name)
+{
+    struct Process *p = (struct Process *)Sched_Current();
+    struct DosPacket dp = { 0 };
+    dp.dp_Type = ACTION_CREATE_DIR;
+    dp.dp_Arg1 = (SIPTR)(uptr)(p ? p->pr_CurrentDir : BNULL);
+    dp.dp_Arg2 = (SIPTR)(uptr)name;
+    Croi_Dos_Dispatch(&dp);
+    set_ioerr(dp.dp_Res2);
+    return (BPTR)(uptr)dp.dp_Res1;
+}

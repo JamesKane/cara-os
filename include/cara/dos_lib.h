@@ -53,4 +53,11 @@ LONG Croi_Dos_Read_Impl(BPTR file, APTR buffer, LONG length);
 LONG Croi_Dos_Write_Impl(BPTR file, APTR buffer, LONG length);
 LONG Croi_Dos_Seek_Impl(BPTR file, LONG position, LONG mode);
 
+// ---- Mutation + info LVOs (L3.5) ------------------------------------
+struct InfoData;
+LONG Croi_Dos_DeleteFile_Impl(STRPTR name);
+LONG Croi_Dos_Rename_Impl(STRPTR oldName, STRPTR newName);
+LONG Croi_Dos_Info_Impl(BPTR lock, struct InfoData *parameterBlock);
+BPTR Croi_Dos_CreateDir_Impl(STRPTR name);
+
 #endif // CARA_DOS_LIB_H

@@ -169,6 +169,14 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)Croi_Dos_Write_Impl((BPTR)(uptr)a0, (APTR)(uptr)a1, (LONG)a2);
     case SYS_Dos_Seek:
         return (i64)Croi_Dos_Seek_Impl((BPTR)(uptr)a0, (LONG)a1, (LONG)a2);
+    case SYS_Dos_DeleteFile:
+        return (i64)Croi_Dos_DeleteFile_Impl((STRPTR)(uptr)a0);
+    case SYS_Dos_Rename:
+        return (i64)Croi_Dos_Rename_Impl((STRPTR)(uptr)a0, (STRPTR)(uptr)a1);
+    case SYS_Dos_Info:
+        return (i64)Croi_Dos_Info_Impl((BPTR)(uptr)a0, (struct InfoData *)(uptr)a1);
+    case SYS_Dos_CreateDir:
+        return (i64)(uptr)Croi_Dos_CreateDir_Impl((STRPTR)(uptr)a0);
 
     // ---- utility.library allocating tag helpers ----
     case SYS_AllocateTagItems:

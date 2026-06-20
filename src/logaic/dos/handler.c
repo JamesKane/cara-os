@@ -458,9 +458,122 @@ void Croi_Dos_Dispatch(struct DosPacket *dp)
         break;
     }
 
+    case ACTION_DELETE_OBJECT: {
+        // dp_Arg1 = base lock, dp_Arg2 = name.
+        const char *name = (const char *)(uptr)dp->dp_Arg2;
+        u64 base = lock_cnode((BPTR)(uptr)dp->dp_Arg1);
+        u64 parent;
+        char comp[256];
+        if (dos_resolve_parent(name, base, &parent, comp, sizeof(comp)) != CARA_EOK ||
+            Carafs_DirRemove(&g_carafs, parent, comp, dos_strlen(comp)) != CARA_EOK) {
+            dp->dp_Res1 = DOSFALSE;
+            dp->dp_Res2 = ERROR_OBJECT_NOT_FOUND;
+            break;
+        }
+        dp->dp_Res1 = DOSTRUE;
+        dp->dp_Res2 = 0;
+        break;
+    }
+
+    case ACTION_RENAME_OBJECT: {
+        // dp_Arg1 = base lock, dp_Arg2 = old name, dp_Arg3 = new name.
+        // v0: files only (CaraFS hard-links don't cover directories).
+        u64 base = lock_cnode((BPTR)(uptr)dp->dp_Arg1);
+        u64 pold, pnew;
+        char cold[256], cnew[256];
+        if (dos_resolve_parent((const char *)(uptr)dp->dp_Arg2, base, &pold, cold, sizeof(cold)) !=
+                CARA_EOK ||
+            dos_resolve_parent((const char *)(uptr)dp->dp_Arg3, base, &pnew, cnew, sizeof(cnew)) !=
+                CARA_EOK) {
+            dp->dp_Res1 = DOSFALSE;
+            dp->dp_Res2 = ERROR_OBJECT_NOT_FOUND;
+            break;
+        }
+        u64 cnode;
+        u16 type;
+        if (Carafs_DirLookup(&g_carafs, pold, cold, dos_strlen(cold), &cnode, &type) != CARA_EOK) {
+            dp->dp_Res1 = DOSFALSE;
+            dp->dp_Res2 = ERROR_OBJECT_NOT_FOUND;
+            break;
+        }
+        // Link the cnode under the new name, then drop the old name.
+        if (Carafs_DirLink(&g_carafs, pnew, cnew, dos_strlen(cnew), cnode) != CARA_EOK ||
+            Carafs_DirRemove(&g_carafs, pold, cold, dos_strlen(cold)) != CARA_EOK) {
+            dp->dp_Res1 = DOSFALSE;
+            dp->dp_Res2 = ERROR_OBJECT_WRONG_TYPE; // e.g. a directory
+            break;
+        }
+        dp->dp_Res1 = DOSTRUE;
+        dp->dp_Res2 = 0;
+        break;
+    }
+
+    case ACTION_CREATE_DIR: {
+        // dp_Arg1 = base lock, dp_Arg2 = name. Returns a lock on the new
+        // directory (BPTR) or 0.
+        const char *name = (const char *)(uptr)dp->dp_Arg2;
+        u64 base = lock_cnode((BPTR)(uptr)dp->dp_Arg1);
+        u64 parent;
+        char comp[256];
+        u64 cnode;
+        if (dos_resolve_parent(name, base, &parent, comp, sizeof(comp)) != CARA_EOK ||
+            Carafs_DirCreate(&g_carafs, parent, comp, dos_strlen(comp), CARAFS_T_DIR, &cnode) !=
+                CARA_EOK) {
+            dp->dp_Res1 = 0;
+            dp->dp_Res2 = ERROR_OBJECT_EXISTS;
+            break;
+        }
+        struct DosLockExt *ext = (struct DosLockExt *)Croi_AllocShared(sizeof(struct DosLockExt));
+        if (!ext) {
+            dp->dp_Res1 = 0;
+            dp->dp_Res2 = ERROR_NO_FREE_STORE;
+            break;
+        }
+        ext->fl.fl_Link = BNULL;
+        ext->fl.fl_Key = (BPTR)(uptr)cnode;
+        ext->fl.fl_Access = SHARED_LOCK;
+        ext->fl.fl_Task = g_dos_handler_port;
+        ext->fl.fl_Volume = BNULL;
+        ext->cursor = (struct CarafsDirCursor){ 0 };
+        u32 n = dos_strlen(comp);
+        n = n < sizeof(ext->name) - 1 ? n : (u32)(sizeof(ext->name) - 1);
+        for (u32 i = 0; i < n; i++) {
+            ext->name[i] = comp[i];
+        }
+        ext->name[n] = 0;
+        dp->dp_Res1 = (SIPTR)(uptr)MKBADDR(&ext->fl);
+        dp->dp_Res2 = 0;
+        break;
+    }
+
+    case ACTION_DISK_INFO: {
+        // dp_Arg2 = struct InfoData *. Fill volume statistics from the
+        // superblock. dp_Arg1 (the lock) is ignored — one volume in v0.
+        struct InfoData *id = (struct InfoData *)(uptr)dp->dp_Arg2;
+        if (!id) {
+            dp->dp_Res1 = DOSFALSE;
+            dp->dp_Res2 = ERROR_OBJECT_WRONG_TYPE;
+            break;
+        }
+        u32 bsz = 1u << g_carafs.sb.block_size_log2;
+        id->id_NumSoftErrors = 0;
+        id->id_UnitNumber = 0;
+        id->id_DiskState = ID_VALIDATED;
+        id->id_NumBlocks = (LONG)g_carafs.sb.total_blocks;
+        id->id_NumBlocksUsed = (LONG)(g_carafs.sb.total_blocks - g_carafs.sb.free_blocks);
+        id->id_BytesPerBlock = (LONG)bsz;
+        id->id_DiskType = ID_DOS_DISK;
+        id->id_VolumeNode = BNULL;
+        id->id_InUse = 0;
+        dp->dp_Res1 = DOSTRUE;
+        dp->dp_Res2 = 0;
+        break;
+    }
+
     default:
-        // Unimplemented action (more land in L3.5+). Fail cleanly so a
-        // caller never hangs.
+        // Unimplemented action (e.g. SetProtection/SetComment/SetFileDate
+        // need CaraFS attribute setters that don't exist yet). Fail
+        // cleanly so a caller never hangs.
         dp->dp_Res1 = DOSFALSE;
         dp->dp_Res2 = ERROR_OBJECT_WRONG_TYPE;
         break;

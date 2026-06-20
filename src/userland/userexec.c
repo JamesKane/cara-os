@@ -556,6 +556,37 @@ int main(void)
         Close(rf);
     }
 
+    // L3.5 mutation + info. CreateDir, DeleteFile (removes the L3.4 file
+    // and confirms it's gone), Rename (file moved old→new), Info.
+    BPTR ndir = CreateDir((STRPTR) "uexec-dir");
+    dos_ok = dos_ok && ndir != BNULL;
+    if (ndir) {
+        UnLock(ndir);
+    }
+    dos_ok = dos_ok && DeleteFile((STRPTR) "uexec-test.txt") == DOSTRUE;
+    dos_ok = dos_ok && Lock((STRPTR) "uexec-test.txt", SHARED_LOCK) == BNULL;
+
+    BPTR mk = Open((STRPTR) "ren-a.txt", MODE_NEWFILE);
+    if (mk) {
+        Write(mk, (APTR) "x", 1);
+        Close(mk);
+    }
+    dos_ok = dos_ok && Rename((STRPTR) "ren-a.txt", (STRPTR) "ren-b.txt") == DOSTRUE;
+    dos_ok = dos_ok && Lock((STRPTR) "ren-a.txt", SHARED_LOCK) == BNULL;
+    BPTR rb = Lock((STRPTR) "ren-b.txt", SHARED_LOCK);
+    dos_ok = dos_ok && rb != BNULL;
+    if (rb) {
+        UnLock(rb);
+    }
+
+    struct InfoData info;
+    BPTR il = Lock((STRPTR) ":", SHARED_LOCK);
+    dos_ok = dos_ok && Info(il, &info) == DOSTRUE && info.id_NumBlocks > 0 &&
+             info.id_BytesPerBlock > 0;
+    if (il) {
+        UnLock(il);
+    }
+
     CloseLibrary(dlib);
     if (!dos_ok) {
         CloseLibrary(lib);
