@@ -45,6 +45,12 @@
 #define TS_EXCEPT 5
 #define TS_REMOVED 6
 
+// Reserved system signals (V36+): bits 0..15 are reserved for the
+// system; AllocSignal hands out 16..31. SIGB_SINGLE (bit 4) is the
+// single-shot signal exec uses internally for semaphore waits.
+#define SIGB_SINGLE 4
+#define SIGF_SINGLE (1UL << 4)
+
 struct PageTable; // forward — kernel-private, defined in cara/mm.h
 
 struct Task {

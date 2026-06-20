@@ -62,6 +62,10 @@ enum {
     SYS_DeleteMsgPort = 26,
     SYS_ReplyMsg = 27,
     SYS_FindTask = 28,
+    SYS_InitSemaphore = 29,
+    SYS_ObtainSemaphore = 30,
+    SYS_ReleaseSemaphore = 31,
+    SYS_AttemptSemaphore = 32,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -101,6 +105,10 @@ enum {
 #define SYS_DeleteMsgPort 26
 #define SYS_ReplyMsg 27
 #define SYS_FindTask 28
+#define SYS_InitSemaphore 29
+#define SYS_ObtainSemaphore 30
+#define SYS_ReleaseSemaphore 31
+#define SYS_AttemptSemaphore 32
 #endif
 
 #endif

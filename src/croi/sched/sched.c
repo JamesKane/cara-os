@@ -458,7 +458,10 @@ void Sched_ReapDead(void)
     if (!g_current) {
         return -1;
     }
-    for (u32 b = 0; b < 32; b++) {
+    // Signals 0..15 are reserved for the system (V36+ convention); user
+    // allocations come from 16..31. This keeps SIGB_SINGLE (bit 4) free
+    // for exec's internal semaphore-wait handoff (exec/tasks.h).
+    for (u32 b = 16; b < 32; b++) {
         u32 mask = 1u << b;
         if (!(g_current->tc_SigAlloc & mask)) {
             g_current->tc_SigAlloc |= mask;

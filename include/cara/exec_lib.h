@@ -43,6 +43,14 @@ void Croi_ReplyMsg_Impl(struct Message *msg);
 struct MsgPort *Croi_CreateMsgPort_Impl(void);
 void Croi_DeleteMsgPort_Impl(struct MsgPort *port);
 
+// ---- Semaphores -----------------------------------------------------
+
+struct SignalSemaphore;
+void Croi_InitSemaphore_Impl(struct SignalSemaphore *sem);
+void Croi_ObtainSemaphore_Impl(struct SignalSemaphore *sem);
+void Croi_ReleaseSemaphore_Impl(struct SignalSemaphore *sem);
+BOOL Croi_AttemptSemaphore_Impl(struct SignalSemaphore *sem);
+
 // ---- Library lifecycle ----------------------------------------------
 
 struct Library;

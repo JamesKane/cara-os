@@ -22,6 +22,7 @@
 #include <cara/types.h>
 #include <exec/libraries.h>
 #include <exec/ports.h>
+#include <exec/semaphores.h>
 #include <exec/tasks.h>
 #include <exec/types.h>
 
@@ -137,6 +138,19 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)Croi_SetSignal_Impl((ULONG)a0, (ULONG)a1);
     case SYS_FindTask:
         return (i64)(uptr)Croi_FindTask_Impl((STRPTR)(uptr)a0);
+
+    // ---- exec.library semaphores ----
+    case SYS_InitSemaphore:
+        Croi_InitSemaphore_Impl((struct SignalSemaphore *)(uptr)a0);
+        return 0;
+    case SYS_ObtainSemaphore:
+        Croi_ObtainSemaphore_Impl((struct SignalSemaphore *)(uptr)a0);
+        return 0;
+    case SYS_ReleaseSemaphore:
+        Croi_ReleaseSemaphore_Impl((struct SignalSemaphore *)(uptr)a0);
+        return 0;
+    case SYS_AttemptSemaphore:
+        return (i64)Croi_AttemptSemaphore_Impl((struct SignalSemaphore *)(uptr)a0);
 
     // ---- exec.library IPC ----
     case SYS_PutMsg:

@@ -58,6 +58,12 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_SetSignal,       SYS_SetSignal
 // ---- Tasks ----
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_FindTask,        SYS_FindTask
 
+// ---- Semaphores ----
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_InitSemaphore,    SYS_InitSemaphore
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_ObtainSemaphore,  SYS_ObtainSemaphore
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_ReleaseSemaphore, SYS_ReleaseSemaphore
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AttemptSemaphore, SYS_AttemptSemaphore
+
 // ---- IPC ----
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_PutMsg,          SYS_PutMsg
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GetMsg,          SYS_GetMsg

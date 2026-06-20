@@ -29,6 +29,7 @@
 #include <exec/memory.h>
 #include <exec/nodes.h>
 #include <exec/ports.h>
+#include <exec/semaphores.h>
 #include <exec/tasks.h>
 #include <exec/types.h>
 #include <proto/exec.h>
@@ -43,6 +44,7 @@
 #define USEREXEC_EXIT_MSG_FAIL 0xBAD7
 #define USEREXEC_EXIT_TASK_FAIL 0xBAD8
 #define USEREXEC_EXIT_COPY_FAIL 0xBAD9
+#define USEREXEC_EXIT_SEM_FAIL 0xBADA
 
 // Inline ecall for SYS_LOG_WRITE — used to surface progress markers
 // in the kernel log alongside the existing kernel-side messages so
@@ -287,6 +289,33 @@ int main(void)
             CloseLibrary(lib);
             return (int)USEREXEC_EXIT_COPY_FAIL;
         }
+    }
+
+    // 4f. Signal semaphores — uncontended obtain/nest/release/attempt
+    //     (the struct is our own memory, so we can read ss_Owner /
+    //     ss_NestCount back). Contended cross-task blocking isn't
+    //     exercised here (single task).
+    struct SignalSemaphore sem;
+    InitSemaphore(&sem);
+    bool sem_ok = (sem.ss_Owner == nullptr && sem.ss_NestCount == 0);
+    ObtainSemaphore(&sem);
+    sem_ok = sem_ok && (sem.ss_Owner == self && sem.ss_NestCount == 1);
+    ObtainSemaphore(&sem); // nest
+    sem_ok = sem_ok && (sem.ss_NestCount == 2);
+    ReleaseSemaphore(&sem);
+    sem_ok = sem_ok && (sem.ss_NestCount == 1 && sem.ss_Owner == self);
+    ReleaseSemaphore(&sem);
+    sem_ok = sem_ok && (sem.ss_NestCount == 0 && sem.ss_Owner == nullptr);
+    sem_ok = sem_ok && AttemptSemaphore(&sem); // free → takes it
+    sem_ok = sem_ok && (sem.ss_Owner == self && sem.ss_NestCount == 1);
+    sem_ok = sem_ok && AttemptSemaphore(&sem); // already owner → nests
+    sem_ok = sem_ok && (sem.ss_NestCount == 2);
+    ReleaseSemaphore(&sem);
+    ReleaseSemaphore(&sem);
+    sem_ok = sem_ok && (sem.ss_Owner == nullptr);
+    if (!sem_ok) {
+        CloseLibrary(lib);
+        return (int)USEREXEC_EXIT_SEM_FAIL;
     }
 
     // 5. Balance the open. Note: libcara also opened exec.library

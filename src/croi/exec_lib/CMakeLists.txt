@@ -11,6 +11,7 @@ add_library(cara_exec_lib STATIC
     signal.c
     list_ops.c
     copy_ops.c
+    sem.c
     ipc.c
     library_registry.c
     make_library.c
