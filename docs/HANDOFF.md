@@ -349,18 +349,31 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   stubs are the 2 reserved private slots + the V37 date/math/string
   functions (`Amiga2Date`/`SMult32`/`Stricmp`/…) — pure leaf functions,
   implement on demand if an app needs them (all could be `local`).
-- **NEXT: L3 — `dos.library`** (Logaic). The keystone epic: a handler
-  Gleas owns the CaraFS mount and receives `DosPacket`s; dos LVOs are
-  `server`-flavour (PutMsg round-trip) for packet ops, `local`/`syscall`
-  for the rest. Retires the `Croi_Fs_*` G3 stopgap (delete those
-  syscalls + repoint Clar). The PHASE3.md §7 open questions land here:
-  **BSTR/BPTR** (BCPL pointer/string boundary — decide at the handler
-  edge) and **Process vs Task** (`pr_*` hangs off the Gleas/Task — pin
-  the layout). Big enough to want a scoping pass first. This is the first
-  `server`-flavour library (cruth declares server rows but they're
-  stubbed) — the PutMsg marshalling in `proto`/vec (`LVO.md §12.2`) is
-  currently `[[gnu::error]]`/`Croi_LvoServerStub`, so L3 also builds the
-  server-flavour call path.
+- **L3 — `dos.library` (Logaic): SCOPED (`84b37f9`, `docs/LOGAIC_DOS.md`).**
+  The keystone epic. Read that doc before cutting L3 code. Decisions
+  locked there: **BPTR** = real BCPL pointer `addr>>2` widened to `IPTR`
+  (BADDR/MKBADDR; convert only at the dos edge); **Process** = U-mode
+  Gleas `struct Task` embedded at the front of a shared-heap
+  `struct Process` (makes `(struct Process *)FindTask(NULL)` legal in
+  U-mode — *also fixes the L1 FindTask-opacity gap*); **architecture** =
+  U-mode Logaic handler Gleas, `server`-flavour `DosPacket`/`ACTION_*`
+  ops, reaching CaraFS via a handler-only cnode/lock-level kernel FS
+  syscall surface (the cnode API in `carafs.h`: `CnodeStat`/`FileRead`/
+  `FileWrite`/`DirLookup`/`DirNext`/…). L3 builds the **deferred
+  server-flavour call path** (LVO.md §12: real lvo-gen server stub +
+  libcara per-task reply port + synchronous PutMsg/WaitPort) — reusable
+  by L4/L6. Seven slices L3.1..L3.7; **L3.7 retires the `Croi_Fs_*`
+  stopgap** (delete the app-facing name-in-root `SYS_Fs_Read/Write`,
+  repoint Clar to dos Open/Read/Write/Close; the handler-only FS syscalls
+  stay).
+- **NEXT: L3.1** — dos ABI headers (`dos/dos.h`, `dos/dosextens.h`) +
+  `dos.conf` (full autodoc, mostly stubs) + Logaic constructs
+  dos.library at boot + **the Task→shared-heap-Process move** in
+  `Croi_SpawnUserTask` (`Croi_Alloc`→`Croi_AllocShared`) + `FindTask`
+  returns it + `IoErr`/`SetIoErr` (`local`, over `pr_Result2`). Done
+  when a V36 program opens dos.library, casts `FindTask(NULL)` to
+  `Process *`, reads `pr_*` without faulting, and `SetIoErr(42);
+  IoErr()==42`.
 - **Deferred exec long-tail (optional, low-value):** `MakeLibrary`/
   `MakeFunctions`/`SetFunction`/`SumLibrary` (library-author API;
   `Croi_MakeLibrary` is the substrate). Device prims (`OpenDevice`/`DoIO`/
