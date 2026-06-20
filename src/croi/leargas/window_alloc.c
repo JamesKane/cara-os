@@ -68,6 +68,14 @@ void Leargas_CloseWindow(struct Window *pub)
     }
     struct LeargasWindow *w = Leargas_Window_FromPub(pub);
 
+    // A closing window must not stay the focused window — otherwise the
+    // process-wide active pointer dangles, and if the heap reuses the
+    // address a later ActivateWindow mistakes the new window for the
+    // already-active one (it short-circuits). Clear focus first.
+    if (Leargas_ActiveWindow() == pub) {
+        Leargas_SetActiveWindow(nullptr);
+    }
+
     // LF — tear down the IDCMP UserPort. Drain and free any messages the
     // client never consumed first (they're heap-allocated IntuiMessages),
     // then destroy the port and release its signal bit. FreeSignal acts

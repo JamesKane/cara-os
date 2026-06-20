@@ -175,6 +175,50 @@ void Croi_ModifyIDCMP_Impl(struct Window *w, ULONG idcmpFlags)
     }
 }
 
+// ---- Window ops + activation (L5.2) ---------------------------------
+
+void Croi_MoveWindow_Impl(struct Window *w, WORD dx, WORD dy)
+{
+    Leargas_MoveWindow(w, dx, dy);
+}
+
+void Croi_SizeWindow_Impl(struct Window *w, WORD dx, WORD dy)
+{
+    Leargas_SizeWindow(w, dx, dy);
+}
+
+void Croi_WindowToFront_Impl(struct Window *w)
+{
+    Leargas_WindowToFront(w);
+}
+
+void Croi_WindowToBack_Impl(struct Window *w)
+{
+    Leargas_WindowToBack(w);
+}
+
+void Croi_SetWindowTitles_Impl(struct Window *w, STRPTR windowTitle, STRPTR screenTitle)
+{
+    Leargas_SetWindowTitles(w, (const char *)windowTitle, (const char *)screenTitle);
+}
+
+// ActivateWindow — make `w` the focused window and post the IDCMP
+// active/inactive edges (gated on each window's IDCMPFlags + UserPort).
+void Croi_ActivateWindow_Impl(struct Window *w)
+{
+    struct Window *old = Leargas_ActiveWindow();
+    if (old == w) {
+        return;
+    }
+    Leargas_SetActiveWindow(w);
+    if (old) {
+        (void)Leargas_IDCMP_PostClass(old, IDCMP_INACTIVEWINDOW);
+    }
+    if (w) {
+        (void)Leargas_IDCMP_PostClass(w, IDCMP_ACTIVEWINDOW);
+    }
+}
+
 // ---- Gadgets --------------------------------------------------------
 
 UWORD Croi_AddGadget_Impl(struct Window *w, struct Gadget *g, ULONG position)

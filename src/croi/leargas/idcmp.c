@@ -71,6 +71,44 @@ void Leargas_IDCMP_DisposeMsg(struct IntuiMessage *im)
     }
 }
 
+// Post a bare IntuiMessage of `cls` to a window (L5.2). Gated on the
+// window having requested the class + a UserPort. Used for the
+// IDCMP_ACTIVEWINDOW/INACTIVEWINDOW edges (and reusable for other
+// classless events). Mirrors PostCloseWindow.
+[[nodiscard]] bool Leargas_IDCMP_PostClass(struct Window *w, ULONG cls)
+{
+    if (!w || !w->UserPort) {
+        return false;
+    }
+    if (!(w->IDCMPFlags & cls)) {
+        return false;
+    }
+    struct IntuiMessage *im = (struct IntuiMessage *)Croi_AllocShared(sizeof(struct IntuiMessage));
+    if (!im) {
+        return false;
+    }
+    *im = (struct IntuiMessage){ 0 };
+    im->ExecMessage.mn_Length = (UWORD)sizeof(struct IntuiMessage);
+    im->Class = cls;
+    im->IDCMPWindow = w;
+    if (w->WScreen) {
+        im->MouseX = (WORD)(w->WScreen->MouseX - w->LeftEdge);
+        im->MouseY = (WORD)(w->WScreen->MouseY - w->TopEdge);
+    }
+    struct CroiMsgPort *port = (struct CroiMsgPort *)w->UserPort;
+    struct RingSlot slot = {
+        .kind = cls,
+        .length = (u32)sizeof(struct IntuiMessage),
+        .payload = (uptr)im,
+        .reserved = 0,
+    };
+    if (!Croi_PutMsg(port, slot)) {
+        Croi_Free(im);
+        return false;
+    }
+    return true;
+}
+
 [[nodiscard]] bool Leargas_IDCMP_PostMouseButtons(struct Window *w,
                                                   const struct LeargasInputEvent *ev)
 {

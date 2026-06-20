@@ -67,3 +67,61 @@ KERNEL_TEST(intuition_openwindowtaglist)
     Leargas_CloseWindow(win);
     Leargas_CloseScreen(scr);
 }
+
+// L5.2 — window ops + activation.
+KERNEL_TEST(intuition_window_ops)
+{
+    static u32 pixels[64 * 48];
+    struct DathFramebuffer fb;
+    TEST_ASSERT(ctx,
+                Dath_Framebuffer_Init(&fb, pixels, 64, 48, 64 * 4, DATH_FMT_RGBA8888) == CARA_EOK,
+                "fb init");
+    struct Screen *scr = Leargas_OpenScreen(&fb, "wb", 0);
+    TEST_ASSERT(ctx, scr != nullptr, "OpenScreen");
+
+    struct TagItem t1[] = {
+        { WA_Left, 4 },    { WA_Top, 4 },     { WA_Width, 30 },
+        { WA_Height, 24 }, { WA_DragBar, 1 }, { TAG_DONE, 0 },
+    };
+    struct Window *w1 = Croi_OpenWindowTagList_Impl(nullptr, t1);
+    TEST_ASSERT(ctx, w1 != nullptr, "open w1");
+
+    // MoveWindow updates geometry and recomputes the RPort sub-bitmap.
+    Croi_MoveWindow_Impl(w1, 6, 3);
+    TEST_ASSERT(ctx, w1->LeftEdge == 10 && w1->TopEdge == 7, "MoveWindow geometry");
+    Croi_Gfx_SetAPen_Impl(w1->RPort, 2); // red
+    Croi_Gfx_WritePixel_Impl(w1->RPort, 0, 0);
+    i32 ox = w1->LeftEdge + w1->BorderLeft;
+    i32 oy = w1->TopEdge + w1->BorderTop;
+    TEST_ASSERT(ctx, pixels[(u32)oy * 64 + (u32)ox] == 0xFFFF0000u, "RPort recomputed after move");
+
+    // SizeWindow adjusts by the delta.
+    WORD ow = w1->Width;
+    WORD oh = w1->Height;
+    Croi_SizeWindow_Impl(w1, 8, 4);
+    TEST_ASSERT(ctx, w1->Width == ow + 8 && w1->Height == oh + 4, "SizeWindow");
+
+    // SetWindowTitles (screen title unchanged via the -1 sentinel).
+    Croi_SetWindowTitles_Impl(w1, (STRPTR) "New", (STRPTR)(uptr)-1);
+    TEST_ASSERT(ctx, w1->Title != nullptr && w1->Title[0] == 'N', "SetWindowTitles");
+
+    // ActivateWindow sets WFLG_WINDOWACTIVE.
+    Croi_ActivateWindow_Impl(w1);
+    TEST_ASSERT(ctx, (w1->Flags & WFLG_WINDOWACTIVE) != 0, "ActivateWindow");
+
+    // Front/back reorder the screen window list (open a 2nd window first;
+    // it head-inserts, so it starts front-most).
+    struct TagItem t2[] = {
+        { WA_Left, 20 }, { WA_Top, 20 }, { WA_Width, 20 }, { WA_Height, 16 }, { TAG_DONE, 0 },
+    };
+    struct Window *w2 = Croi_OpenWindowTagList_Impl(nullptr, t2);
+    TEST_ASSERT(ctx, w2 != nullptr && scr->FirstWindow == w2, "w2 front-most on open");
+    Croi_WindowToFront_Impl(w1);
+    TEST_ASSERT(ctx, scr->FirstWindow == w1, "WindowToFront");
+    Croi_WindowToBack_Impl(w1);
+    TEST_ASSERT(ctx, scr->FirstWindow == w2, "WindowToBack");
+
+    Leargas_CloseWindow(w2);
+    Leargas_CloseWindow(w1);
+    Leargas_CloseScreen(scr);
+}

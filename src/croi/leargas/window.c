@@ -33,6 +33,54 @@ static u32 copy_bounded(char *dst, u32 dst_cap, const char *src)
     return i;
 }
 
+// L5.1/L5.2: (re)compute the window content RPort — a "sub-bitmap" view
+// onto the screen framebuffer (docs/LEARGAS_INTUITION.md §2.2). surf keeps
+// the screen stride but is offset to the window's content origin and sized
+// to the inner area, so drawing into window->RPort is window-relative,
+// auto-clips to the window, and lands directly on the screen (v0: no
+// backing store, no occlusion). Pure data — no Croi_Gfx call — so this
+// stays dual-target. Called by InitInPlace and re-run by MoveWindow /
+// SizeWindow when the geometry changes.
+static void setup_rport(struct LeargasWindow *w)
+{
+    struct LeargasScreen *ls = Leargas_Screen_FromPub(w->pub.WScreen);
+    if (!ls || !ls->fb || !ls->fb->base) {
+        return;
+    }
+    struct DathFramebuffer *sfb = ls->fb;
+    i32 ox = w->pub.LeftEdge + w->pub.BorderLeft;
+    i32 oy = w->pub.TopEdge + w->pub.BorderTop;
+    i32 cw = w->pub.Width - w->pub.BorderLeft - w->pub.BorderRight;
+    i32 ch = w->pub.Height - w->pub.BorderTop - w->pub.BorderBottom;
+    if (cw < 0) {
+        cw = 0;
+    }
+    if (ch < 0) {
+        ch = 0;
+    }
+    w->bmext.surf = *sfb; // inherit stride/format/bpp
+    w->bmext.surf.base = (u8 *)sfb->base + (usize)(u32)oy * sfb->stride + (usize)(u32)ox * sfb->bpp;
+    w->bmext.surf.width = (u32)cw;
+    w->bmext.surf.height = (u32)ch;
+    w->bmext.bm = (struct BitMap){ 0 };
+    w->bmext.bm.BytesPerRow = (UWORD)((u32)cw * sfb->bpp);
+    w->bmext.bm.Rows = (UWORD)ch;
+    w->bmext.bm.Depth = (UBYTE)(sfb->bpp == 2 ? 16 : 32);
+    w->bmext.bm.Planes[0] = (PLANEPTR)w->bmext.surf.base;
+
+    w->rp = (struct RastPort){ 0 };
+    w->rp.BitMap = &w->bmext.bm;
+    w->rp.Mask = 0xFF;
+    w->rp.FgPen = 1;
+    w->rp.BgPen = 0;
+    w->rp.DrawMode = JAM2;
+    w->rp.LinePtrn = (UWORD)0xFFFF;
+    w->rp.PenWidth = 1;
+    w->rp.PenHeight = 1;
+    w->pub.RPort = &w->rp;
+    w->pub.BorderRPort = &w->rp; // v0: share the content RPort
+}
+
 [[nodiscard]] int Leargas_Window_InitInPlace(struct LeargasWindow *w, const struct NewWindow *nw)
 {
     if (!w || !nw) {
@@ -122,49 +170,8 @@ static u32 copy_bounded(char *dst, u32 dst_cap, const char *src)
     w->pub.UserData = nullptr;
     w->pub.MoreFlags = 0;
 
-    // L5.1: build the window content RPort — a "sub-bitmap" view onto the
-    // screen framebuffer (docs/LEARGAS_INTUITION.md §2.2). surf keeps the
-    // screen stride but is offset to the window's content origin and
-    // sized to the inner area, so drawing into window->RPort is
-    // window-relative, auto-clips to the window, and lands directly on
-    // the screen (v0: no backing store, no occlusion). Pure data — no
-    // Croi_Gfx call — so this stays dual-target.
-    struct LeargasScreen *ls = Leargas_Screen_FromPub(target);
-    if (ls && ls->fb && ls->fb->base) {
-        struct DathFramebuffer *sfb = ls->fb;
-        i32 ox = w->pub.LeftEdge + w->pub.BorderLeft;
-        i32 oy = w->pub.TopEdge + w->pub.BorderTop;
-        i32 cw = w->pub.Width - w->pub.BorderLeft - w->pub.BorderRight;
-        i32 ch = w->pub.Height - w->pub.BorderTop - w->pub.BorderBottom;
-        if (cw < 0) {
-            cw = 0;
-        }
-        if (ch < 0) {
-            ch = 0;
-        }
-        w->bmext.surf = *sfb; // inherit stride/format/bpp
-        w->bmext.surf.base = (u8 *)sfb->base + (usize)(u32)oy * sfb->stride +
-                             (usize)(u32)ox * sfb->bpp;
-        w->bmext.surf.width = (u32)cw;
-        w->bmext.surf.height = (u32)ch;
-        w->bmext.bm = (struct BitMap){ 0 };
-        w->bmext.bm.BytesPerRow = (UWORD)((u32)cw * sfb->bpp);
-        w->bmext.bm.Rows = (UWORD)ch;
-        w->bmext.bm.Depth = (UBYTE)(sfb->bpp == 2 ? 16 : 32);
-        w->bmext.bm.Planes[0] = (PLANEPTR)w->bmext.surf.base;
-
-        w->rp = (struct RastPort){ 0 };
-        w->rp.BitMap = &w->bmext.bm;
-        w->rp.Mask = 0xFF;
-        w->rp.FgPen = 1;
-        w->rp.BgPen = 0;
-        w->rp.DrawMode = JAM2;
-        w->rp.LinePtrn = (UWORD)0xFFFF;
-        w->rp.PenWidth = 1;
-        w->rp.PenHeight = 1;
-        w->pub.RPort = &w->rp;
-        w->pub.BorderRPort = &w->rp; // v0: share the content RPort
-    }
+    // L5.1: the window content RPort (sub-bitmap onto the screen).
+    setup_rport(w);
 
     w->initialised = true;
     return CARA_EOK;
@@ -201,6 +208,110 @@ void Leargas_Window_UnlinkFromScreen(struct LeargasWindow *w)
         }
         slot = &(*slot)->NextWindow;
     }
+}
+
+// ---- L5.2 window ops (dual-target) ----------------------------------------
+//
+// v0 has no Layers, so these clear the old screen region with the screen
+// background and re-render — fine for non-overlapping windows; overlapping
+// windows leave/overdraw stale pixels (docs/LEARGAS_INTUITION.md §2.2/§6.1).
+
+static void clear_window_region(struct Window *pub)
+{
+    struct LeargasScreen *ls = Leargas_Screen_FromPub(pub->WScreen);
+    if (ls && ls->fb) {
+        Dath_FillRect(ls->fb, pub->LeftEdge, pub->TopEdge, pub->Width, pub->Height, ls->pen0);
+    }
+}
+
+void Leargas_MoveWindow(struct Window *pub, i32 dx, i32 dy)
+{
+    struct LeargasWindow *w = Leargas_Window_FromPub(pub);
+    if (!w) {
+        return;
+    }
+    clear_window_region(pub);
+    pub->LeftEdge = (WORD)(pub->LeftEdge + dx);
+    pub->TopEdge = (WORD)(pub->TopEdge + dy);
+    setup_rport(w); // the sub-bitmap caches the screen offset — recompute
+    Leargas_Window_Render(w);
+}
+
+void Leargas_SizeWindow(struct Window *pub, i32 dx, i32 dy)
+{
+    struct LeargasWindow *w = Leargas_Window_FromPub(pub);
+    if (!w) {
+        return;
+    }
+    clear_window_region(pub);
+    i32 nw = pub->Width + dx;
+    i32 nh = pub->Height + dy;
+    if (pub->MinWidth && nw < pub->MinWidth) {
+        nw = pub->MinWidth;
+    }
+    if (pub->MaxWidth && nw > (i32)pub->MaxWidth) {
+        nw = (i32)pub->MaxWidth;
+    }
+    if (pub->MinHeight && nh < pub->MinHeight) {
+        nh = pub->MinHeight;
+    }
+    if (pub->MaxHeight && nh > (i32)pub->MaxHeight) {
+        nh = (i32)pub->MaxHeight;
+    }
+    if (nw < 1) {
+        nw = 1;
+    }
+    if (nh < 1) {
+        nh = 1;
+    }
+    pub->Width = (WORD)nw;
+    pub->Height = (WORD)nh;
+    setup_rport(w);
+    Leargas_Window_Render(w);
+}
+
+void Leargas_WindowToFront(struct Window *pub)
+{
+    struct LeargasWindow *w = Leargas_Window_FromPub(pub);
+    if (!w) {
+        return;
+    }
+    Leargas_Window_UnlinkFromScreen(w);
+    Leargas_Window_LinkToScreen(w); // head-insert == front-most
+    Leargas_Window_Render(w);
+}
+
+void Leargas_WindowToBack(struct Window *pub)
+{
+    struct LeargasWindow *w = Leargas_Window_FromPub(pub);
+    if (!w || !pub->WScreen) {
+        return;
+    }
+    Leargas_Window_UnlinkFromScreen(w);
+    struct Window **slot = &pub->WScreen->FirstWindow;
+    while (*slot) {
+        slot = &(*slot)->NextWindow;
+    }
+    *slot = pub; // tail-insert == back-most
+    pub->NextWindow = nullptr;
+    Leargas_Window_Render(w);
+}
+
+void Leargas_SetWindowTitles(struct Window *pub, const char *windowTitle, const char *screenTitle)
+{
+    struct LeargasWindow *w = Leargas_Window_FromPub(pub);
+    if (!w) {
+        return;
+    }
+    // (const char *)-1 means "leave unchanged" (the AmigaOS sentinel).
+    if (windowTitle != (const char *)(uptr)-1) {
+        copy_bounded(w->title_buf, LEARGAS_WINDOW_TITLE_MAX, windowTitle);
+        pub->Title = (UBYTE *)w->title_buf;
+    }
+    if (screenTitle != (const char *)(uptr)-1) {
+        pub->ScreenTitle = (UBYTE *)(uptr)screenTitle; // v0: store the pointer
+    }
+    Leargas_Window_Render(w);
 }
 
 // ---- Decoration rendering -------------------------------------------------

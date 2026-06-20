@@ -126,6 +126,12 @@ enum {
     // Phase 3 L5 — more intuition.library (the original 5 are 16-20).
     SYS_OpenWindowTagList = 83,
     SYS_ModifyIDCMP = 84,
+    SYS_MoveWindow = 85,
+    SYS_SizeWindow = 86,
+    SYS_WindowToFront = 87,
+    SYS_WindowToBack = 88,
+    SYS_SetWindowTitles = 89,
+    SYS_ActivateWindow = 90,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -225,6 +231,12 @@ enum {
 #define SYS_Gfx_AreaEnd 82
 #define SYS_OpenWindowTagList 83
 #define SYS_ModifyIDCMP 84
+#define SYS_MoveWindow 85
+#define SYS_SizeWindow 86
+#define SYS_WindowToFront 87
+#define SYS_WindowToBack 88
+#define SYS_SetWindowTitles 89
+#define SYS_ActivateWindow 90
 #endif
 
 #endif

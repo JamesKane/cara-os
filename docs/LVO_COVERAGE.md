@@ -23,7 +23,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | Library | ABI slots | impl | server | stub | reserved | coverage |
 |---------|----------:|-----:|-------:|-----:|---------:|---------:|
 | exec.library | 115 | 37 | 0 | 74 | 4 | 33% |
-| intuition.library | 101 | 7 | 0 | 90 | 4 | 7% |
+| intuition.library | 101 | 13 | 0 | 84 | 4 | 13% |
 | utility.library | 30 | 13 | 0 | 13 | 4 | 50% |
 | dos.library | 33 | 19 | 0 | 10 | 4 | 65% |
 | graphics.library | 154 | 24 | 0 | 126 | 4 | 16% |
@@ -97,21 +97,27 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 ## intuition.library
 
-ABI surface declared through LVO -606 (ordinal 100). 97 user-callable slots: **7 impl**, 0 server, **90 stub**; coverage **7%**.
+ABI surface declared through LVO -606 (ordinal 100). 97 user-callable slots: **13 impl**, 0 server, **84 stub**; coverage **13%**.
 
-### Implemented (7)
+### Implemented (13)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
 | 6 | -42 | `AddGadget` | syscall |
 | 11 | -72 | `CloseWindow` | syscall |
 | 24 | -150 | `ModifyIDCMP` | syscall |
+| 27 | -168 | `MoveWindow` | syscall |
 | 33 | -204 | `OpenWindow` | syscall |
 | 37 | -228 | `RemoveGadget` | syscall |
+| 45 | -276 | `SetWindowTitles` | syscall |
+| 47 | -288 | `SizeWindow` | syscall |
+| 50 | -306 | `WindowToBack` | syscall |
+| 51 | -312 | `WindowToFront` | syscall |
+| 74 | -450 | `ActivateWindow` | syscall |
 | 76 | -462 | `ActivateGadget` | syscall |
 | 100 | -606 | `OpenWindowTagList` | syscall |
 
-### Unimplemented stub slots (90)
+### Unimplemented stub slots (84)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
@@ -120,9 +126,14 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 | 4..5 | -30..-36 | 2 |
 | 7..10 | -48..-66 | 4 |
 | 12..23 | -78..-144 | 12 |
-| 25..32 | -156..-198 | 8 |
+| 25..26 | -156..-162 | 2 |
+| 28..32 | -174..-198 | 5 |
 | 34..36 | -210..-222 | 3 |
-| 38..75 | -234..-456 | 38 |
+| 38..44 | -234..-270 | 7 |
+| 46..46 | -282..-282 | 1 |
+| 48..49 | -294..-300 | 2 |
+| 52..73 | -318..-444 | 22 |
+| 75..75 | -456..-456 | 1 |
 | 77..99 | -468..-600 | 23 |
 
 ## utility.library

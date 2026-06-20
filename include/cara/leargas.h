@@ -344,6 +344,18 @@ void Leargas_Window_UnlinkFromScreen(struct LeargasWindow *w);
 // frees the heap allocation. Safe on nullptr.
 void Leargas_CloseWindow(struct Window *w);
 
+// ---- L5.2 window ops (dual-target) ----------------------------------------
+// Move/resize by a delta, reorder in the screen window list, and retitle.
+// v0 has no Layers: these clear the old screen region + re-render, fine
+// for non-overlapping windows (docs/LEARGAS_INTUITION.md §2.2). Move/Size
+// recompute the window RPort sub-bitmap (it caches the screen offset).
+void Leargas_MoveWindow(struct Window *w, i32 dx, i32 dy);
+void Leargas_SizeWindow(struct Window *w, i32 dx, i32 dy);
+void Leargas_WindowToFront(struct Window *w);
+void Leargas_WindowToBack(struct Window *w);
+// (const char *)-1 for a title means "leave unchanged" (AmigaOS sentinel).
+void Leargas_SetWindowTitles(struct Window *w, const char *windowTitle, const char *screenTitle);
+
 // ---- LE — Focus + activation ----------------------------------------------
 //
 // Phase 1 tracks exactly one focused (active) window, process-wide.
@@ -439,6 +451,11 @@ void Leargas_SetKeyRouter(Leargas_KeyRouteFn fn);
 // V36+ ReplyMsg round-trip.
 [[nodiscard]] bool Leargas_IDCMP_GetMsg(struct Window *w, struct IntuiMessage **out);
 void Leargas_IDCMP_DisposeMsg(struct IntuiMessage *im);
+
+// Post a bare IntuiMessage of class `cls` to a window (L5.2; gated on the
+// window having requested `cls` + a UserPort). Used for the
+// IDCMP_ACTIVEWINDOW/INACTIVEWINDOW edges. Returns false if not delivered.
+[[nodiscard]] bool Leargas_IDCMP_PostClass(struct Window *w, ULONG cls);
 
 // ---- LG — Gadget framework ------------------------------------------------
 //

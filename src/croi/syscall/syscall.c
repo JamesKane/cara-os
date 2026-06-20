@@ -316,6 +316,24 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_ModifyIDCMP:
         Croi_ModifyIDCMP_Impl((struct Window *)(uptr)a0, (ULONG)a1);
         return 0;
+    case SYS_MoveWindow:
+        Croi_MoveWindow_Impl((struct Window *)(uptr)a0, (WORD)a1, (WORD)a2);
+        return 0;
+    case SYS_SizeWindow:
+        Croi_SizeWindow_Impl((struct Window *)(uptr)a0, (WORD)a1, (WORD)a2);
+        return 0;
+    case SYS_WindowToFront:
+        Croi_WindowToFront_Impl((struct Window *)(uptr)a0);
+        return 0;
+    case SYS_WindowToBack:
+        Croi_WindowToBack_Impl((struct Window *)(uptr)a0);
+        return 0;
+    case SYS_SetWindowTitles:
+        Croi_SetWindowTitles_Impl((struct Window *)(uptr)a0, (STRPTR)(uptr)a1, (STRPTR)(uptr)a2);
+        return 0;
+    case SYS_ActivateWindow:
+        Croi_ActivateWindow_Impl((struct Window *)(uptr)a0);
+        return 0;
 
     // ---- intuition.library gadgets ----
     case SYS_AddGadget:

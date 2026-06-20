@@ -42,6 +42,14 @@ struct TagItem;
 struct Window *Croi_OpenWindowTagList_Impl(struct NewWindow *nw, struct TagItem *tags);
 void Croi_ModifyIDCMP_Impl(struct Window *w, ULONG idcmpFlags);
 
+// ---- Window ops + activation (L5.2) ---------------------------------
+void Croi_MoveWindow_Impl(struct Window *w, WORD dx, WORD dy);
+void Croi_SizeWindow_Impl(struct Window *w, WORD dx, WORD dy);
+void Croi_WindowToFront_Impl(struct Window *w);
+void Croi_WindowToBack_Impl(struct Window *w);
+void Croi_SetWindowTitles_Impl(struct Window *w, STRPTR windowTitle, STRPTR screenTitle);
+void Croi_ActivateWindow_Impl(struct Window *w);
+
 // ---- Gadgets --------------------------------------------------------
 
 UWORD Croi_AddGadget_Impl(struct Window *w, struct Gadget *g, ULONG position);
