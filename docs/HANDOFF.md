@@ -24,6 +24,8 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+7c0584e phase-3/L3.4  dos.library file I/O (Open/Close/Read/Write/Seek)
+1b64e8e lvo-gen        disambiguate reserved-slot identifiers (LIB_OPEN etc.)
 3725f1a phase-3/L3.3b dos.library Examine / ExNext
 3af2c52 phase-3/L3.3  dos.library locks (Lock/UnLock/DupLock/CurrentDir)
 ba08b31 phase-3/L3.2  dos handler server task + U-mode packet round-trip
@@ -415,19 +417,28 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   **`fib_Date` conversion (CaraFS ns → AmigaDOS DateStamp) is deferred /
   zeroed** — a known v0 gap. dos coverage **38%** (7 impl / 11 stub).
   **L3.3 complete** (locks + examine).
-- **NEXT: L3.4 — file I/O** (`Open`/`Close`/`Read`/`Write`/`Seek`).
-  Handler: `ACTION_FINDINPUT`/`FINDOUTPUT`/`FINDUPDATE` → resolve +
-  (create for NEWFILE) → a shared-heap `FileHandle` (fh_Args = cnode,
-  fh_Pos = 0); `ACTION_READ`/`WRITE`/`SEEK` over `Carafs_FileRead`/
-  `Carafs_FileWrite` at fh_Pos; `ACTION_END` (Close) frees the handle.
-  Open for write/create needs `Carafs_DirCreate` + a parent-dir resolve
-  (resolve all-but-last component, then create the last). **BLOCKER to
-  fix first:** the `dos Open`(-30) vs lvo-gen reserved-slot name `Open`
-  collision (duplicate `CARA_IDX_Open` + proto stub). Disambiguate
-  lvo-gen's reserved-slot identifiers (emit `CARA_IDX_LIB_OPEN`/`_CLOSE`/
-  `_EXPUNGE`/`_EXTFUNC` for ords 0..3, freeing the real names) — touches
-  generated lvo.h/vec.c for all libs but mechanical + low-risk (proto
-  already skips ords <4). Do this lvo-gen change as its own commit first.
+- **lvo-gen blocker cleared (`1b64e8e`):** reserved slots now emit
+  `CARA_IDX_LIB_OPEN`/`_CLOSE`/`_EXPUNGE`/`_EXTFUNC` + the dup-name
+  validator skips ord<4, freeing verbatim names for real LVOs. Golden
+  files regenerated. (If you add a library row named Open/Close/Expunge/
+  ExtFunc, this is why it works now.)
+- **L3.4 shipped (`7c0584e`): file I/O.** `Open`/`Close`/`Read`/`Write`/
+  `Seek` (syscall). Dispatch: `ACTION_FINDINPUT`/`FINDOUTPUT`/`FINDUPDATE`
+  (Open by mode; NEWFILE truncates via DirRemove+DirCreate since CaraFS
+  writes are extend-only), `ACTION_READ`/`WRITE` over `Carafs_FileRead`/
+  `FileWrite` at the handle's pos, `ACTION_SEEK`, `ACTION_END`. An open
+  FileHandle is the head of a kernel-private `struct DosFileExt` (u64
+  cnode + pos). `dos_resolve_parent` splits path → parent dir + final
+  component for create. dos coverage **66%** (12 impl / 6 stub).
+- **NEXT: L3.5 — mutation + info.** `CreateDir`(-120)/`DeleteFile`(-72)/
+  `Rename`(-78)/`SetProtection`(-186)/`SetComment`(-180)/`SetFileDate`
+  + `Info`(-114). Dispatch: `ACTION_CREATE_DIR`/`DELETE_OBJECT`/
+  `RENAME_OBJECT`/`SET_PROTECT`/`SET_COMMENT`/`DISK_INFO` over
+  `Carafs_DirCreate`/`DirRemove`/(rename = DirCreate dest + DirRemove
+  src, one txn)/cnode protection/superblock free-blocks. Then **L3.6**
+  (Output/Input/console/Delay) and **L3.7** (retire `Croi_Fs_*`, repoint
+  Clar). Open gaps: **fib_Date** (CaraFS ns → DateStamp) still deferred;
+  multi-Gleas handler concurrency still v0-serial.
 - **Deferred exec long-tail (optional, low-value):** `MakeLibrary`/
   `MakeFunctions`/`SetFunction`/`SumLibrary` (library-author API;
   `Croi_MakeLibrary` is the substrate). Device prims (`OpenDevice`/`DoIO`/
