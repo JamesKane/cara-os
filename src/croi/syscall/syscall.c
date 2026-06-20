@@ -13,6 +13,7 @@
 
 #include <cara/dos_lib.h>
 #include <cara/exec_lib.h>
+#include <cara/graphics_lib.h>
 #include <cara/intuition_lib.h>
 #include <cara/log.h>
 #include <cara/sched.h>
@@ -182,6 +183,20 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)(uptr)Croi_Dos_Input_Impl();
     case SYS_Dos_Delay:
         Croi_Dos_Delay_Impl((LONG)a0);
+        return 0;
+
+    // ---- graphics.library (Dath rasteriser) ----
+    case SYS_Gfx_AllocBitMap:
+        return (i64)(uptr)Croi_Gfx_AllocBitMap_Impl((ULONG)a0, (ULONG)a1, (ULONG)a2, (ULONG)a3,
+                                                    (const struct BitMap *)(uptr)frame->x[14]);
+    case SYS_Gfx_FreeBitMap:
+        Croi_Gfx_FreeBitMap_Impl((struct BitMap *)(uptr)a0);
+        return 0;
+    case SYS_Gfx_InitRastPort:
+        Croi_Gfx_InitRastPort_Impl((struct RastPort *)(uptr)a0);
+        return 0;
+    case SYS_Gfx_SetRast:
+        Croi_Gfx_SetRast_Impl((struct RastPort *)(uptr)a0, (ULONG)a1);
         return 0;
 
     // ---- utility.library allocating tag helpers ----

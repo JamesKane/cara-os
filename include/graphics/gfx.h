@@ -26,7 +26,28 @@ struct Rectangle {
     WORD MaxX, MaxY;
 };
 
-// Forward declaration; full type lands with Phase 3 graphics.library.
-struct BitMap;
+// V36+ struct BitMap (graphics/gfx.h). The field order/offsets are ABI.
+// On the Amiga this describes up to 8 planar bit-planes; on CaraOS,
+// graphics.library is chunky/RTG (docs/DATH_GRAPHICS.md §2.1), so a
+// drawable BitMap is the *opaque head* of a kernel-private DathBitMapExt
+// that carries the real chunky surface — BytesPerRow/Rows/Depth are
+// filled best-effort and Planes[0] points at the chunky pixel buffer
+// (shared-heap; readable from U-mode). Allocate via AllocBitMap; peeking
+// Planes[] for planar layout is out of scope.
+struct BitMap {
+    UWORD BytesPerRow;
+    UWORD Rows;
+    UBYTE Flags;
+    UBYTE Depth;
+    UWORD pad;
+    PLANEPTR Planes[8];
+};
+
+// AllocBitMap flags (V39 graphics/gfx.h). v0 honours BMF_CLEAR.
+#define BMF_CLEAR (1 << 0)
+#define BMF_DISPLAYABLE (1 << 1)
+#define BMF_INTERLEAVED (1 << 2)
+#define BMF_STANDARD (1 << 3)
+#define BMF_MINPLANES (1 << 4)
 
 #endif // GRAPHICS_GFX_H

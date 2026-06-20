@@ -26,7 +26,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | intuition.library | 77 | 5 | 0 | 68 | 4 | 6% |
 | utility.library | 30 | 13 | 0 | 13 | 4 | 50% |
 | dos.library | 33 | 19 | 0 | 10 | 4 | 65% |
-| graphics.library | 154 | 0 | 0 | 150 | 4 | 0% |
+| graphics.library | 154 | 4 | 0 | 146 | 4 | 2% |
 | cruth.library | 23 | 9 | 10 | 0 | 4 | 100% |
 
 ## exec.library
@@ -189,19 +189,26 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 ## graphics.library
 
-ABI surface declared through LVO -924 (ordinal 153). 150 user-callable slots: **0 impl**, 0 server, **150 stub**; coverage **0%**.
+ABI surface declared through LVO -924 (ordinal 153). 150 user-callable slots: **4 impl**, 0 server, **146 stub**; coverage **2%**.
 
-### Implemented (0)
+### Implemented (4)
 
-_none yet_
+| ord | LVO | name | flavour |
+|----:|----:|------|---------|
+| 32 | -198 | `InitRastPort` | syscall |
+| 38 | -234 | `SetRast` | syscall |
+| 152 | -918 | `AllocBitMap` | syscall |
+| 153 | -924 | `FreeBitMap` | syscall |
 
-### Unimplemented stub slots (150)
+### Unimplemented stub slots (146)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
 | ord range | LVO range | count |
 |-----------|-----------|------:|
-| 4..153 | -30..-924 | 150 |
+| 4..31 | -30..-192 | 28 |
+| 33..37 | -204..-228 | 5 |
+| 39..151 | -240..-912 | 113 |
 
 ## cruth.library
 

@@ -34,7 +34,9 @@
 #include <exec/semaphores.h>
 #include <exec/tasks.h>
 #include <exec/types.h>
+#include <graphics/gfx.h>
 #include <graphics/gfxbase.h>
+#include <graphics/rastport.h>
 #include <proto/dos.h>
 #include <proto/exec.h>
 #include <proto/graphics.h>
@@ -654,15 +656,35 @@ int main(void)
         return (int)USEREXEC_EXIT_SRV_FAIL;
     }
 
-    // 4k. graphics.library (L4.1) — open it and prove the library base is
-    //     constructed: read GfxBase->LibNode.lib_Version (==36). The
-    //     drawing + BitMap LVOs are stubs until later L4 slices; this
-    //     slice only proves the ABI + boot construction.
+    // 4k. graphics.library (L4.1 + L4.2). Open it and prove the base
+    //     (lib_Version == 36). Then AllocBitMap an off-screen chunky
+    //     surface, InitRastPort onto it, SetRast it to a palette pen, and
+    //     read the pixels back from the shared-heap surface (Planes[0]) —
+    //     deterministic, screen-independent (docs/DATH_GRAPHICS.md §5).
     struct Library *glib = OpenLibrary((STRPTR) "graphics.library", 36);
     bool gfx_ok = glib != nullptr;
     if (gfx_ok) {
         GfxBase = (struct GfxBase *)glib;
         gfx_ok = GfxBase->LibNode.lib_Version == 36;
+
+        // depth 32 → RGBA8888 (4 bpp); 8x4 = 32 pixels.
+        struct BitMap *bm = AllocBitMap(8, 4, 32, BMF_CLEAR, nullptr);
+        gfx_ok = gfx_ok && bm != nullptr;
+        if (bm) {
+            gfx_ok = gfx_ok && bm->BytesPerRow == 32 && bm->Rows == 4 && bm->Depth == 32;
+            struct RastPort grp;
+            InitRastPort(&grp);
+            gfx_ok = gfx_ok && grp.FgPen == 1 && grp.DrawMode == JAM2; // V36 defaults
+            grp.BitMap = bm;
+            SetRast(&grp, 2); // palette pen 2 = red → 0xFFFF0000 in RGBA8888
+            ULONG *gpx = (ULONG *)bm->Planes[0];
+            for (int gi = 0; gi < 8 * 4; gi++) {
+                if (gpx[gi] != 0xFFFF0000u) {
+                    gfx_ok = false;
+                }
+            }
+            FreeBitMap(bm);
+        }
         CloseLibrary(glib);
     }
     if (!gfx_ok) {

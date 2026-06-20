@@ -44,6 +44,8 @@ if(CARA_TARGET STREQUAL "riscv64")
 
     add_library(cara_graphics_lib STATIC
         graphics_hooks.c
+        graphics_lib.c
+        trampolines.S
     )
     target_link_libraries(cara_graphics_lib
         PUBLIC cara_headers

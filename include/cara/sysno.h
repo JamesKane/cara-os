@@ -98,6 +98,12 @@ enum {
     SYS_Dos_Output = 58, // Process pr_COS (lazily-created console handle)
     SYS_Dos_Input = 59,  // Process pr_CIS
     SYS_Dos_Delay = 60,  // spin-yield shim over Croi_Time
+
+    // Phase 3 L4 — graphics.library (Dath rasteriser, syscall flavour).
+    SYS_Gfx_AllocBitMap = 61,
+    SYS_Gfx_FreeBitMap = 62,
+    SYS_Gfx_InitRastPort = 63,
+    SYS_Gfx_SetRast = 64,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -171,6 +177,12 @@ enum {
 #define SYS_Dos_Output 58
 #define SYS_Dos_Input 59
 #define SYS_Dos_Delay 60
+
+// Phase 3 L4 — graphics.library.
+#define SYS_Gfx_AllocBitMap 61
+#define SYS_Gfx_FreeBitMap 62
+#define SYS_Gfx_InitRastPort 63
+#define SYS_Gfx_SetRast 64
 #endif
 
 #endif
