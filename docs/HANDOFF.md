@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+8eff42f phase-3/L4.1  graphics.library ABI + GfxBase + boot construction
 d10983b phase-3/L3.7  retire Croi_Fs_* stopgap, Clar uses dos.library (closes L3)
 7db275d phase-3/L3.6  dos.library process I/O + console + Delay (Output/Input/Delay)
 cf310c9 phase-3/L3.5  dos.library mutation + info (CreateDir/DeleteFile/Rename/Info)
@@ -474,7 +475,20 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `Carafs_*` directly (the L3.2 deviation), so nothing is left behind.
   The Phase-2 criterion now holds **via dos**: the boot smoke's two-boot
   `drawer note='as'` check drives Clar persistence through dos.library.
-- **NEXT: L4 — `graphics.library` (Dath): SCOPED (`docs/DATH_GRAPHICS.md`).**
+- **L4.1 shipped (`8eff42f`): graphics.library ABI + GfxBase + boot
+  construction.** `graphics.conf` (`##base GfxBase`, `##owner croi/dath`;
+  reserved hooks + a 150-entry `##pad_run` out to FreeBitMap -924);
+  `include/graphics/gfxbase.h`; `src/croi/dath/graphics_hooks.c`; a
+  riscv64-only `cara_graphics_lib` (hooks + generated vec) whole-archived
+  into croi, keeping `cara_dath` the pure dual-target rasteriser;
+  `Croi_MakeLibrary` block in entry.c. userexec opens it v36 + checks
+  version. Coverage **0%** (0 impl / 150 stub / 4 reserved) — expected
+  baseline; drawing LVOs land next. **NEXT: L4.2** — `AllocBitMap`/
+  `FreeBitMap` (chunky surface in shared heap via `DathBitMapExt`),
+  `InitRastPort`, `SetRast` — the first `syscall`-flavour gfx rows + the
+  `.lib_text.graphics` trampolines + `Croi_Gfx_*_Impl` over `Dath_*`, and
+  the `DathBitMapExt` bridge type. Then fill `struct BitMap`/`RastPort`.
+- **L4 reference: `graphics.library` (Dath): SCOPED (`docs/DATH_GRAPHICS.md`).**
   Read that doc before cutting L4 code. Decisions locked there: (1) **chunky
   RTG bitmaps, not planar** — `struct BitMap` kept ABI-shaped but opaque,
   head of a kernel-private `DathBitMapExt` carrying the chunky
