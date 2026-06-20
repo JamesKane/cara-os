@@ -474,11 +474,23 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `Carafs_*` directly (the L3.2 deviation), so nothing is left behind.
   The Phase-2 criterion now holds **via dos**: the boot smoke's two-boot
   `drawer note='as'` check drives Clar persistence through dos.library.
-- **NEXT: L4 — `graphics.library` (Dath).** Per the epic order
-  (P0→L1→L2→**L3✓**→L4 graphics→L5 intuition→L6 devices→…). Not yet
-  scoped; the Dath substrate exists (`src/croi/dath`, produces
-  `graphics.library`). Scope L4 like L3 was (a `docs/DATH_GRAPHICS.md`)
-  before cutting code.
+- **NEXT: L4 — `graphics.library` (Dath): SCOPED (`docs/DATH_GRAPHICS.md`).**
+  Read that doc before cutting L4 code. Decisions locked there: (1) **chunky
+  RTG bitmaps, not planar** — `struct BitMap` kept ABI-shaped but opaque,
+  head of a kernel-private `DathBitMapExt` carrying the chunky
+  `DathFramebuffer` (the L3 ext pattern); `AllocBitMap` (a V39 LVO) is the
+  primary drawable-BitMap ctor; planar `AllocRaster`/`InitBitMap` declared
+  for ABI only. (2) **`syscall`-flavour rasterisation** on the *in-place
+  kernel Dath rasteriser* (not `local`) — reuses the existing kernel
+  rendering path intuition already uses, keeps the framebuffer kernel-VA,
+  and Phase-4's GPU supersedes the hot path anyway. (3) **RastPort lives
+  with the caller** (stack/shared, read via SUM=1); the BitMap carries the
+  surface, so one path serves off-screen + screen targets. Slice plan
+  L4.1 ABI+GfxBase+bridge → L4.2 AllocBitMap/InitRastPort/SetRast → L4.3
+  pen+line/pixel/rectfill → L4.4 blits → L4.5 text+fonts → L4.6 areas/flood
+  (apps-gated) → L4.7 Leargas convergence (optional). Test = a
+  userexec-style Gleas drawing into an off-screen shared-heap chunky BitMap
+  and reading pixels back. The Dath substrate exists (`src/croi/dath`).
 - **Open L3 gaps (tracked, not blocking):** **fib_Date** (CaraFS ns →
   AmigaDOS DateStamp) still deferred/zeroed; **Rename** is file-only (no
   dir rename); handler concurrency still v0-serial; console stdin is an
