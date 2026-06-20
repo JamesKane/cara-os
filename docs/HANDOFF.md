@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+7d51b32 phase-3/L4.4  graphics.library blits (BltBitMap/BltBitMapRastPort/ClipBlit)
 15db462 phase-3/L4.3  graphics.library pen state + primitives (Move/Draw/RectFill/...)
 ce1c41b phase-3/L4.2  graphics.library BitMap alloc + RastPort init + SetRast
 8eff42f phase-3/L4.1  graphics.library ABI + GfxBase + boot construction
@@ -505,12 +506,23 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   read; 0/-1 / value/-1), `RectFill` (`Dath_FillRect`, inclusive
   corners). FgPen resolved through the default palette; JAM1/JAM2 draw
   identically for primitives, COMPLEMENT unimplemented (v0). `SYS_Gfx_*`
-  65-72. Coverage **8%** (12 impl / 138 stub). **NEXT: L4.4** — blits:
-  `BltBitMap`/`BltBitMapRastPort` (`Dath_BlitRect`), `ClipBlit` (rect
-  clip, v0), `ScrollRaster` (`Dath_BlitRect` + edge `Dath_FillRect`).
-  Note: `Dath_BlitRect` requires **same format** src/dst — the blit
-  impls must guard/handle format mismatch (off-screen bitmaps default by
-  depth; cross-format blit is a v0 gap to log).
+  65-72. Coverage **8%** (12 impl / 138 stub).
+- **L4.4 shipped (`7d51b32`): blits.** `BltBitMap`/`BltBitMapRastPort`/
+  `ClipBlit` over `Dath_BlitRect`. **ABI lesson:** these exceed the
+  **7-register syscall limit** (BltBitMap 11 args, others 9; the
+  trampoline burns `a7` on the syscall number), so they're **`local`
+  marshalling stubs** in `.lib_text.graphics` (`graphics_blit.c`) that
+  pack a `GfxBltArgs` and make one `SYS_Gfx_Blt` ecall — one kernel impl
+  for all three. The ecall is **inlined per-stub** (a non-inlined static
+  helper = out-of-section call → PC-rel overflow, the L1 RX-page gotcha).
+  This `local`-stub pattern is the template for any wide LVO (L5 will
+  need it). v0: plain copy, **same-format only** (`Dath_BlitRect` no-ops
+  on mismatch), `ClipBlit` clips to the BitMap rect (no layers).
+  `ScrollRaster` deferred (overlap-safety). Coverage **10%** (15 impl /
+  135 stub). **NEXT: L4.5** — text + fonts: `OpenFont`/`CloseFont`/
+  `SetFont`/`Text`/`TextLength` over `dath_font_8x8` as a `TextFont`, +
+  GfxBase `DefaultFont`. Fill `struct TextFont` (text.h). `Text` →
+  `Dath_DrawString`; this binds `rp.Font` (InitRastPort leaves it null).
 - **L4 reference: `graphics.library` (Dath): SCOPED (`docs/DATH_GRAPHICS.md`).**
   Read that doc before cutting L4 code. Decisions locked there: (1) **chunky
   RTG bitmaps, not planar** — `struct BitMap` kept ABI-shaped but opaque,
