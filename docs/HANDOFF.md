@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+2dc5e58 phase-3/L1    exec.library Forbid/Permit/Disable/Enable (slice 6)
 af24dde phase-3/L1    exec.library signal semaphores (slice 5)
 7c173b3 phase-3/L1    exec.library FindTask + CopyMem/CopyMemQuick (slice 4)
 1763f81 phase-3/L1    exec.library CreateMsgPort/DeleteMsgPort/ReplyMsg (slice 3)
@@ -290,12 +291,25 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   test yet** (needs two tasks; uncontended/nesting is covered in
   userexec). The semaphore struct is caller-owned (SASOS), so unlike
   Task the app *can* read `ss_Owner`/`ss_NestCount` back.
-- **Slice 6+ (next):** libraries (`MakeLibrary`/`MakeFunctions`/
-  `SetFunction`/`SumLibrary`) — `Croi_MakeLibrary` is the substrate; then
-  the `OpenDevice`/`DoIO`/`SendIO`/`CheckIO`/`WaitIO`/`AbortIO` device
-  primitives (L6 builds devices on them). Kernel-state → syscall; pure →
-  local. Then the **stub-coverage report** + widening the conf toward the
-  full Exec autodoc (still `##pad_run`s).
+- **Slice 6 shipped (`2dc5e58`): Forbid/Permit/Disable/Enable**
+  (task-switch control, syscall). Cooperative single-hart → they gate
+  `Croi_Yield` (no preemption to mask) via the running task's existing
+  V36 ABI nest counts `tc_TDNestCnt`/`tc_IDNestCnt` (start -1; switch
+  disabled while either >= 0; `Wait` still breaks Forbid). Proven by
+  `KERNEL_TEST(exec_forbid)` — a **real two-task test** (Forbid blocks a
+  higher-pri worker across Yield; Permit releases). That's the test
+  shape the **contended-semaphore path** (slice 5) still needs.
+- **Slice 7+ (next):** libraries (`MakeLibrary`/`MakeFunctions`/
+  `SetFunction`/`SumLibrary`) — `Croi_MakeLibrary` (decl in
+  `cara/exec_lib.h`) is the substrate; these are library-author API
+  (apps rarely call them), so lower apps-value. The `OpenDevice`/`DoIO`/
+  `SendIO`/`CheckIO`/`WaitIO`/`AbortIO` device primitives are **L6** (need
+  the device model first — don't try them in L1). Kernel-state → syscall;
+  pure → local. Then the **stub-coverage report** + widening the conf
+  toward the full Exec autodoc (still `##pad_run`s). Note: core exec
+  surface apps actually use (mem, lists, ports, signals, semaphores,
+  task control) is now largely done — diminishing returns on more exec;
+  consider closing L1 with the stub-coverage report and moving to L2.
 - **Still TODO in L1:** the **stub-coverage report** (PHASE3.md §7 Q4)
   — a check listing which declared LVOs are unimplemented stubs. Not
   built yet; settle its format as the per-library precedent. The conf
