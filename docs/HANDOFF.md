@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+15db462 phase-3/L4.3  graphics.library pen state + primitives (Move/Draw/RectFill/...)
 ce1c41b phase-3/L4.2  graphics.library BitMap alloc + RastPort init + SetRast
 8eff42f phase-3/L4.1  graphics.library ABI + GfxBase + boot construction
 d10983b phase-3/L3.7  retire Croi_Fs_* stopgap, Clar uses dos.library (closes L3)
@@ -497,10 +498,19 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   "direct-colour" wording (§3/§6.2) became a small fixed palette;
   `SetRGB4`/`LoadRGB4` will override it later. First `syscall` gfx rows
   (`.lib_text.graphics` trampolines, `SYS_Gfx_*` 61-64); coverage **2%**
-  (4 impl / 146 stub). **NEXT: L4.3** — pen state + primitives:
-  `SetAPen`/`SetBPen`/`SetDrMd`, `Move`/`Draw`, `WritePixel`/`ReadPixel`,
-  `RectFill` (over `Dath_DrawLine`/`Pixel`/`FillRect`; `Move`/`Draw`
-  update `rp.cp_x/cp_y`).
+  (4 impl / 146 stub).
+- **L4.3 shipped (`15db462`): pen state + primitives.**
+  `SetAPen`/`SetBPen`/`SetDrMd` (RastPort state), `Move`/`Draw` (cursor +
+  `Dath_DrawLine`), `WritePixel`/`ReadPixel` (`Dath_Pixel` / raw surface
+  read; 0/-1 / value/-1), `RectFill` (`Dath_FillRect`, inclusive
+  corners). FgPen resolved through the default palette; JAM1/JAM2 draw
+  identically for primitives, COMPLEMENT unimplemented (v0). `SYS_Gfx_*`
+  65-72. Coverage **8%** (12 impl / 138 stub). **NEXT: L4.4** — blits:
+  `BltBitMap`/`BltBitMapRastPort` (`Dath_BlitRect`), `ClipBlit` (rect
+  clip, v0), `ScrollRaster` (`Dath_BlitRect` + edge `Dath_FillRect`).
+  Note: `Dath_BlitRect` requires **same format** src/dst — the blit
+  impls must guard/handle format mismatch (off-screen bitmaps default by
+  depth; cross-format blit is a v0 gap to log).
 - **L4 reference: `graphics.library` (Dath): SCOPED (`docs/DATH_GRAPHICS.md`).**
   Read that doc before cutting L4 code. Decisions locked there: (1) **chunky
   RTG bitmaps, not planar** — `struct BitMap` kept ABI-shaped but opaque,
