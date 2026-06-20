@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+3725f1a phase-3/L3.3b dos.library Examine / ExNext
 3af2c52 phase-3/L3.3  dos.library locks (Lock/UnLock/DupLock/CurrentDir)
 ba08b31 phase-3/L3.2  dos handler server task + U-mode packet round-trip
 014ca2b phase-3/L3.1  dos.library ABI foundation + Process model
@@ -405,22 +406,28 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   (carry 64-bit pointers). FileLock.fl_Key = cnode; path resolve via
   `Carafs_DirLookup` (`/`-split, `:`→root, relative to `pr_CurrentDir`).
   dos coverage 27% (5/13).
-- **NEXT: L3.3b — `Examine`/`ExNext`.** Add `Examine`(-102, ord16)/
-  `ExNext`(-108, ord17) (currently in the `##pad_run 4` at ords 16..19).
-  New `ACTION_EXAMINE_OBJECT`/`ACTION_EXAMINE_NEXT` in `Croi_Dos_Dispatch`:
-  `Carafs_CnodeStat`(lock's cnode) + `Carafs_DirNext` (cursor) → fill a
-  `FileInfoBlock`. **Cursor persistence:** `ExNext` resumes a listing —
-  store a `CarafsDirCursor` in the FileLock (extend the CaraOS-private
-  tail of `struct FileLock`; the lock is kernel-allocated so its size is
-  ours). Map `CarafsStat`→FIB (fib_FileName, fib_Size, fib_DirEntryType
-  from `CARAFS_T_DIR`/`_FILE`, fib_Date from `created/modified_ns`).
-- **Then L3.4 — file I/O** (`Open`/`Close`/`Read`/`Write`/`Seek`). **BLOCKER
-  to fix first:** the `dos Open`(-30) vs lvo-gen reserved-slot name
-  `Open` collision (duplicate `CARA_IDX_Open` / proto stub). Disambiguate
+- **L3.3b shipped (`3725f1a`): Examine/ExNext.** `ACTION_EXAMINE_OBJECT`/
+  `_NEXT` in dispatch over `Carafs_CnodeStat`/`Carafs_DirNext`. A
+  `FileLock` is now the head of a kernel-private **`struct DosLockExt`**
+  (in handler.c) carrying the `CarafsDirCursor` (ExNext resume) + the
+  object's own name (a cnode can't be reverse-mapped to a name, so Lock
+  stashes the resolved final component). `fill_fib` maps `CarafsStat`→FIB;
+  **`fib_Date` conversion (CaraFS ns → AmigaDOS DateStamp) is deferred /
+  zeroed** — a known v0 gap. dos coverage **38%** (7 impl / 11 stub).
+  **L3.3 complete** (locks + examine).
+- **NEXT: L3.4 — file I/O** (`Open`/`Close`/`Read`/`Write`/`Seek`).
+  Handler: `ACTION_FINDINPUT`/`FINDOUTPUT`/`FINDUPDATE` → resolve +
+  (create for NEWFILE) → a shared-heap `FileHandle` (fh_Args = cnode,
+  fh_Pos = 0); `ACTION_READ`/`WRITE`/`SEEK` over `Carafs_FileRead`/
+  `Carafs_FileWrite` at fh_Pos; `ACTION_END` (Close) frees the handle.
+  Open for write/create needs `Carafs_DirCreate` + a parent-dir resolve
+  (resolve all-but-last component, then create the last). **BLOCKER to
+  fix first:** the `dos Open`(-30) vs lvo-gen reserved-slot name `Open`
+  collision (duplicate `CARA_IDX_Open` + proto stub). Disambiguate
   lvo-gen's reserved-slot identifiers (emit `CARA_IDX_LIB_OPEN`/`_CLOSE`/
   `_EXPUNGE`/`_EXTFUNC` for ords 0..3, freeing the real names) — touches
-  the generated lvo.h/vec.c for all libs but is mechanical + low-risk
-  (proto already skips ords <4).
+  generated lvo.h/vec.c for all libs but mechanical + low-risk (proto
+  already skips ords <4). Do this lvo-gen change as its own commit first.
 - **Deferred exec long-tail (optional, low-value):** `MakeLibrary`/
   `MakeFunctions`/`SetFunction`/`SumLibrary` (library-author API;
   `Croi_MakeLibrary` is the substrate). Device prims (`OpenDevice`/`DoIO`/
