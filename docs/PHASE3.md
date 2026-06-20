@@ -204,12 +204,17 @@ always visible.
 1. **`proto/` placement.** LVO-gen emits `proto/<lib>.h`; confirm the
    generated-header search path so app source `#include <proto/dos.h>`
    resolves in both the host app-build and the Gleas build.
-2. **BSTR/BPTR.** dos uses BCPL pointers/strings at the ABI. Decide the
-   canonical conversion site (the handler boundary) and whether BPTRs are
-   real `>>2` BCPL pointers or a CaraOS handle behind the same width.
-3. **Process vs Task.** `dos` Processes extend exec Tasks (`pr_*`).
-   Where the `Process` struct hangs off our Gleas/Task model (tc_UserData
-   vs a sibling) needs pinning before L3.
+2. **BSTR/BPTR.** ✅ **RESOLVED (L3 scope, `docs/LOGAIC_DOS.md` §2.1).**
+   Real BCPL pointers — `BPTR = addr >> 2` — widened from 32-bit `LONG`
+   to `IPTR` (the same widening as `ti_Data`); `BADDR`/`MKBADDR` macros;
+   conversion only at the dos.library boundary. BSTR = BPTR to a
+   length-prefixed string, converted at the same edge.
+3. **Process vs Task.** ✅ **RESOLVED (L3 scope, `docs/LOGAIC_DOS.md`
+   §2.2).** A U-mode Gleas's `struct Task` is embedded at the front of a
+   `struct Process` allocated in the SASOS shared heap, so
+   `(struct Process *)FindTask(NULL)` is legal in U-mode — this also
+   fixes the L1 FindTask-opacity gap. kmain/kernel tasks stay
+   kernel-resident.
 4. **Stub policy granularity.** ✅ **RESOLVED (L1).** Per-LVO: every
    unimplemented slot is an explicit `##pad_run` row pointing at
    `Croi_LvoUnimplemented`, so the runtime ordinal of every real function
