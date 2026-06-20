@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+cf310c9 phase-3/L3.5  dos.library mutation + info (CreateDir/DeleteFile/Rename/Info)
 7c0584e phase-3/L3.4  dos.library file I/O (Open/Close/Read/Write/Seek)
 1b64e8e lvo-gen        disambiguate reserved-slot identifiers (LIB_OPEN etc.)
 3725f1a phase-3/L3.3b dos.library Examine / ExNext
@@ -430,15 +431,28 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   FileHandle is the head of a kernel-private `struct DosFileExt` (u64
   cnode + pos). `dos_resolve_parent` splits path → parent dir + final
   component for create. dos coverage **66%** (12 impl / 6 stub).
-- **NEXT: L3.5 — mutation + info.** `CreateDir`(-120)/`DeleteFile`(-72)/
-  `Rename`(-78)/`SetProtection`(-186)/`SetComment`(-180)/`SetFileDate`
-  + `Info`(-114). Dispatch: `ACTION_CREATE_DIR`/`DELETE_OBJECT`/
-  `RENAME_OBJECT`/`SET_PROTECT`/`SET_COMMENT`/`DISK_INFO` over
-  `Carafs_DirCreate`/`DirRemove`/(rename = DirCreate dest + DirRemove
-  src, one txn)/cnode protection/superblock free-blocks. Then **L3.6**
-  (Output/Input/console/Delay) and **L3.7** (retire `Croi_Fs_*`, repoint
-  Clar). Open gaps: **fib_Date** (CaraFS ns → DateStamp) still deferred;
-  multi-Gleas handler concurrency still v0-serial.
+- **L3.5 shipped (`cf310c9`): mutation + info.** `CreateDir`/`DeleteFile`/
+  `Rename`/`Info` (syscall). Dispatch: `ACTION_DELETE_OBJECT`
+  (DirRemove), `ACTION_RENAME_OBJECT` (DirLink new + DirRemove old —
+  **files only**, CaraFS has no dir hard links), `ACTION_CREATE_DIR`
+  (DirCreate → lock), `ACTION_DISK_INFO` (struct InfoData from the
+  superblock). `SetProtection`/`SetComment`/`SetFileDate` NOT done —
+  **CaraFS has no attribute setters**; revisit when one lands. dos
+  coverage **88%** (16 impl / 2 stub; only Input/Output left in the
+  declared surface).
+- **NEXT: L3.6 — process/CLI + console.** `Output`(-60)/`Input`(-54)
+  (return the Process's pr_COS/pr_CIS console FileHandles), a minimal
+  **console handler** for stdout/stdin (v0: a log-backed write so
+  Output→Write reaches the kernel log; stub Input), and `Delay`(-198)
+  (a `syscall` shim over `Croi_Time`, or a small timer dependency). Then
+  **L3.7 — retire `Croi_Fs_*`**: delete the app-facing name-in-root
+  `SYS_Fs_Read`/`Write` path, repoint **Clar** to dos
+  `Open`/`Read`/`Write`/`Close`, update the boot smoke so Clar's drawer
+  file persists *via dos* (the criterion that closes L3).
+- **Open L3 gaps:** **fib_Date** (CaraFS ns → AmigaDOS DateStamp) still
+  deferred/zeroed; **Rename** is file-only (no dir rename); handler
+  concurrency still v0-serial; no `SetProtection`/`SetComment`/
+  `SetFileDate` (CaraFS setter gap).
 - **Deferred exec long-tail (optional, low-value):** `MakeLibrary`/
   `MakeFunctions`/`SetFunction`/`SumLibrary` (library-author API;
   `Croi_MakeLibrary` is the substrate). Device prims (`OpenDevice`/`DoIO`/
