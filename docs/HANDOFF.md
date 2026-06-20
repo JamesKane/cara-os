@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+d10983b phase-3/L3.7  retire Croi_Fs_* stopgap, Clar uses dos.library (closes L3)
 7db275d phase-3/L3.6  dos.library process I/O + console + Delay (Output/Input/Delay)
 cf310c9 phase-3/L3.5  dos.library mutation + info (CreateDir/DeleteFile/Rename/Info)
 7c0584e phase-3/L3.4  dos.library file I/O (Open/Close/Read/Write/Seek)
@@ -58,7 +59,8 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**32 passed / 0 failed**, QEMU boot smoke ok (two boots: partition +
+**31 passed / 0 failed** (the retired `carafs_fs_syscall` stopgap test
+dropped the count by one), QEMU boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
 
@@ -357,9 +359,15 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   stubs are the 2 reserved private slots + the V37 date/math/string
   functions (`Amiga2Date`/`SMult32`/`Stricmp`/…) — pure leaf functions,
   implement on demand if an app needs them (all could be `local`).
-- **L3 — `dos.library` (Logaic): SCOPED (`84b37f9`, `docs/LOGAIC_DOS.md`).**
-  The keystone epic. Read that doc before cutting L3 code. Decisions
-  locked there: **BPTR** = real BCPL pointer `addr>>2` widened to `IPTR`
+- **L3 — `dos.library` (Logaic): COMPLETE (L3.1..L3.7, `docs/LOGAIC_DOS.md`).**
+  The keystone epic, shipped. 19 impl LVOs (locks, file I/O, dir mutation,
+  Info, process I/O + console, Delay, IoErr); the `Croi_Fs_*` stopgap is
+  retired and Clar runs on dos. Decisions as locked in the doc — **note**
+  one is now stale vs the code: **BPTR** shipped as a real pointer
+  (`void *`, no `>>2`), not the `addr>>2` the doc first proposed (see the
+  L3.1 note below). The doc otherwise reflects what shipped. Original
+  scoping was `84b37f9`. Decisions locked there: **BPTR** = (proposed)
+  `addr>>2` widened to `IPTR`
   (BADDR/MKBADDR; convert only at the dos edge); **Process** = U-mode
   Gleas `struct Task` embedded at the front of a shared-heap
   `struct Process` (makes `(struct Process *)FindTask(NULL)` legal in
@@ -455,14 +463,28 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   clears `uexec-dir`/`ren-*.txt` first. dos coverage **65%** (19 impl /
   10 stub; ABI now declared through `Delay` at ordinal 32, widening the
   pad gap, hence the percentage drop).
-- **NEXT: L3.7 — retire `Croi_Fs_*`**: delete the app-facing name-in-root
-  `SYS_Fs_Read`/`Write` path, repoint **Clar** to dos
-  `Open`/`Read`/`Write`/`Close`, update the boot smoke so Clar's drawer
-  file persists *via dos* (the criterion that closes L3).
-- **Open L3 gaps:** **fib_Date** (CaraFS ns → AmigaDOS DateStamp) still
-  deferred/zeroed; **Rename** is file-only (no dir rename); handler
-  concurrency still v0-serial; no `SetProtection`/`SetComment`/
-  `SetFileDate` (CaraFS setter gap).
+- **L3.7 shipped (`d10983b`): retired the `Croi_Fs_*` stopgap — L3
+  COMPLETE.** Clar's drawer note now uses dos `Open`/`Read`/`Write`/
+  `Close` (opens `dos.library` v36 + a `DOSBase` global, like any V36
+  program) instead of `SYS_Fs_Read`/`Write`. Deleted: the syscall arms
+  (`sysno` 21/22 left **reserved** so the trampoline wire ABI is never
+  reused), `Croi_Fs_Read/Write_Impl` + `copy_name` in `carafs_bind.c`,
+  and the `carafs_fs_syscall` kernel test (31/0 now). No "handler-only FS
+  syscalls" survive — the v0 handler is kernel-resident and calls
+  `Carafs_*` directly (the L3.2 deviation), so nothing is left behind.
+  The Phase-2 criterion now holds **via dos**: the boot smoke's two-boot
+  `drawer note='as'` check drives Clar persistence through dos.library.
+- **NEXT: L4 — `graphics.library` (Dath).** Per the epic order
+  (P0→L1→L2→**L3✓**→L4 graphics→L5 intuition→L6 devices→…). Not yet
+  scoped; the Dath substrate exists (`src/croi/dath`, produces
+  `graphics.library`). Scope L4 like L3 was (a `docs/DATH_GRAPHICS.md`)
+  before cutting code.
+- **Open L3 gaps (tracked, not blocking):** **fib_Date** (CaraFS ns →
+  AmigaDOS DateStamp) still deferred/zeroed; **Rename** is file-only (no
+  dir rename); handler concurrency still v0-serial; console stdin is an
+  EOF stub + `Delay` is a busy-wait (real stdin + a deadline-timer block
+  can pull a `timer.device`-shaped dep forward from L6); no
+  `SetProtection`/`SetComment`/`SetFileDate` (CaraFS setter gap).
 - **Deferred exec long-tail (optional, low-value):** `MakeLibrary`/
   `MakeFunctions`/`SetFunction`/`SumLibrary` (library-author API;
   `Croi_MakeLibrary` is the substrate). Device prims (`OpenDevice`/`DoIO`/
