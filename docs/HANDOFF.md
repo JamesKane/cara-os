@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+95a593d phase-3/L4.7  live Screen.RastPort over the framebuffer (L4 complete)
 ea39d2a phase-3/L4.6  graphics.library area fill (InitArea/AreaMove/AreaDraw/AreaEnd)
 c9f6492 phase-3/L4.5  graphics.library text + fonts (OpenFont/SetFont/Text/TextLength)
 7d51b32 phase-3/L4.4  graphics.library blits (BltBitMap/BltBitMapRastPort/ClipBlit)
@@ -65,8 +66,8 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**31 passed / 0 failed** (the retired `carafs_fs_syscall` stopgap test
-dropped the count by one), QEMU boot smoke ok (two boots: partition +
+**32 passed / 0 failed** (L4.7 added `graphics_screen_rastport`), QEMU
+boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
 
@@ -542,12 +543,25 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   buffer (SUM=1), AreaEnd fills + resets. `SYS_Gfx_*` 79-82. **`Flood`
   (seed fill) deferred** — separate queue algorithm, apps-gated (§6.3).
   Coverage **16%** (24 impl / 126 stub). **L4 core + areas done.**
-- **NEXT (optional):** **L4.7** — convergence: repoint Leargas chrome
-  through real `graphics.library` RastPorts so `Screen.RastPort` (today
-  `nullptr`) is live; pure refactor, may fold into L5. Otherwise move to
-  **L5 (intuition.library widen)** — the bigger apps unblock (screens,
-  tag window opener, menus, requesters, full gadget/IDCMP); its graphics
-  dependency is now satisfied. **Recommend scoping L5 next.**
+- **L4.7 shipped (`95a593d`): live Screen.RastPort — L4 COMPLETE.**
+  `struct LeargasScreen` embeds a `RastPort` + `DathBitMapExt` whose surf
+  mirrors the screen `*fb`; `Screen.RastPort`/`Screen.BitMap` (previously
+  `nullptr`) now point at them, so apps + L5 window code can draw through
+  graphics.library against the same pixels Leargas chrome renders to.
+  **Dual-target constraint:** the setup is pure data (V36 RastPort
+  defaults inline) so the host-buildable screen code does NOT call the
+  kernel-only `Croi_Gfx_*` impls; the existing chrome rendering keeps its
+  `Dath_*` path (same pixels). KERNEL_TEST(`graphics_screen_rastport`)
+  draws through `Screen.RastPort` via the gfx impls + verifies the fb.
+  No LVO change (coverage still 16%). kernel 32/0.
+- **NEXT: scope L5 — `intuition.library` widen.** The big apps unblock:
+  screens (`OpenScreen`/`OpenScreenTagList`), the tag window opener
+  (`OpenWindowTagList`), menus, requesters, the full gadget + IDCMP
+  surface. Its graphics dependency (RastPorts, text, blits) is now
+  satisfied. Write a `docs/LEARGAS_INTUITION.md` scope (as L3/L4 got
+  design docs) before cutting code. Window RastPorts derive from the
+  screen RastPort just landed. (Today intuition is 5 LVOs at ~6%
+  coverage — `OpenWindow`/`CloseWindow`/gadget attach/`ActivateGadget`.)
 - **L4 reference: `graphics.library` (Dath): SCOPED (`docs/DATH_GRAPHICS.md`).**
   Read that doc before cutting L4 code. Decisions locked there: (1) **chunky
   RTG bitmaps, not planar** — `struct BitMap` kept ABI-shaped but opaque,
