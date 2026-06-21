@@ -150,6 +150,9 @@ enum {
     SYS_RefreshWindowFrame = 106,
     SYS_AutoRequest = 107, // local stub packs AutoReqArgs (8-arg LVO)
     SYS_EasyRequestArgs = 108,
+    SYS_OpenScreen = 109,
+    SYS_CloseScreen = 110,
+    SYS_OpenScreenTagList = 111,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -273,6 +276,9 @@ enum {
 #define SYS_RefreshWindowFrame 106
 #define SYS_AutoRequest 107
 #define SYS_EasyRequestArgs 108
+#define SYS_OpenScreen 109
+#define SYS_CloseScreen 110
+#define SYS_OpenScreenTagList 111
 #endif
 
 #endif

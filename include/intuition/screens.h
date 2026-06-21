@@ -88,6 +88,47 @@ struct Screen {
     UBYTE *UserData;
 };
 
+// ---- struct NewScreen (V36+) — OpenScreen argument (L5.6) -----------------
+//
+// v0 screens reuse the boot display framebuffer's format/size (one
+// display, no mode database — that's Phase 4 RTG), so the geometry/depth
+// fields are accepted but largely advisory.
+struct NewScreen {
+    WORD LeftEdge, TopEdge, Width, Height, Depth;
+    UBYTE DetailPen, BlockPen;
+    UWORD ViewModes;
+    UWORD Type; // WBENCHSCREEN / CUSTOMSCREEN
+    struct TextAttr *Font;
+    UBYTE *DefaultTitle;
+    struct Gadget *Gadgets;
+    struct BitMap *CustomBitMap;
+};
+
+// ---- SA_* screen-attribute tags (V36+) — OpenScreenTagList ----------------
+//
+// SA_Dummy == TAG_USER + 32. v0 honours SA_Left/Top/Width/Height/Depth/
+// DetailPen/BlockPen/Title/Type into the NewScreen; the rest are ignored
+// (single boot display).
+#define SA_Dummy (0x80000000UL + 32)
+#define SA_Left (SA_Dummy + 1)
+#define SA_Top (SA_Dummy + 2)
+#define SA_Width (SA_Dummy + 3)
+#define SA_Height (SA_Dummy + 4)
+#define SA_Depth (SA_Dummy + 5)
+#define SA_DetailPen (SA_Dummy + 6)
+#define SA_BlockPen (SA_Dummy + 7)
+#define SA_Title (SA_Dummy + 8)
+#define SA_Colors (SA_Dummy + 9)
+#define SA_ErrorCode (SA_Dummy + 10)
+#define SA_Font (SA_Dummy + 11)
+#define SA_SysFont (SA_Dummy + 12)
+#define SA_Type (SA_Dummy + 13)
+#define SA_BitMap (SA_Dummy + 14)
+#define SA_PubName (SA_Dummy + 15)
+#define SA_DisplayID (SA_Dummy + 18)
+#define SA_AutoScroll (SA_Dummy + 30)
+#define SA_Pens (SA_Dummy + 31)
+
 // V36+ default chrome metrics — values Leargas_OpenScreen seeds into
 // the BarHeight / WBor* fields on Workbench-flavour screens.
 constexpr i8 LEARGAS_DEFAULT_BAR_HEIGHT = 11;

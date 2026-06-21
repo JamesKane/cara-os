@@ -130,6 +130,19 @@ void Leargas_Screen_SetActive(struct LeargasScreen *s)
     g_active_screen = s;
 }
 
+// L5.6: the boot display framebuffer OpenScreen opens custom screens over.
+static struct DathFramebuffer *g_display_fb;
+
+void Leargas_SetDisplayFramebuffer(struct DathFramebuffer *fb)
+{
+    g_display_fb = fb;
+}
+
+[[nodiscard]] struct DathFramebuffer *Leargas_DisplayFramebuffer(void)
+{
+    return g_display_fb;
+}
+
 [[nodiscard]] struct Screen *Leargas_ActiveScreen(void)
 {
     return g_active_screen ? &g_active_screen->pub : nullptr;

@@ -720,6 +720,7 @@ static void console_putc(char c)
         DathColor ptr_outline = (g_fb.format == DATH_FMT_RGB565) ? Dath_RGB565(0, 0, 0)
                                                                  : Dath_RGB(0, 0, 0);
 
+        Leargas_SetDisplayFramebuffer(&g_fb); // L5.6: OpenScreen opens here
         g_screen = Leargas_OpenScreen(&g_fb, "Workbench", bg);
         bool demo_up = g_screen != nullptr &&
                        Dath_AllocBitmap(&g_pointer_save, leargas_pointer_arrow.width,

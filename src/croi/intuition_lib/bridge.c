@@ -385,6 +385,105 @@ void Croi_RefreshWindowFrame_Impl(struct Window *window)
     }
 }
 
+// ---- Screens (L5.6) -------------------------------------------------
+//
+// v0 opens custom screens over the single boot display framebuffer
+// (Leargas_DisplayFramebuffer). The geometry/depth in NewScreen is
+// advisory (one display, no mode database — Phase 4 RTG). OpenScreen
+// saves the previously-active screen so CloseScreen restores it (no
+// backing store → the restored screen isn't repainted; a v0 gap).
+
+struct Screen *Croi_OpenScreen_Impl(struct NewScreen *ns)
+{
+    struct DathFramebuffer *fb = Leargas_DisplayFramebuffer();
+    if (!fb || !ns) {
+        return nullptr;
+    }
+    struct Screen *prev = Leargas_ActiveScreen();
+    const char *title = ns->DefaultTitle ? (const char *)ns->DefaultTitle : "Screen";
+    struct Screen *scr = Leargas_OpenScreen(fb, title, 0); // black bg in v0
+    if (scr) {
+        struct LeargasScreen *ls = Leargas_Screen_FromPub(scr);
+        if (ls) {
+            ls->prev_active = prev;
+        }
+        scr->DetailPen = ns->DetailPen;
+        scr->BlockPen = ns->BlockPen;
+    }
+    return scr;
+}
+
+void Croi_CloseScreen_Impl(struct Screen *screen)
+{
+    if (!screen) {
+        return;
+    }
+    struct LeargasScreen *ls = Leargas_Screen_FromPub(screen);
+    struct Screen *prev = ls ? ls->prev_active : nullptr;
+    Leargas_CloseScreen(screen); // frees + clears active if it was active
+    if (prev) {
+        Leargas_Screen_SetActive(Leargas_Screen_FromPub(prev));
+    }
+}
+
+struct Screen *Croi_OpenScreenTagList_Impl(struct NewScreen *ns_in, struct TagItem *tags)
+{
+    struct NewScreen ns = ns_in ? *ns_in : (struct NewScreen){ 0 };
+    const struct TagItem *t = tags;
+    while (t) {
+        Tag id = t->ti_Tag;
+        IPTR v = t->ti_Data;
+        if (id == TAG_DONE) {
+            break;
+        }
+        if (id == TAG_IGNORE) {
+            t++;
+            continue;
+        }
+        if (id == TAG_MORE) {
+            t = (const struct TagItem *)(uptr)v;
+            continue;
+        }
+        if (id == TAG_SKIP) {
+            t += 1 + (i32)v;
+            continue;
+        }
+        switch (id) {
+        case SA_Left:
+            ns.LeftEdge = (WORD)v;
+            break;
+        case SA_Top:
+            ns.TopEdge = (WORD)v;
+            break;
+        case SA_Width:
+            ns.Width = (WORD)v;
+            break;
+        case SA_Height:
+            ns.Height = (WORD)v;
+            break;
+        case SA_Depth:
+            ns.Depth = (WORD)v;
+            break;
+        case SA_DetailPen:
+            ns.DetailPen = (UBYTE)v;
+            break;
+        case SA_BlockPen:
+            ns.BlockPen = (UBYTE)v;
+            break;
+        case SA_Title:
+            ns.DefaultTitle = (UBYTE *)(uptr)v;
+            break;
+        case SA_Type:
+            ns.Type = (UWORD)v;
+            break;
+        default:
+            break; // unrecognised SA_* — ignored (v0)
+        }
+        t++;
+    }
+    return Croi_OpenScreen_Impl(&ns);
+}
+
 // ---- Requesters (L5) ------------------------------------------------
 //
 // A modal dialog over the existing window + bool-gadget + IDCMP

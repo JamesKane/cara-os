@@ -65,6 +65,9 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_RefreshWindowFrame, SYS_RefreshWindowFra
 // AutoRequest is `local` (req_stubs.c packs its 8 args); only
 // EasyRequestArgs needs a syscall trampoline.
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_EasyRequestArgs,   SYS_EasyRequestArgs
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_OpenScreen,        SYS_OpenScreen
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_CloseScreen,       SYS_CloseScreen
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_OpenScreenTagList, SYS_OpenScreenTagList
 
 // ---- Gadgets ----
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AddGadget,       SYS_AddGadget

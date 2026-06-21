@@ -390,6 +390,14 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)Croi_EasyRequestArgs_Impl((struct Window *)(uptr)a0,
                                               (struct EasyStruct *)(uptr)a1, (ULONG *)(uptr)a2,
                                               (APTR)(uptr)a3);
+    case SYS_OpenScreen:
+        return (i64)(uptr)Croi_OpenScreen_Impl((struct NewScreen *)(uptr)a0);
+    case SYS_CloseScreen:
+        Croi_CloseScreen_Impl((struct Screen *)(uptr)a0);
+        return 0;
+    case SYS_OpenScreenTagList:
+        return (i64)(uptr)Croi_OpenScreenTagList_Impl((struct NewScreen *)(uptr)a0,
+                                                      (struct TagItem *)(uptr)a1);
 
     // ---- intuition.library gadgets ----
     case SYS_AddGadget:

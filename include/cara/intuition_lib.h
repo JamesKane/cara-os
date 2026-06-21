@@ -104,6 +104,13 @@ BOOL Croi_AutoRequest_Impl(struct AutoReqArgs *a);
 LONG Croi_EasyRequestArgs_Impl(struct Window *window, struct EasyStruct *easyStruct,
                                ULONG *idcmpPtr, APTR args);
 
+// ---- Screens (L5.6) -------------------------------------------------
+struct NewScreen;
+struct Screen;
+struct Screen *Croi_OpenScreen_Impl(struct NewScreen *ns);
+struct Screen *Croi_OpenScreenTagList_Impl(struct NewScreen *ns, struct TagItem *tags);
+void Croi_CloseScreen_Impl(struct Screen *screen);
+
 // ---- Gadgets --------------------------------------------------------
 
 UWORD Croi_AddGadget_Impl(struct Window *w, struct Gadget *g, ULONG position);

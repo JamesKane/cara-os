@@ -207,6 +207,10 @@ struct LeargasScreen {
     // rasteriser (surf_of) draws to the same pixels Leargas chrome does.
     struct RastPort rp;
     struct DathBitMapExt bmext;
+
+    // L5.6: the screen that was active when this one was OpenScreen'd, so
+    // CloseScreen restores it (one per screen → a proper stack).
+    struct Screen *prev_active;
 };
 
 // Initialise a caller-provided LeargasScreen from a DathFramebuffer
@@ -244,6 +248,12 @@ void Leargas_Screen_SetActive(struct LeargasScreen *s);
 // Leargas_OpenScreen. Clears the active-screen pointer if `s` was
 // active; releases the heap allocation. Safe to call on nullptr.
 void Leargas_CloseScreen(struct Screen *s);
+
+// L5.6: the boot display framebuffer that OpenScreen opens custom screens
+// over (v0: one display). The kernel registers it at boot; OpenScreen
+// reads it. Returns nullptr until registered.
+void Leargas_SetDisplayFramebuffer(struct DathFramebuffer *fb);
+[[nodiscard]] struct DathFramebuffer *Leargas_DisplayFramebuffer(void);
 
 // ---- LC — Mouse motion → pointer router -----------------------------------
 //

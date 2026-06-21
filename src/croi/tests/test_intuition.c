@@ -256,6 +256,60 @@ KERNEL_TEST(intuition_render_gadgets)
     Leargas_CloseScreen(scr);
 }
 
+// L5.6 — screens: OpenScreen over the display fb, active save/restore on
+// close, OpenScreenTagList from SA_* tags.
+KERNEL_TEST(intuition_screens)
+{
+    static u32 pixels[64 * 48];
+    static struct DathFramebuffer fb; // static: stays valid as the display fb
+    TEST_ASSERT(ctx,
+                Dath_Framebuffer_Init(&fb, pixels, 64, 48, 64 * 4, DATH_FMT_RGBA8888) == CARA_EOK,
+                "fb init");
+    Leargas_SetDisplayFramebuffer(&fb);
+
+    struct Screen *wb = Leargas_OpenScreen(&fb, "Workbench", 0);
+    TEST_ASSERT(ctx, wb != nullptr && Leargas_ActiveScreen() == wb, "WB screen active");
+
+    // OpenScreen a custom screen → it becomes active.
+    struct NewScreen ns = (struct NewScreen){ 0 };
+    ns.Width = 64;
+    ns.Height = 48;
+    ns.Depth = 8;
+    ns.BlockPen = 1;
+    ns.Type = CUSTOMSCREEN;
+    ns.DefaultTitle = (UBYTE *)(uptr) "Custom";
+    struct Screen *cs = Croi_OpenScreen_Impl(&ns);
+    TEST_ASSERT(ctx, cs != nullptr && cs != wb && Leargas_ActiveScreen() == cs,
+                "custom screen active");
+    TEST_ASSERT(ctx, cs->Title != nullptr && cs->Title[0] == 'C', "custom title");
+
+    // A window opened with no screen lands on the active (custom) screen.
+    struct TagItem wt[] = {
+        { WA_Left, 2 }, { WA_Top, 2 }, { WA_Width, 20 }, { WA_Height, 16 }, { TAG_DONE, 0 },
+    };
+    struct Window *w = Croi_OpenWindowTagList_Impl(nullptr, wt);
+    TEST_ASSERT(ctx, w != nullptr && w->WScreen == cs, "window on custom screen");
+    Leargas_CloseWindow(w);
+
+    // CloseScreen restores the previous (WB) active screen.
+    Croi_CloseScreen_Impl(cs);
+    TEST_ASSERT(ctx, Leargas_ActiveScreen() == wb, "WB restored after CloseScreen");
+
+    // OpenScreenTagList from SA_* tags.
+    struct TagItem st[] = {
+        { SA_Width, 64 },          { SA_Height, 48 }, { SA_Title, (IPTR)(uptr) "Tagged" },
+        { SA_Type, CUSTOMSCREEN }, { TAG_DONE, 0 },
+    };
+    struct Screen *ts = Croi_OpenScreenTagList_Impl(nullptr, st);
+    TEST_ASSERT(ctx, ts != nullptr && Leargas_ActiveScreen() == ts && ts->Title[0] == 'T',
+                "tagged screen active");
+    Croi_CloseScreen_Impl(ts);
+    TEST_ASSERT(ctx, Leargas_ActiveScreen() == wb, "WB restored after tagged close");
+
+    Leargas_CloseScreen(wb);
+    Leargas_SetDisplayFramebuffer(nullptr);
+}
+
 // L5 requester — the modal dialog core (build + pre-post a GADGETUP so
 // the Wait returns at once, the single-task analogue of the live pump).
 KERNEL_TEST(intuition_requester)
