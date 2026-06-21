@@ -24,6 +24,8 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+5b83be4 phase-3/L8.1  gadtools.library + render context (VisualInfo/CreateContext)
+5bbf845 docs          scope L8 gadtools (docs/LEARGAS_GADTOOLS.md)
 f4bec1f phase-3/L7.3  BOOPSI public class registry (AddClass/RemoveClass) — closes L7
 4e674a5 phase-3/L7.2  BOOPSI attributes + object lists (SetAttrs/GetAttr/NextObject)
 188d118 phase-3/L7.1  BOOPSI class/object core + rootclass (MakeClass/NewObject/DoMethod)
@@ -81,8 +83,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**43 passed / 0 failed** (L7.1–L7.3 extended `userintuition_smoke` with
-the BOOPSI exercise), QEMU
+**44 passed / 0 failed** (L8.1 added `gadtools_visualinfo`), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -748,17 +749,29 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   before AddClass, builds a real object after, fails again after
   RemoveClass. intuition coverage 39% (45 impl). **L7 done: machinery +
   rootclass; concrete system classes arrive with L8.**
-- **NEXT: L8 — gadtools.library** (+ the first concrete BOOPSI classes:
-  `gadgetclass`/`imageclass` bridging BOOPSI objects to the Leargas
-  `struct Gadget` substrate + kernel renderer; then the gadtools
-  button/checkbox/cycle/slider/listview/string/mx/text/number kinds,
-  `CreateGadgetA`/`GT_SetGadgetAttrsA`/`CreateContext`/`FreeGadgets`,
-  `GT_GetIMsg`/`GT_ReplyIMsg`, menu helpers). Needs a scoping doc first
-  (`docs/LEARGAS_GADTOOLS.md`). Then L9 asl → L10–14 long tail → T tools
-  → A apps. L7 tracked gaps: concrete classes (gadgetclass/imageclass/
-  icclass/modelclass), `DoGadgetMethodA`, `OM_NOTIFY`/icclass
-  notification graph, FreeClass reaping, BOOPSI image rendering
-  (`DrawImageState`, gated on the deferred `DrawImage`).
+- **L8 — gadtools.library: SCOPED (`5bbf845`, `docs/LEARGAS_GADTOOLS.md`).**
+  Key decision: **gadtools-over-Leargas, not over-BOOPSI** (classic V36
+  gadtools builds plain `struct Gadget`s — gadgetclass is a parallel
+  mechanism), so L8 reuses the Leargas gadget substrate and is decoupled
+  from concrete BOOPSI classes. New base-ful library in `src/croi/gadtools`,
+  all `syscall`, shared-heap allocation. v0 kinds BUTTON/TEXT/NUMBER/
+  CHECKBOX/CYCLE/MX/STRING/INTEGER; prop kinds (slider/scroller/listview)
+  deferred to L8.5 (need router drag-tracking).
+- **L8.1 shipped (`5b83be4`): library + render context.** gadtools.library
+  constructed at boot; `<libraries/gadtools.h>` (GadToolsBase, *_KIND,
+  NewGadget/NewMenu, GT*_*/NM_* tags) + `struct DrawInfo` + the *PEN
+  indices in `<intuition/screens.h>`. `GetVisualInfoA -126`/`FreeVisualInfo
+  -132` (shared-heap `struct CaraVisualInfo` = screen + default DrawInfo),
+  `CreateContext -114`, `FreeGadgets -36`; `SYS_GT_*` 122-125. gadtools
+  coverage 22% (4 impl). `KERNEL_TEST(gadtools_visualinfo)`. **NEXT: L8.2**
+  — `CreateGadgetA -30` + easy kinds (BUTTON/TEXT/NUMBER/CHECKBOX) +
+  `GT_SetGadgetAttrsA -42` + per-kind Leargas rendering (split the conf
+  pads at ord 4 and ord 6). Then L8.3 bevel + choice/edit kinds, L8.4
+  GT_GetIMsg + menu builder, L8.5 prop kinds (drag-tracking) or defer.
+  After L8: L9 asl → L10–14 long tail → T tools → A apps. L7 tracked
+  gaps: concrete BOOPSI classes (gadgetclass/imageclass/icclass/
+  modelclass), `DoGadgetMethodA`, `OM_NOTIFY`, FreeClass reaping,
+  `DrawImageState` (gated on deferred `DrawImage`).
 - **Rich gadgets (list/cycle/slider/…) are gadtools (L8) on BOOPSI (L7);
   the file requester is asl (L9)** — not L5. L5 is the window-system core
   + menus + requesters.
