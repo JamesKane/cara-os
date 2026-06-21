@@ -10,7 +10,9 @@ set(_user_lds "${CMAKE_CURRENT_SOURCE_DIR}/user.lds")
 # bootstrap-opens exec.library via inline ecall (the SysBase global
 # isn't valid yet, so the LVO inline stubs can't be used), assigns
 # the SysBase global, calls main, then SYS_EXIT on return.
-add_library(libcara_user STATIC libcara_init.c)
+# libcara_boopsi.c adds the amiga.lib-analog BOOPSI dispatch helpers
+# (DoMethod/DoSuperMethod/CoerceMethod, <clib/alib_protos.h>).
+add_library(libcara_user STATIC libcara_init.c libcara_boopsi.c)
 target_link_libraries(libcara_user PRIVATE cara_kernel_flags cara_headers)
 
 add_executable(userhello userhello.c)

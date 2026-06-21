@@ -117,6 +117,23 @@ UWORD Croi_AddGadget_Impl(struct Window *w, struct Gadget *g, ULONG position);
 UWORD Croi_RemoveGadget_Impl(struct Window *w, struct Gadget *g);
 BOOL Croi_ActivateGadget_Impl(struct Gadget *g, struct Window *w, struct Requester *req);
 
+// ---- BOOPSI (L7) ----------------------------------------------------
+// The class/object machinery. NewObjectA/DisposeObject/MakeClass/
+// FreeClass are `local` (U-mode dispatch + shared-heap alloc), impl'd in
+// src/croi/intuition_lib/boopsi.c (.lib_text.intuition) — they are NOT
+// listed here (the generated proto stubs reach them through the vec
+// table). FindClass is `syscall` over the kernel class registry below.
+struct IClass;
+// Look up a registered public class by name (the registry read; rootclass
+// is pre-registered at boot). Returns nullptr if not found.
+struct IClass *Croi_FindClass_Impl(STRPTR classID);
+// Registry maintenance (kernel-internal): register/unregister a class and
+// build the built-in rootclass at boot. AddClass/RemoveClass (L7.3) wrap
+// these.
+void Croi_Boopsi_RegisterClass(struct IClass *cl);
+void Croi_Boopsi_UnregisterClass(struct IClass *cl);
+void Croi_Boopsi_Init(void);
+
 // ---- Reserved-slot library hooks (`local` flavour) ------------------
 // Vec slots 0..3. As with exec.library, OpenLibrary/CloseLibrary are
 // served by exec's SYS_OpenLibrary path, so these are never invoked via

@@ -69,6 +69,9 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_OpenScreen,        SYS_OpenScreen
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_CloseScreen,       SYS_CloseScreen
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_OpenScreenTagList, SYS_OpenScreenTagList
 
+// ---- BOOPSI (L7) ----
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_FindClass,         SYS_FindClass
+
 // ---- Gadgets ----
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AddGadget,       SYS_AddGadget
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_RemoveGadget,    SYS_RemoveGadget

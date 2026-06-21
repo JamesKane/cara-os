@@ -285,8 +285,8 @@ LIBTEXT_U void Croi_Utility_FilterTagChanges(struct TagItem *changeList,
 }
 
 // CallHookPkt — invoke a Hook: hook->h_Entry(hook, object, paramPacket).
-LIBTEXT_U ULONG Croi_Utility_CallHookPkt(struct Hook *hook, APTR object, APTR paramPacket,
-                                         struct UtilityBase *base)
+LIBTEXT_U IPTR Croi_Utility_CallHookPkt(struct Hook *hook, APTR object, APTR paramPacket,
+                                        struct UtilityBase *base)
 {
     (void)base;
     if (!hook || !hook->h_Entry) {

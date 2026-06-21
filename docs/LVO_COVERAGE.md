@@ -23,7 +23,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | Library | ABI slots | impl | server | stub | reserved | coverage |
 |---------|----------:|-----:|-------:|-----:|---------:|---------:|
 | exec.library | 115 | 44 | 0 | 67 | 4 | 39% |
-| intuition.library | 102 | 34 | 0 | 64 | 4 | 34% |
+| intuition.library | 119 | 39 | 0 | 76 | 4 | 33% |
 | utility.library | 30 | 13 | 0 | 13 | 4 | 50% |
 | dos.library | 33 | 19 | 0 | 10 | 4 | 65% |
 | graphics.library | 154 | 24 | 0 | 126 | 4 | 16% |
@@ -105,9 +105,9 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 ## intuition.library
 
-ABI surface declared through LVO -612 (ordinal 101). 98 user-callable slots: **34 impl**, 0 server, **64 stub**; coverage **34%**.
+ABI surface declared through LVO -714 (ordinal 118). 115 user-callable slots: **39 impl**, 0 server, **76 stub**; coverage **33%**.
 
-### Implemented (34)
+### Implemented (39)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
@@ -145,8 +145,13 @@ ABI surface declared through LVO -612 (ordinal 101). 98 user-callable slots: **3
 | 97 | -588 | `EasyRequestArgs` | syscall |
 | 100 | -606 | `OpenWindowTagList` | syscall |
 | 101 | -612 | `OpenScreenTagList` | syscall |
+| 105 | -636 | `NewObjectA` | local |
+| 106 | -642 | `DisposeObject` | local |
+| 111 | -672 | `FindClass` | syscall |
+| 112 | -678 | `MakeClass` | local |
+| 118 | -714 | `FreeClass` | local |
 
-### Unimplemented stub slots (64)
+### Unimplemented stub slots (76)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
@@ -171,6 +176,9 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 | 58..70 | -354..-426 | 13 |
 | 77..96 | -468..-582 | 20 |
 | 98..99 | -594..-600 | 2 |
+| 102..104 | -618..-630 | 3 |
+| 107..110 | -648..-666 | 4 |
+| 113..117 | -684..-708 | 5 |
 
 ## utility.library
 

@@ -13,6 +13,11 @@
 // V36+ source that assigns a correctly-typed callback compiles
 // unchanged; the asm-stub shim some 68k sources used is unnecessary
 // here.
+//
+// The return type is IPTR (pointer-width), not the classic 32-bit ULONG:
+// on 64-bit CaraOS a BOOPSI dispatcher (Hooks drive BOOPSI classes too)
+// must return object pointers from OM_NEW, which a 32-bit ULONG would
+// truncate. This matches the 64-bit AmigaOS-like convention (AROS).
 
 #ifndef UTILITY_HOOKS_H
 #define UTILITY_HOOKS_H
@@ -22,7 +27,7 @@
 
 struct Hook;
 
-typedef ULONG (*HOOKFUNC)(struct Hook *hook, APTR object, APTR message);
+typedef IPTR (*HOOKFUNC)(struct Hook *hook, APTR object, APTR message);
 
 struct Hook {
     struct MinNode h_MinNode;

@@ -162,6 +162,9 @@ enum {
     SYS_CheckIO = 116,
     SYS_WaitIO = 117,
     SYS_AbortIO = 118,
+
+    // Phase 3 L7 — BOOPSI public class registry read (boopsi_registry.c).
+    SYS_FindClass = 119,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -295,6 +298,7 @@ enum {
 #define SYS_CheckIO 116
 #define SYS_WaitIO 117
 #define SYS_AbortIO 118
+#define SYS_FindClass 119
 #endif
 
 #endif

@@ -704,6 +704,10 @@ static void console_putc(char c)
     Croi_Console_Init();
     Croi_Input_Init();
 
+    // ---- BOOPSI (L7): build + register the built-in rootclass so
+    //      MakeClass("...", "rootclass", ...) / NewObject resolve it. ----
+    Croi_Boopsi_Init();
+
     // ---- Run the in-kernel test suite. ----
     Test_RunAll();
 

@@ -178,10 +178,10 @@ struct GfxBase *GfxBase;
 // object + message so the test can assert the dispatch wired the args
 // through. Lives in the program's own U-mode text (0x10000 region),
 // which the .lib_text.utility CallHookPkt impl JALRs back into.
-static ULONG ue_hook_fn(struct Hook *h, APTR object, APTR message)
+static IPTR ue_hook_fn(struct Hook *h, APTR object, APTR message)
 {
     (void)h;
-    return (ULONG)(IPTR)object + (ULONG)(IPTR)message;
+    return (IPTR)object + (IPTR)message;
 }
 
 int main(void);

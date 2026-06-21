@@ -18,8 +18,16 @@ add_library(cara_intuition_lib STATIC
     bridge.c
     intuition_hooks.c
     req_stubs.c
+    boopsi.c
+    boopsi_registry.c
     trampolines.S
 )
+# boopsi.c's RootDispatch switch must NOT emit a jump table: the table
+# would land in .rodata and a PC-relative reference to it from the
+# .lib_text.intuition RX page (~1 GiB away) overflows. -fno-jump-tables
+# forces a branch chain that stays self-contained in the section.
+set_source_files_properties(boopsi.c PROPERTIES COMPILE_OPTIONS -fno-jump-tables)
+
 target_link_libraries(cara_intuition_lib
     PUBLIC cara_headers
     PRIVATE cara_kernel_flags
