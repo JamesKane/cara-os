@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+d5a1665 phase-3/L5.4  intuition feedback/timing (CurrentTime/DoubleClick/DisplayBeep/…)
 f0d6bd5 phase-3/L5.3  intuition menus (SetMenuStrip/ItemAddress/IDCMP_MENUPICK)
 5c0426f phase-3/L5.2  intuition window ops + activation (Move/Size/ToFront/Activate/…)
 872117c phase-3/L5.1  intuition tag window opener + window RPort + ModifyIDCMP
@@ -69,7 +70,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**35 passed / 0 failed** (L5.3 added `intuition_menus`), QEMU
+**36 passed / 0 failed** (L5.4 added `intuition_feedback`), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -604,9 +605,19 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   full-refresh). RBUTTON wired in router.c; `Leargas_IDCMP_PostMenuPick`
   installed at boot. v0: flat text items, all dropdowns shown at once, no
   sub-menus/imagery/command-keys. Coverage **16%** (16 impl / 81 stub).
-  **NEXT: L5.4** — requesters + feedback: `AutoRequest`/`EasyRequestArgs`
-  (modal dialog over the bool-gadget + IDCMP substrate, nested loop),
-  `DisplayBeep`, plus `CurrentTime`/`DoubleClick`/`ReportMouse` (§2.4).
+- **L5.4 shipped (`d5a1665`): feedback/timing.** `CurrentTime` (from
+  `Croi_Time`), `DoubleClick` (fixed 500 ms v0), `DisplayBeep` (logs),
+  `ReportMouse` (toggles `WFLG_REPORTMOUSE`+`IDCMP_MOUSEMOVE`). `SYS_*`
+  94-97. Coverage **20%** (20 impl / 77 stub). **The modal requester
+  (`AutoRequest`/`EasyRequestArgs`) is deferred** — its nested
+  input-pump loop doesn't unit-test deterministically without the HID
+  pump; it needs a dedicated harness (a `clar_smoke`-style pointer +
+  injected click).
+- **NEXT: L5.5** — rendering helpers + gadget widen: `DrawBorder`/
+  `DrawImage`/`PrintIText`/`IntuiTextLength` (over graphics.library; +
+  `struct Border`/`Image`) and `AddGList`/`RemoveGList`/`OnGadget`/
+  `OffGadget`/`RefreshGList`/`RefreshWindowFrame` (§5). Then the deferred
+  **requester** slice, and L5.6 screens (apps-gated).
 - **Rich gadgets (list/cycle/slider/…) are gadtools (L8) on BOOPSI (L7);
   the file requester is asl (L9)** — not L5. L5 is the window-system core
   + menus + requesters.
