@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+c7ff55c phase-3/L5    intuition requesters (AutoRequest/EasyRequestArgs)
 7fdf02b phase-3/L5.5  intuition rendering helpers + gadget widen (DrawBorder/PrintIText/AddGList/…)
 d5a1665 phase-3/L5.4  intuition feedback/timing (CurrentTime/DoubleClick/DisplayBeep/…)
 f0d6bd5 phase-3/L5.3  intuition menus (SetMenuStrip/ItemAddress/IDCMP_MENUPICK)
@@ -71,8 +72,8 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**37 passed / 0 failed** (L5.5 added `intuition_render_gadgets`), QEMU
-boot smoke ok (two boots: partition +
+**38 passed / 0 failed** (the requester slice added `intuition_requester`),
+QEMU boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
 
@@ -620,14 +621,23 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `OnGadget`/`OffGadget`/`RefreshGList`/`RefreshWindowFrame` (over the
   Leargas gadget substrate). `DrawImage` deferred (planar→chunky decode;
   left a pad). `SYS_*` 98-106. Coverage **29%** (29 impl / 68 stub).
-- **NEXT: the deferred requester slice** — `AutoRequest`/`EasyRequestArgs`
-  (+ `struct EasyStruct`, `DisplayBeep` already done): a modal dialog
-  over the bool-gadget + IDCMP substrate with a self-pumping nested loop
-  (poll `Leargas_Input_Drain` + watch the requester port + `Croi_Yield`;
-  works live via the HID pump). Needs a `clar_smoke`-style kernel-test
-  harness (pointer init + injected click at the button). Then **L5.6**
-  screens (apps-gated): `OpenScreenTagList`/`OpenScreen`/`CloseScreen` +
-  `NewScreen` + `SA_*`. `DrawImage` is a tracked gap.
+- **Requester slice shipped (`c7ff55c`): `AutoRequest`/`EasyRequestArgs`.**
+  `struct EasyStruct`; a modal-requester core (`Croi_Requester_Build` +
+  `Croi_Requester_Wait`) over the window + bool-gadget + IDCMP substrate —
+  Wait **blocks on the requester port** (`Croi_Wait`), so the pump (live)
+  or a pre-posted GADGETUP (test) drives it, no self-drain race.
+  `AutoRequest` (8 args) is a `local` marshalling stub (`req_stubs.c`,
+  L4.4 pattern); `EasyRequestArgs` (4 args) is syscall (splits
+  `es_GadgetFormat` on `|`). `SYS_*` 107-108. Coverage **31%** (31 impl /
+  66 stub).
+- **NEXT: L5.6 — screens (apps-gated):** `OpenScreenTagList`/`OpenScreen`/
+  `CloseScreen` + `struct NewScreen` + `SA_*` tags, over the existing
+  `Leargas_OpenScreen`. Then **L5 is effectively complete** (the
+  window-system core, menus, requesters, rendering, gadgets are in).
+  Tracked gaps: `DrawImage` (planar decode), the requester's live
+  interactive loop is pump-driven (core tested via pre-post), v0 menu/
+  EasyRequest simplifications. After L5: **L6 devices** (console/input/
+  timer) per the epic order.
 - **Rich gadgets (list/cycle/slider/…) are gadtools (L8) on BOOPSI (L7);
   the file requester is asl (L9)** — not L5. L5 is the window-system core
   + menus + requesters.
