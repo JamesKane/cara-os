@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+4e674a5 phase-3/L7.2  BOOPSI attributes + object lists (SetAttrs/GetAttr/NextObject)
 188d118 phase-3/L7.1  BOOPSI class/object core + rootclass (MakeClass/NewObject/DoMethod)
 66f3944 docs          scope L7 BOOPSI (docs/LEARGAS_BOOPSI.md)
 1448f13 phase-3/L6.4  input.device (IND_WRITEEVENT → Leargas ring) — closes L6
@@ -79,8 +80,8 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**43 passed / 0 failed** (L7.1 extended `userintuition_smoke` with the
-BOOPSI exercise), QEMU
+**43 passed / 0 failed** (L7.1/L7.2 extended `userintuition_smoke` with
+the BOOPSI exercise), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -727,15 +728,21 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   RootDispatch address taken via a `volatile` static initializer
   (absolute reloc). intuition coverage 33% (39 impl). Tested by
   extending `userintuition_smoke` (a custom rootclass subclass).
-  **NEXT: L7.2** — attributes + object lists: `SetAttrsA -648`/
-  `GetAttr -654`/`SetGadgetAttrsA -660`/`NextObject -666` (split the
-  `##pad_run 4` at ord 107-110), `OM_SET`/`OM_GET`/`OM_ADDMEMBER`/
-  `OM_REMMEMBER` bodies in rootclass; test SetAttrs/GetAttr round-trip +
-  unknown-attr fall-through. Then **L7.3** — public registry:
-  `AddClass -684`/`RemoveClass -708` (syscall over
-  `Croi_Boopsi_RegisterClass`/`_UnregisterClass`, already written) +
-  `NewObject`-by-name. After L7: L8 gadtools (first concrete class
-  `gadgetclass`) → L9 asl → L10–14 → T tools → A apps.
+- **L7.2 shipped (`4e674a5`): attributes + object lists.** Four local
+  LVOs (boopsi.c): `SetAttrsA -648`/`GetAttr -654` (OM_SET/OM_GET
+  dispatch), `SetGadgetAttrsA -660` (OM_SET; gadget refresh deferred to
+  L8), `NextObject -666` (steps an OM_ADDTAIL list). rootclass gained
+  `OM_ADDTAIL`/`OM_REMOVE` (inline AddTail/Remove of the object's
+  o_Node). `opGet.opg_Storage` + GetAttr storage are `IPTR*` (not
+  ULONG*) for pointer-valued attrs. userintuition_smoke extended with
+  the attr round-trip + a 3-object list walk. intuition coverage 37%
+  (43 impl). **NEXT: L7.3** — public registry: `AddClass -684`/
+  `RemoveClass -708` (syscall over the already-written
+  `Croi_Boopsi_RegisterClass`/`_UnregisterClass`; split the
+  `##pad_run 5` at ord 113-117, add `SYS_*` + trampolines) + `NewObject`-
+  by-name resolution (already works via FindClass — just needs a public
+  class in the registry to test). After L7: L8 gadtools (first concrete
+  class `gadgetclass`) → L9 asl → L10–14 → T tools → A apps.
 - **Rich gadgets (list/cycle/slider/…) are gadtools (L8) on BOOPSI (L7);
   the file requester is asl (L9)** — not L5. L5 is the window-system core
   + menus + requesters.
