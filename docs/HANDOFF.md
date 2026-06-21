@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+f4bec1f phase-3/L7.3  BOOPSI public class registry (AddClass/RemoveClass) — closes L7
 4e674a5 phase-3/L7.2  BOOPSI attributes + object lists (SetAttrs/GetAttr/NextObject)
 188d118 phase-3/L7.1  BOOPSI class/object core + rootclass (MakeClass/NewObject/DoMethod)
 66f3944 docs          scope L7 BOOPSI (docs/LEARGAS_BOOPSI.md)
@@ -80,7 +81,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**43 passed / 0 failed** (L7.1/L7.2 extended `userintuition_smoke` with
+**43 passed / 0 failed** (L7.1–L7.3 extended `userintuition_smoke` with
 the BOOPSI exercise), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
@@ -736,13 +737,28 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   o_Node). `opGet.opg_Storage` + GetAttr storage are `IPTR*` (not
   ULONG*) for pointer-valued attrs. userintuition_smoke extended with
   the attr round-trip + a 3-object list walk. intuition coverage 37%
-  (43 impl). **NEXT: L7.3** — public registry: `AddClass -684`/
-  `RemoveClass -708` (syscall over the already-written
-  `Croi_Boopsi_RegisterClass`/`_UnregisterClass`; split the
-  `##pad_run 5` at ord 113-117, add `SYS_*` + trampolines) + `NewObject`-
-  by-name resolution (already works via FindClass — just needs a public
-  class in the registry to test). After L7: L8 gadtools (first concrete
-  class `gadgetclass`) → L9 asl → L10–14 → T tools → A apps.
+  (43 impl).
+- **L7.3 shipped (`f4bec1f`): public class registry — L7 COMPLETE.**
+  `AddClass -684`/`RemoveClass -708` as `syscall` over the L7.1 kernel
+  registry (`SYS_AddClass=120`→`Croi_Boopsi_RegisterClass`,
+  `SYS_RemoveClass=121`→`_UnregisterClass`); conf pad split at ord
+  113-117 (-690..-702 stay padded for V36 pub-screen/draw-info).
+  `NewObject`-by-name already resolved via FindClass — publishing was
+  all that was missing. userintuition_smoke extended: by-name fails
+  before AddClass, builds a real object after, fails again after
+  RemoveClass. intuition coverage 39% (45 impl). **L7 done: machinery +
+  rootclass; concrete system classes arrive with L8.**
+- **NEXT: L8 — gadtools.library** (+ the first concrete BOOPSI classes:
+  `gadgetclass`/`imageclass` bridging BOOPSI objects to the Leargas
+  `struct Gadget` substrate + kernel renderer; then the gadtools
+  button/checkbox/cycle/slider/listview/string/mx/text/number kinds,
+  `CreateGadgetA`/`GT_SetGadgetAttrsA`/`CreateContext`/`FreeGadgets`,
+  `GT_GetIMsg`/`GT_ReplyIMsg`, menu helpers). Needs a scoping doc first
+  (`docs/LEARGAS_GADTOOLS.md`). Then L9 asl → L10–14 long tail → T tools
+  → A apps. L7 tracked gaps: concrete classes (gadgetclass/imageclass/
+  icclass/modelclass), `DoGadgetMethodA`, `OM_NOTIFY`/icclass
+  notification graph, FreeClass reaping, BOOPSI image rendering
+  (`DrawImageState`, gated on the deferred `DrawImage`).
 - **Rich gadgets (list/cycle/slider/…) are gadtools (L8) on BOOPSI (L7);
   the file requester is asl (L9)** — not L5. L5 is the window-system core
   + menus + requesters.
