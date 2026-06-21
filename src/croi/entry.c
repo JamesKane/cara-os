@@ -701,6 +701,7 @@ static void console_putc(char c)
 
     // ---- Register the kernel devices (L6) so OpenDevice finds them. ----
     Croi_Timer_Init();
+    Croi_Console_Init();
 
     // ---- Run the in-kernel test suite. ----
     Test_RunAll();

@@ -7,6 +7,7 @@
 
 add_library(cara_devices STATIC
     timer_device.c
+    console_device.c
 )
 target_link_libraries(cara_devices
     PUBLIC cara_headers

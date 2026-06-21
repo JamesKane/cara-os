@@ -120,3 +120,34 @@ KERNEL_TEST(timer_device)
 
     Croi_CloseDevice_Impl((struct IORequest *)&tr);
 }
+
+// L6.3 — console.device over the L3.6 console sink.
+KERNEL_TEST(console_device)
+{
+    Croi_Console_Init(); // idempotent (boot already registered it)
+
+    struct IOStdReq io = { 0 };
+    LONG err = Croi_OpenDevice_Impl((STRPTR) "console.device", 0, (struct IORequest *)&io, 0);
+    TEST_ASSERT(ctx, err == 0 && io.io_Device != nullptr, "OpenDevice console.device");
+
+    // CMD_WRITE → io_Actual == io_Length (bytes reach the cout sink).
+    static const char msg[] = "console.device CMD_WRITE\n";
+    io.io_Command = CMD_WRITE;
+    io.io_Data = (APTR)(uptr)msg;
+    io.io_Length = (ULONG)(sizeof(msg) - 1);
+    io.io_Actual = 0;
+    TEST_ASSERT(ctx, Croi_DoIO_Impl((struct IORequest *)&io) == 0, "DoIO CMD_WRITE");
+    TEST_ASSERT(ctx, io.io_Actual == sizeof(msg) - 1, "CMD_WRITE io_Actual");
+
+    // CMD_READ → EOF stub (0 bytes, no error).
+    io.io_Command = CMD_READ;
+    io.io_Actual = 7;
+    TEST_ASSERT(ctx, Croi_DoIO_Impl((struct IORequest *)&io) == 0 && io.io_Actual == 0,
+                "CMD_READ EOF");
+
+    // An unsupported command is rejected.
+    io.io_Command = 0x4321;
+    TEST_ASSERT(ctx, Croi_DoIO_Impl((struct IORequest *)&io) == IOERR_NOCMD, "unknown console cmd");
+
+    Croi_CloseDevice_Impl((struct IORequest *)&io);
+}

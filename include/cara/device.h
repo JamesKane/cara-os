@@ -46,6 +46,7 @@ void Croi_AbortIO_Impl(struct IORequest *io);
 // Each registers its CaraDevice with the registry; call at boot (entry.c)
 // before the test runner / any OpenDevice. Idempotent (Register skips a
 // name already present).
-void Croi_Timer_Init(void); // timer.device (L6.2)
+void Croi_Timer_Init(void);   // timer.device (L6.2)
+void Croi_Console_Init(void); // console.device (L6.3)
 
 #endif // CARA_DEVICE_H
