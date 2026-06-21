@@ -71,6 +71,8 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_OpenScreenTagList, SYS_OpenScreenTagList
 
 // ---- BOOPSI (L7) ----
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_FindClass,         SYS_FindClass
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AddClass,          SYS_AddClass
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_RemoveClass,       SYS_RemoveClass
 
 // ---- Gadgets ----
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AddGadget,       SYS_AddGadget

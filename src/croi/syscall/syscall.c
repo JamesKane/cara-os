@@ -400,9 +400,15 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)(uptr)Croi_OpenScreenTagList_Impl((struct NewScreen *)(uptr)a0,
                                                       (struct TagItem *)(uptr)a1);
 
-    // ---- BOOPSI public class registry read (L7) ----
+    // ---- BOOPSI public class registry (L7) ----
     case SYS_FindClass:
         return (i64)(uptr)Croi_FindClass_Impl((STRPTR)(uptr)a0);
+    case SYS_AddClass:
+        Croi_Boopsi_RegisterClass((struct IClass *)(uptr)a0);
+        return 0;
+    case SYS_RemoveClass:
+        Croi_Boopsi_UnregisterClass((struct IClass *)(uptr)a0);
+        return 0;
 
     // ---- exec device IO primitives (L6) ----
     case SYS_OpenDevice:

@@ -54,6 +54,9 @@
 #define USERINT_EXIT_GETATTR_UNKNOWN 0xBADE
 #define USERINT_EXIT_SETGADGET_FAILED 0xBADF
 #define USERINT_EXIT_NEXTOBJECT_FAILED 0xBAE0
+#define USERINT_EXIT_ADDCLASS_PREFAIL 0xBAE1
+#define USERINT_EXIT_ADDCLASS_BYNAME 0xBAE2
+#define USERINT_EXIT_REMCLASS_FAILED 0xBAE3
 
 // Referenced by the <proto/intuition.h> inline stubs. libcara only
 // bootstraps SysBase; IntuitionBase is this program's to set from the
@@ -267,6 +270,38 @@ static int boopsi_exercise(void)
     DoMethod(members[2], OM_REMOVE);
     for (int i = 0; i < 3; i++) {
         DisposeObject(members[i]);
+    }
+
+    // ---- Public class registry (L7.3): AddClass / NewObject-by-name. ----
+    // Before publishing, NewObject by name must NOT resolve.
+    APTR byname = NewObjectA(nullptr, (ClassID) "myclass", nullptr);
+    if (byname) {
+        DisposeObject(byname);
+        DisposeObject(o);
+        FreeClass(cl);
+        return (int)USERINT_EXIT_ADDCLASS_PREFAIL;
+    }
+    // Publish it; now NewObject by name resolves via FindClass.
+    AddClass(cl);
+    byname = NewObjectA(nullptr, (ClassID) "myclass", nullptr);
+    if (!byname || DoMethod(byname, MCM_GETVALUE) != 0x1234) {
+        if (byname) {
+            DisposeObject(byname);
+        }
+        RemoveClass(cl);
+        DisposeObject(o);
+        FreeClass(cl);
+        return (int)USERINT_EXIT_ADDCLASS_BYNAME;
+    }
+    DisposeObject(byname);
+    // Unpublish; by-name resolution must fail again.
+    RemoveClass(cl);
+    byname = NewObjectA(nullptr, (ClassID) "myclass", nullptr);
+    if (byname) {
+        DisposeObject(byname);
+        DisposeObject(o);
+        FreeClass(cl);
+        return (int)USERINT_EXIT_REMCLASS_FAILED;
     }
 
     // FreeClass must refuse while the object is still live.
