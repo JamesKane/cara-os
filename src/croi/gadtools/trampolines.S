@@ -25,7 +25,9 @@
 .section .lib_text.gadtools, "ax"
 .balign 4
 
-CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_FreeGadgets,    SYS_GT_FreeGadgets
-CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_CreateContext,  SYS_GT_CreateContext
-CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_GetVisualInfoA, SYS_GT_GetVisualInfoA
-CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_FreeVisualInfo, SYS_GT_FreeVisualInfo
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_FreeGadgets,     SYS_GT_FreeGadgets
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_CreateContext,   SYS_GT_CreateContext
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_GetVisualInfoA,  SYS_GT_GetVisualInfoA
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_FreeVisualInfo,  SYS_GT_FreeVisualInfo
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_CreateGadgetA,   SYS_GT_CreateGadgetA
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_SetGadgetAttrsA, SYS_GT_SetGadgetAttrsA

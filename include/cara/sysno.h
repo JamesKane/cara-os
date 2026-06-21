@@ -173,6 +173,8 @@ enum {
     SYS_GT_FreeVisualInfo = 123,
     SYS_GT_CreateContext = 124,
     SYS_GT_FreeGadgets = 125,
+    SYS_GT_CreateGadgetA = 126,
+    SYS_GT_SetGadgetAttrsA = 127,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -313,6 +315,8 @@ enum {
 #define SYS_GT_FreeVisualInfo 123
 #define SYS_GT_CreateContext 124
 #define SYS_GT_FreeGadgets 125
+#define SYS_GT_CreateGadgetA 126
+#define SYS_GT_SetGadgetAttrsA 127
 #endif
 
 #endif

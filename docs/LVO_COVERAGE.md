@@ -27,7 +27,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | utility.library | 30 | 13 | 0 | 13 | 4 | 50% |
 | dos.library | 33 | 19 | 0 | 10 | 4 | 65% |
 | graphics.library | 154 | 24 | 0 | 126 | 4 | 16% |
-| gadtools.library | 22 | 4 | 0 | 14 | 4 | 22% |
+| gadtools.library | 22 | 6 | 0 | 12 | 4 | 33% |
 | cruth.library | 23 | 9 | 10 | 0 | 4 | 100% |
 
 ## exec.library
@@ -304,25 +304,26 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 ## gadtools.library
 
-ABI surface declared through LVO -132 (ordinal 21). 18 user-callable slots: **4 impl**, 0 server, **14 stub**; coverage **22%**.
+ABI surface declared through LVO -132 (ordinal 21). 18 user-callable slots: **6 impl**, 0 server, **12 stub**; coverage **33%**.
 
-### Implemented (4)
+### Implemented (6)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
+| 4 | -30 | `CreateGadgetA` | syscall |
 | 5 | -36 | `FreeGadgets` | syscall |
+| 6 | -42 | `GT_SetGadgetAttrsA` | syscall |
 | 18 | -114 | `CreateContext` | syscall |
 | 20 | -126 | `GetVisualInfoA` | syscall |
 | 21 | -132 | `FreeVisualInfo` | syscall |
 
-### Unimplemented stub slots (14)
+### Unimplemented stub slots (12)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
 | ord range | LVO range | count |
 |-----------|-----------|------:|
-| 4..4 | -30..-30 | 1 |
-| 6..17 | -42..-108 | 12 |
+| 7..17 | -48..-108 | 11 |
 | 19..19 | -120..-120 | 1 |
 
 ## cruth.library

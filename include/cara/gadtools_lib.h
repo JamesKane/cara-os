@@ -14,13 +14,30 @@
 
 #include <cara/types.h>
 #include <exec/types.h>
-#include <intuition/screens.h> // struct DrawInfo
+#include <intuition/intuition.h> // struct IntuiText
+#include <intuition/screens.h>   // struct DrawInfo
 
 struct Screen;
 struct Gadget;
+struct Window;
+struct Requester;
+struct NewGadget;
 struct TagItem;
 struct Library;
 struct GadToolsBase;
+
+// gadtools-private per-gadget state, hung off Gadget.SpecialInfo for the
+// L8.2 kinds (BUTTON/TEXT/NUMBER/CHECKBOX). Carries the label IntuiText
+// (GadgetText points into it), the kind code, and a NUMBER_KIND value +
+// its formatted text buffer. FreeGadgets frees this block. (STRING/
+// INTEGER kinds, L8.3, need SpecialInfo == a StringInfo for the Leargas
+// string-gadget renderer — handled separately when they land.)
+struct GtGadgetExt {
+    struct IntuiText label;
+    UWORD kind;      // BUTTON_KIND / TEXT_KIND / NUMBER_KIND / CHECKBOX_KIND
+    LONG number;     // NUMBER_KIND value
+    char numbuf[16]; // formatted NUMBER text (label.IText points here)
+};
 
 // VisualInfo (L8.1): the opaque GetVisualInfoA handle. Allocated on the
 // SASOS shared heap so it is valid in U-mode; carries the screen and an
@@ -38,6 +55,12 @@ APTR Croi_GT_GetVisualInfoA_Impl(struct Screen *screen, struct TagItem *tags);
 void Croi_GT_FreeVisualInfo_Impl(APTR vi);
 struct Gadget *Croi_GT_CreateContext_Impl(struct Gadget **glistptr);
 struct Gadget *Croi_GT_FreeGadgets_Impl(struct Gadget *glist);
+
+// ---- Gadget factory + easy kinds (L8.2) -----------------------------
+struct Gadget *Croi_GT_CreateGadgetA_Impl(ULONG kind, struct Gadget *prevGad, struct NewGadget *ng,
+                                          struct TagItem *tags);
+void Croi_GT_SetGadgetAttrsA_Impl(struct Gadget *gad, struct Window *win, struct Requester *req,
+                                  struct TagItem *tags);
 
 // ---- Reserved-slot library hooks (`local` flavour) ------------------
 // Vec slots 0..3. As with the other bases, OpenLibrary/CloseLibrary are

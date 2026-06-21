@@ -422,6 +422,14 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)(uptr)Croi_GT_CreateContext_Impl((struct Gadget **)(uptr)a0);
     case SYS_GT_FreeGadgets:
         return (i64)(uptr)Croi_GT_FreeGadgets_Impl((struct Gadget *)(uptr)a0);
+    case SYS_GT_CreateGadgetA:
+        return (i64)(uptr)Croi_GT_CreateGadgetA_Impl((ULONG)a0, (struct Gadget *)(uptr)a1,
+                                                     (struct NewGadget *)(uptr)a2,
+                                                     (struct TagItem *)(uptr)a3);
+    case SYS_GT_SetGadgetAttrsA:
+        Croi_GT_SetGadgetAttrsA_Impl((struct Gadget *)(uptr)a0, (struct Window *)(uptr)a1,
+                                     (struct Requester *)(uptr)a2, (struct TagItem *)(uptr)a3);
+        return 0;
 
     // ---- exec device IO primitives (L6) ----
     case SYS_OpenDevice:
