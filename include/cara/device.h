@@ -48,5 +48,6 @@ void Croi_AbortIO_Impl(struct IORequest *io);
 // name already present).
 void Croi_Timer_Init(void);   // timer.device (L6.2)
 void Croi_Console_Init(void); // console.device (L6.3)
+void Croi_Input_Init(void);   // input.device (L6.4)
 
 #endif // CARA_DEVICE_H

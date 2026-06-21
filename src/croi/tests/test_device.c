@@ -8,9 +8,13 @@
 
 #include <cara/device.h>
 #include <cara/exec_lib.h>
+#include <cara/leargas.h>
 #include <cara/test.h>
 #include <cara/types.h>
+#include <devices/input.h>
+#include <devices/inputevent.h>
 #include <devices/timer.h>
+#include <exec/interrupts.h>
 #include <exec/io.h>
 #include <exec/nodes.h>
 #include <exec/ports.h>
@@ -148,6 +152,68 @@ KERNEL_TEST(console_device)
     // An unsupported command is rejected.
     io.io_Command = 0x4321;
     TEST_ASSERT(ctx, Croi_DoIO_Impl((struct IORequest *)&io) == IOERR_NOCMD, "unknown console cmd");
+
+    Croi_CloseDevice_Impl((struct IORequest *)&io);
+}
+
+// L6.4 — input.device over the Leargas input ring.
+KERNEL_TEST(input_device)
+{
+    Croi_Input_Init();          // idempotent (boot already registered it)
+    (void)Leargas_Input_Init(); // ensure the ring exists; idempotent
+
+    struct IOStdReq io = { 0 };
+    LONG err = Croi_OpenDevice_Impl((STRPTR) "input.device", 0, (struct IORequest *)&io, 0);
+    TEST_ASSERT(ctx, err == 0 && io.io_Device != nullptr, "OpenDevice input.device");
+
+    // Drain anything already queued so our injected event is observable.
+    struct LeargasInputEvent drain;
+    while (Leargas_Input_Read(&drain)) {
+    }
+
+    // IND_WRITEEVENT injects a two-event chain into the ring.
+    struct InputEvent ev2 = {
+        .ie_Class = IECLASS_RAWKEY,
+        .ie_Code = 0x42,
+        .ie_NextEvent = nullptr,
+    };
+    struct InputEvent ev1 = {
+        .ie_Class = IECLASS_RAWMOUSE,
+        .ie_Code = IECODE_LBUTTON,
+        .ie_NextEvent = &ev2,
+    };
+    ev1.ie_X = 3;
+    ev1.ie_Y = -4;
+    io.io_Command = IND_WRITEEVENT;
+    io.io_Data = (APTR)&ev1;
+    io.io_Actual = 0;
+    TEST_ASSERT(ctx, Croi_DoIO_Impl((struct IORequest *)&io) == 0, "DoIO IND_WRITEEVENT");
+    TEST_ASSERT(ctx, io.io_Actual == 2, "IND_WRITEEVENT posted 2 events");
+
+    // The events land in the ring, in order, translated to the flat shape.
+    struct LeargasInputEvent r1 = { 0 };
+    struct LeargasInputEvent r2 = { 0 };
+    TEST_ASSERT(ctx, Leargas_Input_Read(&r1), "ring has event 1");
+    TEST_ASSERT(ctx, Leargas_Input_Read(&r2), "ring has event 2");
+    TEST_ASSERT(ctx,
+                r1.ie_class == IECLASS_RAWMOUSE && r1.ie_code == IECODE_LBUTTON && r1.ie_dx == 3 &&
+                    r1.ie_dy == -4,
+                "event 1 translated");
+    TEST_ASSERT(ctx, r2.ie_class == IECLASS_RAWKEY && r2.ie_code == 0x42, "event 2 translated");
+
+    // IND_ADDHANDLER / IND_REMHANDLER are accepted (recorded, not invoked).
+    struct Interrupt handler = { 0 };
+    io.io_Command = IND_ADDHANDLER;
+    io.io_Data = (APTR)&handler;
+    TEST_ASSERT(ctx, Croi_DoIO_Impl((struct IORequest *)&io) == 0, "IND_ADDHANDLER");
+    io.io_Command = IND_REMHANDLER;
+    TEST_ASSERT(ctx, Croi_DoIO_Impl((struct IORequest *)&io) == 0, "IND_REMHANDLER");
+
+    // A tuning verb is a no-op; an unknown command is rejected.
+    io.io_Command = IND_SETPERIOD;
+    TEST_ASSERT(ctx, Croi_DoIO_Impl((struct IORequest *)&io) == 0, "IND_SETPERIOD no-op");
+    io.io_Command = 0x4321;
+    TEST_ASSERT(ctx, Croi_DoIO_Impl((struct IORequest *)&io) == IOERR_NOCMD, "unknown input cmd");
 
     Croi_CloseDevice_Impl((struct IORequest *)&io);
 }
