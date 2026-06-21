@@ -24,6 +24,8 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+188d118 phase-3/L7.1  BOOPSI class/object core + rootclass (MakeClass/NewObject/DoMethod)
+66f3944 docs          scope L7 BOOPSI (docs/LEARGAS_BOOPSI.md)
 1448f13 phase-3/L6.4  input.device (IND_WRITEEVENT → Leargas ring) — closes L6
 f74821f phase-3/L6.3  console.device (CMD_WRITE → L3.6 cout sink, CMD_READ EOF)
 76700e7 phase-3/L6.2  timer.device (TR_GETSYSTIME/TR_ADDREQUEST over Croi_Time)
@@ -77,7 +79,8 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**43 passed / 0 failed** (L6.4 added `input_device`), QEMU
+**43 passed / 0 failed** (L7.1 extended `userintuition_smoke` with the
+BOOPSI exercise), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -700,14 +703,39 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `IND_ADDHANDLER`/`IND_REMHANDLER` record the handler but do NOT invoke
   it (Leargas owns the ring; full handler chain deferred — §2.5). The
   `IND_SET*` tuning verbs are no-ops; else `IOERR_NOCMD`. No `.conf`
-  change (device, not an LVO). **NEXT: L7 BOOPSI** (intuition class
-  system — `NewObject`/`SetAttrs`/`GetAttr`/`DoMethod`; the substrate
-  gadtools/asl build on). Then L8 gadtools → L9 asl → L10–14 long tail
-  → T tools → A apps. L6 tracked gaps: async device IO (queues/device
-  task), input handler chain not invoked, `CreateIORequest`/`DeleteIORequest`
-  (amiga.lib, not exec), multi-unit, settable clock/EClock, the device
-  tail (keyboard/serial/audio/trackdisk/clipboard + *.resource),
-  keymap.library.
+  change (device, not an LVO). L6 tracked gaps: async device IO
+  (queues/device task), input handler chain not invoked, `CreateIORequest`/
+  `DeleteIORequest` (amiga.lib, not exec), multi-unit, settable
+  clock/EClock, the device tail (keyboard/serial/audio/trackdisk/
+  clipboard + *.resource), keymap.library.
+- **L7 — BOOPSI: SCOPED (`66f3944`, `docs/LEARGAS_BOOPSI.md`).** Read it
+  before cutting more L7 code. Key decisions: object = instance data
+  preceded by a hidden `struct _Object`; dispatch is `local` (U-mode,
+  dispatchers are U-mode hooks); built-in `rootclass`; public class
+  registry = kernel registry (`FindClass`/`AddClass`/`RemoveClass`
+  syscall); `DoMethod`/`DoSuperMethod`/`CoerceMethod` in libcara.
+- **L7.1 shipped (`188d118`): class/object core + rootclass.** Headers
+  `<intuition/classusr.h>` + `<intuition/classes.h>` + `<clib/alib_protos.h>`.
+  `NewObjectA -636`/`DisposeObject -642`/`MakeClass -678`/`FreeClass -714`
+  (local, boopsi.c in .lib_text.intuition, shared-heap alloc via inlined
+  ecalls); `FindClass -672` (syscall, kernel registry boopsi_registry.c,
+  `SYS_FindClass=119`); rootclass built + registered at boot
+  (`Croi_Boopsi_Init`). DoMethod/DoSuperMethod/CoerceMethod in libcara
+  (libcara_boopsi.c). **64-bit fix: HOOKFUNC + CallHookPkt now return
+  IPTR** (was ULONG) so OM_NEW's object pointer survives. RX-page
+  gotchas: helpers force-inlined, `-fno-jump-tables` on boopsi.c,
+  RootDispatch address taken via a `volatile` static initializer
+  (absolute reloc). intuition coverage 33% (39 impl). Tested by
+  extending `userintuition_smoke` (a custom rootclass subclass).
+  **NEXT: L7.2** — attributes + object lists: `SetAttrsA -648`/
+  `GetAttr -654`/`SetGadgetAttrsA -660`/`NextObject -666` (split the
+  `##pad_run 4` at ord 107-110), `OM_SET`/`OM_GET`/`OM_ADDMEMBER`/
+  `OM_REMMEMBER` bodies in rootclass; test SetAttrs/GetAttr round-trip +
+  unknown-attr fall-through. Then **L7.3** — public registry:
+  `AddClass -684`/`RemoveClass -708` (syscall over
+  `Croi_Boopsi_RegisterClass`/`_UnregisterClass`, already written) +
+  `NewObject`-by-name. After L7: L8 gadtools (first concrete class
+  `gadgetclass`) → L9 asl → L10–14 → T tools → A apps.
 - **Rich gadgets (list/cycle/slider/…) are gadtools (L8) on BOOPSI (L7);
   the file requester is asl (L9)** — not L5. L5 is the window-system core
   + menus + requesters.
