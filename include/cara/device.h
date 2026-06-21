@@ -42,4 +42,10 @@ struct IORequest *Croi_CheckIO_Impl(struct IORequest *io);
 LONG Croi_WaitIO_Impl(struct IORequest *io);
 void Croi_AbortIO_Impl(struct IORequest *io);
 
+// ---- Device drivers — boot registration (L6.2+) ----------------------
+// Each registers its CaraDevice with the registry; call at boot (entry.c)
+// before the test runner / any OpenDevice. Idempotent (Register skips a
+// name already present).
+void Croi_Timer_Init(void); // timer.device (L6.2)
+
 #endif // CARA_DEVICE_H

@@ -10,6 +10,7 @@
 #ifndef DEVICES_TIMER_H
 #define DEVICES_TIMER_H
 
+#include <exec/io.h>
 #include <exec/types.h>
 
 // V36+ timeval is two 32-bit unsigned fields. tv_secs is seconds since
@@ -20,5 +21,27 @@ struct timeval {
     ULONG tv_secs;
     ULONG tv_micro;
 };
+
+// ---- timer.device (L6.2) -------------------------------------------------
+//
+// A timerequest is the IORequest the timer takes; tr_time is the duration
+// (TR_ADDREQUEST) or the result (TR_GETSYSTIME). v0 maps all units to the
+// one monotonic Croi_Time clock (docs/CROI_DEVICES.md §2.3).
+struct timerequest {
+    struct IORequest tr_node;
+    struct timeval tr_time;
+};
+
+// Units (OpenDevice's unit arg). v0 treats them all as the monotonic clock.
+#define UNIT_MICROHZ 0
+#define UNIT_VBLANK 1
+#define UNIT_ECLOCK 2
+#define UNIT_WAITUNTIL 3
+#define UNIT_WAITECLOCK 4
+
+// Commands (io_Command). TR_* extend the standard CMD_* set.
+#define TR_ADDREQUEST (CMD_NONSTD + 0) // wait tr_time, then complete
+#define TR_GETSYSTIME (CMD_NONSTD + 1) // tr_time = current system time
+#define TR_SETSYSTIME (CMD_NONSTD + 2) // set the clock (ignored in v0)
 
 #endif // DEVICES_TIMER_H

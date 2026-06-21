@@ -10,6 +10,7 @@
 #include <cara/exec_lib.h>
 #include <cara/test.h>
 #include <cara/types.h>
+#include <devices/timer.h>
 #include <exec/io.h>
 #include <exec/nodes.h>
 #include <exec/ports.h>
@@ -83,4 +84,39 @@ KERNEL_TEST(device_io)
     Croi_CloseDevice_Impl((struct IORequest *)&io);
     TEST_ASSERT(ctx, io.io_Device == nullptr, "CloseDevice unbound");
     Croi_DeleteMsgPort_Impl(rp);
+}
+
+// L6.2 — timer.device over Croi_Time.
+KERNEL_TEST(timer_device)
+{
+    Croi_Timer_Init(); // idempotent (boot already registered it)
+
+    struct timerequest tr = { 0 };
+    LONG err = Croi_OpenDevice_Impl((STRPTR) "timer.device", UNIT_MICROHZ, (struct IORequest *)&tr,
+                                    0);
+    TEST_ASSERT(ctx, err == 0 && tr.tr_node.io_Device != nullptr, "OpenDevice timer.device");
+
+    // TR_GETSYSTIME → a plausible, normalised time.
+    tr.tr_node.io_Command = TR_GETSYSTIME;
+    TEST_ASSERT(ctx, Croi_DoIO_Impl((struct IORequest *)&tr) == 0, "DoIO TR_GETSYSTIME");
+    TEST_ASSERT(ctx, tr.tr_time.tv_micro < 1000000u, "micros normalised");
+    u64 t0 = (u64)tr.tr_time.tv_secs * 1000000ull + tr.tr_time.tv_micro;
+
+    // TR_ADDREQUEST → wait ~1ms, completes.
+    tr.tr_node.io_Command = TR_ADDREQUEST;
+    tr.tr_time.tv_secs = 0;
+    tr.tr_time.tv_micro = 1000;
+    TEST_ASSERT(ctx, Croi_DoIO_Impl((struct IORequest *)&tr) == 0, "DoIO TR_ADDREQUEST");
+
+    // The clock advanced across the wait.
+    tr.tr_node.io_Command = TR_GETSYSTIME;
+    Croi_DoIO_Impl((struct IORequest *)&tr);
+    u64 t1 = (u64)tr.tr_time.tv_secs * 1000000ull + tr.tr_time.tv_micro;
+    TEST_ASSERT(ctx, t1 >= t0, "system time advanced after TR_ADDREQUEST");
+
+    // An unsupported command is rejected.
+    tr.tr_node.io_Command = 0x4321;
+    TEST_ASSERT(ctx, Croi_DoIO_Impl((struct IORequest *)&tr) == IOERR_NOCMD, "unknown timer cmd");
+
+    Croi_CloseDevice_Impl((struct IORequest *)&tr);
 }

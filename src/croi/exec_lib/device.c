@@ -31,9 +31,13 @@ static bool dev_name_eq(const char *a, const char *b)
 
 void Croi_Device_Register(struct CaraDevice *dev)
 {
-    if (dev && g_device_count < CARA_MAX_DEVICES) {
-        g_devices[g_device_count++] = dev;
+    if (!dev || g_device_count >= CARA_MAX_DEVICES) {
+        return;
     }
+    if (Croi_Device_Find(dev->name)) {
+        return; // already registered — idempotent
+    }
+    g_devices[g_device_count++] = dev;
 }
 
 [[nodiscard]] struct CaraDevice *Croi_Device_Find(const char *name)

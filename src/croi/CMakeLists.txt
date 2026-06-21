@@ -101,6 +101,7 @@ target_link_libraries(croi PRIVATE
     cara_gpt
     cara_hid
     cara_leargas
+    cara_devices
     # cara_exec_lib is whole-archived so trampolines.S.obj isn't
     # dropped — kernel-mode code never references the trampolines
     # directly (only the user-mode vec table at 0x4000_0000+ does),

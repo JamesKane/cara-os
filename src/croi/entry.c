@@ -19,6 +19,7 @@
 #include <cara/alloc.h>
 #include <cara/carafs_bind.h>
 #include <cara/dath.h>
+#include <cara/device.h>
 #include <cara/dos_lib.h>
 #include <cara/exec_lib.h>
 #include <cara/exec_lib_image.h>
@@ -697,6 +698,9 @@ static void console_putc(char c)
     //      (port published) before any Gleas issues a packet op, so this
     //      yields the handler to its first WaitPort before returning.
     Croi_Dos_StartHandler();
+
+    // ---- Register the kernel devices (L6) so OpenDevice finds them. ----
+    Croi_Timer_Init();
 
     // ---- Run the in-kernel test suite. ----
     Test_RunAll();
