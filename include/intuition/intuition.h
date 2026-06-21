@@ -328,6 +328,31 @@ struct IntuiText {
     struct IntuiText *NextText; // chained text segments
 };
 
+// ---- struct Border (V36+) — a polyline frame (L5.5) -----------------------
+//
+// XY is Count (x,y) WORD pairs, drawn as a connected line in FrontPen.
+struct Border {
+    WORD LeftEdge, TopEdge; // offset from the host object's origin
+    UBYTE FrontPen, BackPen;
+    UBYTE DrawMode;
+    BYTE Count; // number of (x,y) pairs in XY
+    WORD *XY;   // Count * 2 WORDs
+    struct Border *NextBorder;
+};
+
+// ---- struct Image (V36+) — a bitplane image (L5.5) ------------------------
+//
+// V36 images are planar (ImageData is Depth planes of Width*Height bits).
+// CaraOS DrawImage decode is deferred (v0); the struct is ABI-complete so
+// gadget GadgetRender (GFLG_GADGIMAGE) and apps compile.
+struct Image {
+    WORD LeftEdge, TopEdge;
+    WORD Width, Height, Depth;
+    UWORD *ImageData;
+    UBYTE PlanePick, PlaneOnOff;
+    struct Image *NextImage;
+};
+
 // ---- struct Gadget (V36+ public field set) --------------------------------
 //
 // The app allocates these and chains them via NextGadget; a window's

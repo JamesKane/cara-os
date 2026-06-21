@@ -200,6 +200,62 @@ KERNEL_TEST(intuition_menus)
     Leargas_CloseScreen(scr);
 }
 
+// L5.5 — rendering helpers (IntuiTextLength/PrintIText/DrawBorder) +
+// gadget-list verbs (AddGList/On/Off/RefreshGList/RemoveGList).
+KERNEL_TEST(intuition_render_gadgets)
+{
+    static u32 pixels[64 * 48];
+    struct DathFramebuffer fb;
+    TEST_ASSERT(ctx,
+                Dath_Framebuffer_Init(&fb, pixels, 64, 48, 64 * 4, DATH_FMT_RGBA8888) == CARA_EOK,
+                "fb init");
+    struct Screen *scr = Leargas_OpenScreen(&fb, "wb", 0);
+    TEST_ASSERT(ctx, scr != nullptr, "OpenScreen");
+    struct TagItem tags[] = {
+        { WA_Left, 2 }, { WA_Top, 2 }, { WA_Width, 50 }, { WA_Height, 40 }, { TAG_DONE, 0 },
+    };
+    struct Window *win = Croi_OpenWindowTagList_Impl(nullptr, tags);
+    TEST_ASSERT(ctx, win != nullptr && win->RPort != nullptr, "open window");
+    struct RastPort *rp = win->RPort;
+
+    // IntuiTextLength = chars * font width. PrintIText must not crash.
+    static char hi[] = "Hi";
+    static struct IntuiText it = {
+        .FrontPen = 1, .BackPen = 0, .DrawMode = JAM2, .IText = (UBYTE *)hi
+    };
+    TEST_ASSERT(ctx, Croi_IntuiTextLength_Impl(&it) == 2 * (LONG)dath_font_8x8.width,
+                "IntuiTextLength");
+    Croi_PrintIText_Impl(rp, &it, 20, 20);
+
+    // DrawBorder: a box; its top edge (red, pen 2) lands at the window
+    // content origin row.
+    static WORD xy[] = { 0, 0, 10, 0, 10, 8, 0, 8, 0, 0 };
+    static struct Border bd = {
+        .LeftEdge = 0, .TopEdge = 0, .FrontPen = 2, .DrawMode = JAM1, .Count = 5, .XY = xy
+    };
+    Croi_DrawBorder_Impl(rp, &bd, 0, 0);
+    i32 ox = win->LeftEdge + win->BorderLeft;
+    i32 oy = win->TopEdge + win->BorderTop;
+    TEST_ASSERT(ctx, pixels[(u32)oy * 64 + (u32)(ox + 5)] == 0xFFFF0000u, "DrawBorder top edge");
+
+    // AddGList a 2-gadget list, toggle one, refresh, remove.
+    static struct Gadget g2 = { .GadgetID = 2 };
+    static struct Gadget g1 = { .NextGadget = &g2, .GadgetID = 1 };
+    TEST_ASSERT(ctx, Croi_AddGList_Impl(win, &g1, (ULONG)~0u, -1, nullptr) == 2,
+                "AddGList added 2");
+    TEST_ASSERT(ctx, win->FirstGadget != nullptr, "gadgets linked");
+    Croi_OffGadget_Impl(&g1, win, nullptr);
+    TEST_ASSERT(ctx, (g1.Flags & GFLG_DISABLED) != 0, "OffGadget");
+    Croi_OnGadget_Impl(&g1, win, nullptr);
+    TEST_ASSERT(ctx, (g1.Flags & GFLG_DISABLED) == 0, "OnGadget");
+    Croi_RefreshGList_Impl(&g1, win, nullptr, -1);
+    Croi_RefreshWindowFrame_Impl(win);
+    TEST_ASSERT(ctx, Croi_RemoveGList_Impl(win, &g1, -1) == 2, "RemoveGList removed 2");
+
+    Leargas_CloseWindow(win);
+    Leargas_CloseScreen(scr);
+}
+
 // L5.4 — feedback / timing helpers.
 KERNEL_TEST(intuition_feedback)
 {

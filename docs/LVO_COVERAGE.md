@@ -23,7 +23,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | Library | ABI slots | impl | server | stub | reserved | coverage |
 |---------|----------:|-----:|-------:|-----:|---------:|---------:|
 | exec.library | 115 | 37 | 0 | 74 | 4 | 33% |
-| intuition.library | 101 | 20 | 0 | 77 | 4 | 20% |
+| intuition.library | 101 | 29 | 0 | 68 | 4 | 29% |
 | utility.library | 30 | 13 | 0 | 13 | 4 | 50% |
 | dos.library | 33 | 19 | 0 | 10 | 4 | 65% |
 | graphics.library | 154 | 24 | 0 | 126 | 4 | 16% |
@@ -97,9 +97,9 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 ## intuition.library
 
-ABI surface declared through LVO -606 (ordinal 100). 97 user-callable slots: **20 impl**, 0 server, **77 stub**; coverage **20%**.
+ABI surface declared through LVO -606 (ordinal 100). 97 user-callable slots: **29 impl**, 0 server, **68 stub**; coverage **29%**.
 
-### Implemented (20)
+### Implemented (29)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
@@ -109,22 +109,31 @@ ABI surface declared through LVO -606 (ordinal 100). 97 user-callable slots: **2
 | 12 | -78 | `DoubleClick` | syscall |
 | 13 | -84 | `CurrentTime` | syscall |
 | 15 | -96 | `DisplayBeep` | syscall |
+| 17 | -108 | `DrawBorder` | syscall |
 | 23 | -144 | `ItemAddress` | syscall |
 | 24 | -150 | `ModifyIDCMP` | syscall |
 | 27 | -168 | `MoveWindow` | syscall |
 | 28 | -174 | `ReportMouse` | syscall |
+| 29 | -180 | `OffGadget` | syscall |
+| 30 | -186 | `OnGadget` | syscall |
 | 33 | -204 | `OpenWindow` | syscall |
+| 35 | -216 | `PrintIText` | syscall |
 | 37 | -228 | `RemoveGadget` | syscall |
 | 43 | -264 | `SetMenuStrip` | syscall |
 | 45 | -276 | `SetWindowTitles` | syscall |
 | 47 | -288 | `SizeWindow` | syscall |
 | 50 | -306 | `WindowToBack` | syscall |
 | 51 | -312 | `WindowToFront` | syscall |
+| 54 | -330 | `IntuiTextLength` | syscall |
+| 71 | -432 | `RefreshGList` | syscall |
+| 72 | -438 | `AddGList` | syscall |
+| 73 | -444 | `RemoveGList` | syscall |
 | 74 | -450 | `ActivateWindow` | syscall |
+| 75 | -456 | `RefreshWindowFrame` | syscall |
 | 76 | -462 | `ActivateGadget` | syscall |
 | 100 | -606 | `OpenWindowTagList` | syscall |
 
-### Unimplemented stub slots (77)
+### Unimplemented stub slots (68)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
@@ -134,16 +143,18 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 | 7..7 | -48..-48 | 1 |
 | 9..10 | -60..-66 | 2 |
 | 14..14 | -90..-90 | 1 |
-| 16..22 | -102..-138 | 7 |
+| 16..16 | -102..-102 | 1 |
+| 18..22 | -114..-138 | 5 |
 | 25..26 | -156..-162 | 2 |
-| 29..32 | -180..-198 | 4 |
-| 34..36 | -210..-222 | 3 |
+| 31..32 | -192..-198 | 2 |
+| 34..34 | -210..-210 | 1 |
+| 36..36 | -222..-222 | 1 |
 | 38..42 | -234..-258 | 5 |
 | 44..44 | -270..-270 | 1 |
 | 46..46 | -282..-282 | 1 |
 | 48..49 | -294..-300 | 2 |
-| 52..73 | -318..-444 | 22 |
-| 75..75 | -456..-456 | 1 |
+| 52..53 | -318..-324 | 2 |
+| 55..70 | -336..-426 | 16 |
 | 77..99 | -468..-600 | 23 |
 
 ## utility.library

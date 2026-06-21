@@ -353,6 +353,37 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_ReportMouse:
         Croi_ReportMouse_Impl((LONG)a0, (struct Window *)(uptr)a1);
         return 0;
+    case SYS_IntuiTextLength:
+        return (i64)Croi_IntuiTextLength_Impl((struct IntuiText *)(uptr)a0);
+    case SYS_PrintIText:
+        Croi_PrintIText_Impl((struct RastPort *)(uptr)a0, (struct IntuiText *)(uptr)a1, (WORD)a2,
+                             (WORD)a3);
+        return 0;
+    case SYS_DrawBorder:
+        Croi_DrawBorder_Impl((struct RastPort *)(uptr)a0, (struct Border *)(uptr)a1, (WORD)a2,
+                             (WORD)a3);
+        return 0;
+    case SYS_AddGList:
+        return (i64)Croi_AddGList_Impl((struct Window *)(uptr)a0, (struct Gadget *)(uptr)a1,
+                                       (ULONG)a2, (LONG)a3, (struct Requester *)(uptr)frame->x[14]);
+    case SYS_RemoveGList:
+        return (i64)Croi_RemoveGList_Impl((struct Window *)(uptr)a0, (struct Gadget *)(uptr)a1,
+                                          (LONG)a2);
+    case SYS_OnGadget:
+        Croi_OnGadget_Impl((struct Gadget *)(uptr)a0, (struct Window *)(uptr)a1,
+                           (struct Requester *)(uptr)a2);
+        return 0;
+    case SYS_OffGadget:
+        Croi_OffGadget_Impl((struct Gadget *)(uptr)a0, (struct Window *)(uptr)a1,
+                            (struct Requester *)(uptr)a2);
+        return 0;
+    case SYS_RefreshGList:
+        Croi_RefreshGList_Impl((struct Gadget *)(uptr)a0, (struct Window *)(uptr)a1,
+                               (struct Requester *)(uptr)a2, (LONG)a3);
+        return 0;
+    case SYS_RefreshWindowFrame:
+        Croi_RefreshWindowFrame_Impl((struct Window *)(uptr)a0);
+        return 0;
 
     // ---- intuition.library gadgets ----
     case SYS_AddGadget:

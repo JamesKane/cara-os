@@ -64,6 +64,22 @@ BOOL Croi_DoubleClick_Impl(ULONG sSeconds, ULONG sMicros, ULONG cSeconds, ULONG 
 void Croi_DisplayBeep_Impl(struct Screen *screen);
 void Croi_ReportMouse_Impl(LONG flag, struct Window *window);
 
+// ---- Rendering helpers + gadget widen (L5.5) ------------------------
+struct RastPort;
+struct IntuiText;
+struct Border;
+LONG Croi_IntuiTextLength_Impl(struct IntuiText *iText);
+void Croi_PrintIText_Impl(struct RastPort *rp, struct IntuiText *iText, WORD x, WORD y);
+void Croi_DrawBorder_Impl(struct RastPort *rp, struct Border *border, WORD x, WORD y);
+UWORD Croi_AddGList_Impl(struct Window *w, struct Gadget *gadget, ULONG position, LONG numGad,
+                         struct Requester *requester);
+UWORD Croi_RemoveGList_Impl(struct Window *remPtr, struct Gadget *gadget, LONG numGad);
+void Croi_OnGadget_Impl(struct Gadget *gadget, struct Window *window, struct Requester *requester);
+void Croi_OffGadget_Impl(struct Gadget *gadget, struct Window *window, struct Requester *requester);
+void Croi_RefreshGList_Impl(struct Gadget *gadgets, struct Window *window,
+                            struct Requester *requester, LONG numGad);
+void Croi_RefreshWindowFrame_Impl(struct Window *window);
+
 // ---- Gadgets --------------------------------------------------------
 
 UWORD Croi_AddGadget_Impl(struct Window *w, struct Gadget *g, ULONG position);

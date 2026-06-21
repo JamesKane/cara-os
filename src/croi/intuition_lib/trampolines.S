@@ -53,6 +53,15 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_CurrentTime,       SYS_CurrentTime
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DoubleClick,       SYS_DoubleClick
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DisplayBeep,       SYS_DisplayBeep
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_ReportMouse,       SYS_ReportMouse
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_IntuiTextLength,   SYS_IntuiTextLength
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_PrintIText,        SYS_PrintIText
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DrawBorder,        SYS_DrawBorder
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AddGList,          SYS_AddGList
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_RemoveGList,       SYS_RemoveGList
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_OnGadget,          SYS_OnGadget
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_OffGadget,         SYS_OffGadget
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_RefreshGList,      SYS_RefreshGList
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_RefreshWindowFrame, SYS_RefreshWindowFrame
 
 // ---- Gadgets ----
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AddGadget,       SYS_AddGadget

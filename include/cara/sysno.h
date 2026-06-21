@@ -139,6 +139,15 @@ enum {
     SYS_DoubleClick = 95,
     SYS_DisplayBeep = 96,
     SYS_ReportMouse = 97,
+    SYS_IntuiTextLength = 98,
+    SYS_PrintIText = 99,
+    SYS_DrawBorder = 100,
+    SYS_AddGList = 101,
+    SYS_RemoveGList = 102,
+    SYS_OnGadget = 103,
+    SYS_OffGadget = 104,
+    SYS_RefreshGList = 105,
+    SYS_RefreshWindowFrame = 106,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -251,6 +260,15 @@ enum {
 #define SYS_DoubleClick 95
 #define SYS_DisplayBeep 96
 #define SYS_ReportMouse 97
+#define SYS_IntuiTextLength 98
+#define SYS_PrintIText 99
+#define SYS_DrawBorder 100
+#define SYS_AddGList 101
+#define SYS_RemoveGList 102
+#define SYS_OnGadget 103
+#define SYS_OffGadget 104
+#define SYS_RefreshGList 105
+#define SYS_RefreshWindowFrame 106
 #endif
 
 #endif

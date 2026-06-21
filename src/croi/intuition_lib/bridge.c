@@ -12,6 +12,8 @@
 // PRINCIPLES §intro) — no bounds-checking of the shared-heap pointers
 // beyond null guards.
 
+#include <cara/dath.h>
+#include <cara/graphics_lib.h>
 #include <cara/intuition_lib.h>
 #include <cara/leargas.h>
 #include <cara/log.h>
@@ -235,6 +237,149 @@ void Croi_ClearMenuStrip_Impl(struct Window *w)
 struct MenuItem *Croi_ItemAddress_Impl(struct Menu *menuStrip, UWORD menuNumber)
 {
     return Leargas_ItemAddress(menuStrip, menuNumber);
+}
+
+// ---- Rendering helpers (L5.5) ---------------------------------------
+
+static u32 itext_strlen(const UBYTE *s)
+{
+    u32 n = 0;
+    while (s && s[n]) {
+        n++;
+    }
+    return n;
+}
+
+// IntuiTextLength — pixel width of the text (monospace v0: len * font W).
+LONG Croi_IntuiTextLength_Impl(struct IntuiText *iText)
+{
+    if (!iText || !iText->IText) {
+        return 0;
+    }
+    return (LONG)(itext_strlen(iText->IText) * dath_font_8x8.width);
+}
+
+// PrintIText — render an IntuiText chain into the RastPort at (x,y) over
+// the graphics.library primitives (each segment carries its own pens).
+void Croi_PrintIText_Impl(struct RastPort *rp, struct IntuiText *iText, WORD x, WORD y)
+{
+    if (!rp) {
+        return;
+    }
+    for (struct IntuiText *t = iText; t; t = t->NextText) {
+        if (!t->IText) {
+            continue;
+        }
+        Croi_Gfx_SetAPen_Impl(rp, t->FrontPen);
+        Croi_Gfx_SetBPen_Impl(rp, t->BackPen);
+        Croi_Gfx_SetDrMd_Impl(rp, t->DrawMode);
+        Croi_Gfx_Move_Impl(rp, (WORD)(x + t->LeftEdge), (WORD)(y + t->TopEdge));
+        Croi_Gfx_Text_Impl(rp, (STRPTR)t->IText, itext_strlen(t->IText));
+    }
+}
+
+// DrawBorder — render a Border polyline chain into the RastPort at (x,y).
+void Croi_DrawBorder_Impl(struct RastPort *rp, struct Border *border, WORD x, WORD y)
+{
+    if (!rp) {
+        return;
+    }
+    for (struct Border *b = border; b; b = b->NextBorder) {
+        if (!b->XY || b->Count <= 0) {
+            continue;
+        }
+        Croi_Gfx_SetAPen_Impl(rp, b->FrontPen);
+        Croi_Gfx_SetDrMd_Impl(rp, b->DrawMode);
+        WORD bx = (WORD)(x + b->LeftEdge);
+        WORD by = (WORD)(y + b->TopEdge);
+        Croi_Gfx_Move_Impl(rp, (WORD)(bx + b->XY[0]), (WORD)(by + b->XY[1]));
+        for (i32 i = 1; i < b->Count; i++) {
+            Croi_Gfx_Draw_Impl(rp, (WORD)(bx + b->XY[i * 2]), (WORD)(by + b->XY[i * 2 + 1]));
+        }
+    }
+}
+
+// ---- Gadget-list verbs (L5.5) ---------------------------------------
+
+UWORD Croi_AddGList_Impl(struct Window *w, struct Gadget *gadget, ULONG position, LONG numGad,
+                         struct Requester *requester)
+{
+    (void)position;
+    (void)requester;
+    UWORD added = 0;
+    struct Gadget *g = gadget;
+    while (g && numGad != 0) {
+        struct Gadget *next = g->NextGadget;
+        Leargas_AddGadget(w, g);
+        Leargas_Gadget_Render(w, g);
+        added++;
+        if (numGad > 0) {
+            numGad--;
+        }
+        g = next;
+    }
+    return added;
+}
+
+UWORD Croi_RemoveGList_Impl(struct Window *remPtr, struct Gadget *gadget, LONG numGad)
+{
+    UWORD removed = 0;
+    struct Gadget *g = gadget;
+    while (g && numGad != 0) {
+        struct Gadget *next = g->NextGadget;
+        Leargas_RemoveGadget(remPtr, g);
+        removed++;
+        if (numGad > 0) {
+            numGad--;
+        }
+        g = next;
+    }
+    return removed;
+}
+
+void Croi_OnGadget_Impl(struct Gadget *gadget, struct Window *window, struct Requester *requester)
+{
+    (void)requester;
+    if (!gadget) {
+        return;
+    }
+    gadget->Flags &= ~(UWORD)GFLG_DISABLED;
+    Leargas_Gadget_Render(window, gadget);
+}
+
+void Croi_OffGadget_Impl(struct Gadget *gadget, struct Window *window, struct Requester *requester)
+{
+    (void)requester;
+    if (!gadget) {
+        return;
+    }
+    gadget->Flags |= (UWORD)GFLG_DISABLED;
+    Leargas_Gadget_Render(window, gadget);
+}
+
+void Croi_RefreshGList_Impl(struct Gadget *gadgets, struct Window *window,
+                            struct Requester *requester, LONG numGad)
+{
+    (void)requester;
+    struct Gadget *g = gadgets;
+    while (g && numGad != 0) {
+        Leargas_Gadget_Render(window, g);
+        if (numGad > 0) {
+            numGad--;
+        }
+        g = g->NextGadget;
+    }
+}
+
+void Croi_RefreshWindowFrame_Impl(struct Window *window)
+{
+    if (!window) {
+        return;
+    }
+    struct LeargasWindow *lw = Leargas_Window_FromPub(window);
+    if (lw) {
+        Leargas_Window_Render(lw);
+    }
 }
 
 // ---- Feedback / timing (L5.4) ---------------------------------------
