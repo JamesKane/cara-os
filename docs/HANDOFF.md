@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+f74821f phase-3/L6.3  console.device (CMD_WRITE → L3.6 cout sink, CMD_READ EOF)
 76700e7 phase-3/L6.2  timer.device (TR_GETSYSTIME/TR_ADDREQUEST over Croi_Time)
 b599c77 phase-3/L6.1  exec device IO primitives + device registry (OpenDevice/DoIO/…)
 378555f phase-3/L5.6  intuition screens (OpenScreen/OpenScreenTagList/CloseScreen) — L5 complete
@@ -75,7 +76,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**41 passed / 0 failed** (L6.2 added `timer_device`), QEMU
+**42 passed / 0 failed** (L6.3 added `console_device`), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -675,10 +676,20 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `CMD_CLEAR` no-op; else `IOERR_NOCMD`. The registry now skips
   duplicate names so `Croi_Timer_Init` is idempotent (boot + self-test
   both call it). New `src/croi/device/` lib (`cara_devices`), linked
-  normally into croi. **NEXT: L6.3** — console.device: `CMD_WRITE` →
-  the L3.6 console/cout log; `CMD_READ` EOF stub. Then L6.4
-  input.device (minimal: `IND_WRITEEVENT` → `Leargas_Input_Post`,
-  `IND_ADDHANDLER` recorded, chain deferred).
+  normally into croi.
+- **L6.3 shipped (`f74821f`): console.device.**
+  `src/croi/device/console_device.c` registered at boot via
+  `Croi_Console_Init()` (entry.c). `CMD_WRITE` emits `io_Data`/`io_Length`
+  through the kernel log-backed `cout` sink — the same stream the dos
+  console handler writes to (handler.c `console_write`), chunked to
+  `CARA_LOG_MSG_LEN`. `CMD_READ` returns EOF (0 bytes, stub stdin like
+  dos); `io_Actual` = bytes written; `CMD_CLEAR`/`CMD_FLUSH` no-op; else
+  `IOERR_NOCMD`. CD_* specials deferred. No `.conf` change (device, not
+  an LVO). **NEXT: L6.4** — input.device (minimal: `IND_WRITEEVENT` to
+  `Leargas_Input_Post`; `IND_ADDHANDLER`/`IND_REMHANDLER` recorded but
+  not invoked — Leargas drains the ring directly, full handler chain
+  deferred). New `devices/input.h` (`IND_*`); `devices/inputevent.h`
+  already has `struct InputEvent`. That closes L6.
 - **Rich gadgets (list/cycle/slider/…) are gadtools (L8) on BOOPSI (L7);
   the file requester is asl (L9)** — not L5. L5 is the window-system core
   + menus + requesters.
