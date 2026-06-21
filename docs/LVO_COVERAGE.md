@@ -23,7 +23,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | Library | ABI slots | impl | server | stub | reserved | coverage |
 |---------|----------:|-----:|-------:|-----:|---------:|---------:|
 | exec.library | 115 | 37 | 0 | 74 | 4 | 33% |
-| intuition.library | 101 | 16 | 0 | 81 | 4 | 16% |
+| intuition.library | 101 | 20 | 0 | 77 | 4 | 20% |
 | utility.library | 30 | 13 | 0 | 13 | 4 | 50% |
 | dos.library | 33 | 19 | 0 | 10 | 4 | 65% |
 | graphics.library | 154 | 24 | 0 | 126 | 4 | 16% |
@@ -97,18 +97,22 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 ## intuition.library
 
-ABI surface declared through LVO -606 (ordinal 100). 97 user-callable slots: **16 impl**, 0 server, **81 stub**; coverage **16%**.
+ABI surface declared through LVO -606 (ordinal 100). 97 user-callable slots: **20 impl**, 0 server, **77 stub**; coverage **20%**.
 
-### Implemented (16)
+### Implemented (20)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
 | 6 | -42 | `AddGadget` | syscall |
 | 8 | -54 | `ClearMenuStrip` | syscall |
 | 11 | -72 | `CloseWindow` | syscall |
+| 12 | -78 | `DoubleClick` | syscall |
+| 13 | -84 | `CurrentTime` | syscall |
+| 15 | -96 | `DisplayBeep` | syscall |
 | 23 | -144 | `ItemAddress` | syscall |
 | 24 | -150 | `ModifyIDCMP` | syscall |
 | 27 | -168 | `MoveWindow` | syscall |
+| 28 | -174 | `ReportMouse` | syscall |
 | 33 | -204 | `OpenWindow` | syscall |
 | 37 | -228 | `RemoveGadget` | syscall |
 | 43 | -264 | `SetMenuStrip` | syscall |
@@ -120,7 +124,7 @@ ABI surface declared through LVO -606 (ordinal 100). 97 user-callable slots: **1
 | 76 | -462 | `ActivateGadget` | syscall |
 | 100 | -606 | `OpenWindowTagList` | syscall |
 
-### Unimplemented stub slots (81)
+### Unimplemented stub slots (77)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
@@ -129,9 +133,10 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 | 4..5 | -30..-36 | 2 |
 | 7..7 | -48..-48 | 1 |
 | 9..10 | -60..-66 | 2 |
-| 12..22 | -78..-138 | 11 |
+| 14..14 | -90..-90 | 1 |
+| 16..22 | -102..-138 | 7 |
 | 25..26 | -156..-162 | 2 |
-| 28..32 | -174..-198 | 5 |
+| 29..32 | -180..-198 | 4 |
 | 34..36 | -210..-222 | 3 |
 | 38..42 | -234..-258 | 5 |
 | 44..44 | -270..-270 | 1 |

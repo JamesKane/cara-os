@@ -57,6 +57,13 @@ void Croi_SetMenuStrip_Impl(struct Window *w, struct Menu *menu);
 void Croi_ClearMenuStrip_Impl(struct Window *w);
 struct MenuItem *Croi_ItemAddress_Impl(struct Menu *menuStrip, UWORD menuNumber);
 
+// ---- Feedback / timing (L5.4) ---------------------------------------
+struct Screen;
+void Croi_CurrentTime_Impl(ULONG *seconds, ULONG *micros);
+BOOL Croi_DoubleClick_Impl(ULONG sSeconds, ULONG sMicros, ULONG cSeconds, ULONG cMicros);
+void Croi_DisplayBeep_Impl(struct Screen *screen);
+void Croi_ReportMouse_Impl(LONG flag, struct Window *window);
+
 // ---- Gadgets --------------------------------------------------------
 
 UWORD Croi_AddGadget_Impl(struct Window *w, struct Gadget *g, ULONG position);

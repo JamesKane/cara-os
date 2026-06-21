@@ -342,6 +342,17 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return 0;
     case SYS_ItemAddress:
         return (i64)(uptr)Croi_ItemAddress_Impl((struct Menu *)(uptr)a0, (UWORD)a1);
+    case SYS_CurrentTime:
+        Croi_CurrentTime_Impl((ULONG *)(uptr)a0, (ULONG *)(uptr)a1);
+        return 0;
+    case SYS_DoubleClick:
+        return (i64)Croi_DoubleClick_Impl((ULONG)a0, (ULONG)a1, (ULONG)a2, (ULONG)a3);
+    case SYS_DisplayBeep:
+        Croi_DisplayBeep_Impl((struct Screen *)(uptr)a0);
+        return 0;
+    case SYS_ReportMouse:
+        Croi_ReportMouse_Impl((LONG)a0, (struct Window *)(uptr)a1);
+        return 0;
 
     // ---- intuition.library gadgets ----
     case SYS_AddGadget:

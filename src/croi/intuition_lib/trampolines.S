@@ -49,6 +49,10 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_ActivateWindow,    SYS_ActivateWindow
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_SetMenuStrip,      SYS_SetMenuStrip
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_ClearMenuStrip,    SYS_ClearMenuStrip
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_ItemAddress,       SYS_ItemAddress
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_CurrentTime,       SYS_CurrentTime
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DoubleClick,       SYS_DoubleClick
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DisplayBeep,       SYS_DisplayBeep
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_ReportMouse,       SYS_ReportMouse
 
 // ---- Gadgets ----
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AddGadget,       SYS_AddGadget

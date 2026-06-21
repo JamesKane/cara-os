@@ -15,6 +15,7 @@
 #include <cara/intuition_lib.h>
 #include <cara/leargas.h>
 #include <cara/log.h>
+#include <cara/time.h>
 #include <cara/types.h>
 #include <exec/types.h>
 #include <intuition/intuition.h>
@@ -234,6 +235,50 @@ void Croi_ClearMenuStrip_Impl(struct Window *w)
 struct MenuItem *Croi_ItemAddress_Impl(struct Menu *menuStrip, UWORD menuNumber)
 {
     return Leargas_ItemAddress(menuStrip, menuNumber);
+}
+
+// ---- Feedback / timing (L5.4) ---------------------------------------
+
+// CurrentTime — fill *seconds/*micros from the monotonic S-mode clock.
+void Croi_CurrentTime_Impl(ULONG *seconds, ULONG *micros)
+{
+    u64 ns = Croi_Time_Now();
+    if (seconds) {
+        *seconds = (ULONG)(ns / 1000000000ull);
+    }
+    if (micros) {
+        *micros = (ULONG)((ns % 1000000000ull) / 1000ull);
+    }
+}
+
+// DoubleClick — TRUE if the click time follows the start within the
+// double-click interval (v0: a fixed 500 ms; AmigaOS reads Preferences).
+BOOL Croi_DoubleClick_Impl(ULONG sSeconds, ULONG sMicros, ULONG cSeconds, ULONG cMicros)
+{
+    i64 total = ((i64)cSeconds - (i64)sSeconds) * 1000000 + ((i64)cMicros - (i64)sMicros);
+    return (total >= 0 && total < 500000) ? TRUE : FALSE;
+}
+
+// DisplayBeep — v0: log it (no audio device / screen-flash timing yet).
+void Croi_DisplayBeep_Impl(struct Screen *screen)
+{
+    (void)screen;
+    LOG_INFO("intu", "DisplayBeep");
+}
+
+// ReportMouse — enable/disable IDCMP_MOUSEMOVE delivery for a window.
+void Croi_ReportMouse_Impl(LONG flag, struct Window *window)
+{
+    if (!window) {
+        return;
+    }
+    if (flag) {
+        window->Flags |= (ULONG)WFLG_REPORTMOUSE;
+        window->IDCMPFlags |= IDCMP_MOUSEMOVE;
+    } else {
+        window->Flags &= ~(ULONG)WFLG_REPORTMOUSE;
+        window->IDCMPFlags &= ~(ULONG)IDCMP_MOUSEMOVE;
+    }
 }
 
 // ---- Gadgets --------------------------------------------------------

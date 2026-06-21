@@ -135,6 +135,10 @@ enum {
     SYS_SetMenuStrip = 91,
     SYS_ClearMenuStrip = 92,
     SYS_ItemAddress = 93,
+    SYS_CurrentTime = 94,
+    SYS_DoubleClick = 95,
+    SYS_DisplayBeep = 96,
+    SYS_ReportMouse = 97,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -243,6 +247,10 @@ enum {
 #define SYS_SetMenuStrip 91
 #define SYS_ClearMenuStrip 92
 #define SYS_ItemAddress 93
+#define SYS_CurrentTime 94
+#define SYS_DoubleClick 95
+#define SYS_DisplayBeep 96
+#define SYS_ReportMouse 97
 #endif
 
 #endif

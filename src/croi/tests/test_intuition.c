@@ -199,3 +199,42 @@ KERNEL_TEST(intuition_menus)
     Leargas_CloseWindow(win);
     Leargas_CloseScreen(scr);
 }
+
+// L5.4 — feedback / timing helpers.
+KERNEL_TEST(intuition_feedback)
+{
+    // CurrentTime normalises micros to < 1e6.
+    ULONG s = 0;
+    ULONG us = 999999999u;
+    Croi_CurrentTime_Impl(&s, &us);
+    TEST_ASSERT(ctx, us < 1000000u, "CurrentTime micros normalised");
+
+    // DoubleClick: within 0.5 s → TRUE; beyond or negative → FALSE.
+    TEST_ASSERT(ctx, Croi_DoubleClick_Impl(0, 0, 0, 100000) == TRUE, "doubleclick within");
+    TEST_ASSERT(ctx, Croi_DoubleClick_Impl(0, 0, 1, 0) == FALSE, "doubleclick beyond");
+    TEST_ASSERT(ctx, Croi_DoubleClick_Impl(5, 0, 4, 0) == FALSE, "doubleclick negative");
+
+    Croi_DisplayBeep_Impl(nullptr); // must not crash with no screen
+
+    // ReportMouse toggles a window's mouse-move reporting.
+    static u32 pixels[32 * 24];
+    struct DathFramebuffer fb;
+    TEST_ASSERT(ctx,
+                Dath_Framebuffer_Init(&fb, pixels, 32, 24, 32 * 4, DATH_FMT_RGBA8888) == CARA_EOK,
+                "fb init");
+    struct Screen *scr = Leargas_OpenScreen(&fb, "wb", 0);
+    TEST_ASSERT(ctx, scr != nullptr, "OpenScreen");
+    struct TagItem tags[] = {
+        { WA_Left, 1 }, { WA_Top, 1 }, { WA_Width, 20 }, { WA_Height, 16 }, { TAG_DONE, 0 },
+    };
+    struct Window *win = Croi_OpenWindowTagList_Impl(nullptr, tags);
+    TEST_ASSERT(ctx, win != nullptr, "open window");
+    Croi_ReportMouse_Impl(TRUE, win);
+    TEST_ASSERT(ctx, (win->Flags & WFLG_REPORTMOUSE) && (win->IDCMPFlags & IDCMP_MOUSEMOVE),
+                "ReportMouse on");
+    Croi_ReportMouse_Impl(FALSE, win);
+    TEST_ASSERT(ctx, !(win->Flags & WFLG_REPORTMOUSE) && !(win->IDCMPFlags & IDCMP_MOUSEMOVE),
+                "ReportMouse off");
+    Leargas_CloseWindow(win);
+    Leargas_CloseScreen(scr);
+}
