@@ -26,6 +26,7 @@
 #include <clib/alib_protos.h>
 #include <exec/execbase.h>
 #include <exec/libraries.h>
+#include <exec/lists.h>
 #include <exec/types.h>
 #include <intuition/classes.h>
 #include <intuition/classusr.h>
@@ -34,6 +35,7 @@
 #include <proto/exec.h>
 #include <proto/intuition.h>
 #include <utility/hooks.h>
+#include <utility/tagitem.h>
 
 #define USERINT_EXIT_OK 0xC1A7
 #define USERINT_EXIT_NO_SYSBASE 0xBAD1
@@ -47,6 +49,11 @@
 #define USERINT_EXIT_SUPER_FALLTHROUGH 0xBAD9
 #define USERINT_EXIT_FREECLASS_LIVE 0xBADA
 #define USERINT_EXIT_FREECLASS_FAILED 0xBADB
+#define USERINT_EXIT_SETATTR_FAILED 0xBADC
+#define USERINT_EXIT_GETATTR_FAILED 0xBADD
+#define USERINT_EXIT_GETATTR_UNKNOWN 0xBADE
+#define USERINT_EXIT_SETGADGET_FAILED 0xBADF
+#define USERINT_EXIT_NEXTOBJECT_FAILED 0xBAE0
 
 // Referenced by the <proto/intuition.h> inline stubs. libcara only
 // bootstraps SysBase; IntuitionBase is this program's to set from the
@@ -82,8 +89,9 @@ struct MyInst {
     ULONG mc_value;
 };
 
-#define MCM_GETVALUE 0x401 // custom method: return the stored value
-#define MCM_DOUBLE 0x402   // custom method: double it, return new value
+#define MCM_GETVALUE 0x401       // custom method: return the stored value
+#define MCM_DOUBLE 0x402         // custom method: double it, return new value
+#define MYA_Value (TAG_USER + 1) // custom attribute (OM_SET / OM_GET)
 
 static IPTR my_dispatch(struct Hook *hook, APTR obj, APTR msg)
 {
@@ -99,6 +107,29 @@ static IPTR my_dispatch(struct Hook *hook, APTR obj, APTR msg)
         struct MyInst *in = (struct MyInst *)INST_DATA(cl, o);
         in->mc_value = 0x1234;
         return (IPTR)o;
+    }
+    case OM_SET: {
+        // Walk the tag list for MYA_Value; defer the rest to rootclass.
+        struct opSet *ops = (struct opSet *)msg;
+        struct MyInst *in = (struct MyInst *)INST_DATA(cl, obj);
+        ULONG changed = 0;
+        for (struct TagItem *ti = ops->ops_AttrList; ti && ti->ti_Tag != TAG_END; ti++) {
+            if (ti->ti_Tag == MYA_Value) {
+                in->mc_value = (ULONG)ti->ti_Data;
+                changed++;
+            }
+        }
+        return changed;
+    }
+    case OM_GET: {
+        struct opGet *og = (struct opGet *)msg;
+        if (og->opg_AttrID == MYA_Value) {
+            struct MyInst *in = (struct MyInst *)INST_DATA(cl, obj);
+            *og->opg_Storage = (IPTR)in->mc_value;
+            return 1; // gettable
+        }
+        // Unknown attribute → rootclass (writes 0, returns 0).
+        return DoSuperMethodA(cl, obj, (Msg)msg);
     }
     case MCM_GETVALUE: {
         struct MyInst *in = (struct MyInst *)INST_DATA(cl, obj);
@@ -149,6 +180,95 @@ static int boopsi_exercise(void)
         FreeClass(cl);
         return (int)USERINT_EXIT_SUPER_FALLTHROUGH;
     }
+
+    // ---- Attributes (L7.2): SetAttrs / GetAttr round-trip. ----
+    struct TagItem set_tags[] = {
+        { MYA_Value, 0x5678 },
+        { TAG_END, 0 },
+    };
+    SetAttrsA(o, set_tags);
+    IPTR got = 0;
+    if (GetAttr(MYA_Value, o, &got) == 0 || got != 0x5678) {
+        DisposeObject(o);
+        FreeClass(cl);
+        return (int)USERINT_EXIT_GETATTR_FAILED;
+    }
+    // An unknown attribute falls through to rootclass: returns 0, no write.
+    IPTR none = 0xDEAD;
+    if (GetAttr(0x4242, o, &none) != 0 || none != 0) {
+        DisposeObject(o);
+        FreeClass(cl);
+        return (int)USERINT_EXIT_GETATTR_UNKNOWN;
+    }
+    // SetGadgetAttrsA dispatches OM_SET like SetAttrs (no gadget refresh
+    // in v0); prove it mutates the attribute too.
+    struct TagItem gad_tags[] = {
+        { MYA_Value, 0x0BAD },
+        { TAG_END, 0 },
+    };
+    SetGadgetAttrsA((APTR)o, nullptr, nullptr, gad_tags);
+    if (GetAttr(MYA_Value, o, &got) == 0 || got != 0x0BAD) {
+        DisposeObject(o);
+        FreeClass(cl);
+        return (int)USERINT_EXIT_SETGADGET_FAILED;
+    }
+
+    // ---- Object lists (L7.2): OM_ADDTAIL + NextObject. ----
+    struct MinList list = { 0 };
+    list.mlh_Head = (struct MinNode *)&list.mlh_Tail;
+    list.mlh_Tail = nullptr;
+    list.mlh_TailPred = (struct MinNode *)&list.mlh_Head;
+    APTR members[3];
+    for (int i = 0; i < 3; i++) {
+        members[i] = NewObjectA(cl, nullptr, nullptr);
+        if (!members[i]) {
+            return (int)USERINT_EXIT_NEWOBJECT_FAILED;
+        }
+        DoMethod(members[i], OM_ADDTAIL, (IPTR)&list);
+    }
+    // Walk: expect exactly our three objects, in insertion order.
+    int count = 0;
+    APTR state = (APTR)list.mlh_Head;
+    APTR walked;
+    while ((walked = NextObject(&state)) != nullptr) {
+        if (count < 3 && walked != members[count]) {
+            // out-of-order / wrong object
+            count = -100;
+            break;
+        }
+        count++;
+    }
+    if (count != 3) {
+        for (int i = 0; i < 3; i++) {
+            DoMethod(members[i], OM_REMOVE);
+            DisposeObject(members[i]);
+        }
+        DisposeObject(o);
+        FreeClass(cl);
+        return (int)USERINT_EXIT_NEXTOBJECT_FAILED;
+    }
+    // Remove the middle one; the walk now yields two.
+    DoMethod(members[1], OM_REMOVE);
+    count = 0;
+    state = (APTR)list.mlh_Head;
+    while ((walked = NextObject(&state)) != nullptr) {
+        count++;
+    }
+    if (count != 2) {
+        for (int i = 0; i < 3; i++) {
+            DisposeObject(members[i]);
+        }
+        DisposeObject(o);
+        FreeClass(cl);
+        return (int)USERINT_EXIT_NEXTOBJECT_FAILED;
+    }
+    // Tear down the remaining members.
+    DoMethod(members[0], OM_REMOVE);
+    DoMethod(members[2], OM_REMOVE);
+    for (int i = 0; i < 3; i++) {
+        DisposeObject(members[i]);
+    }
+
     // FreeClass must refuse while the object is still live.
     if (FreeClass(cl)) {
         DisposeObject(o);

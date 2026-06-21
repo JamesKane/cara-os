@@ -63,11 +63,13 @@ struct opUpdate {
 };
 #define OPUF_INTERIM 0x01
 
-// OM_GET message.
+// OM_GET message. opg_Storage is IPTR* (pointer-width), not the classic
+// ULONG*, so a class can return a pointer-valued attribute on 64-bit
+// CaraOS without truncation (the AROS 64-bit convention).
 struct opGet {
     ULONG MethodID;
     ULONG opg_AttrID;
-    ULONG *opg_Storage;
+    IPTR *opg_Storage;
 };
 
 // OM_ADDTAIL / OM_REMOVE message (exec-list membership).

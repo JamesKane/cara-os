@@ -13,13 +13,20 @@
 
 #include <cara/sysno.h>
 #include <cara/types.h>
+#include <exec/lists.h>
 #include <exec/memory.h>
+#include <exec/nodes.h>
 #include <exec/types.h>
 #include <intuition/classes.h>
 #include <intuition/classusr.h>
 #include <utility/hooks.h>
 
 #define LIBTEXT_I __attribute__((section(".lib_text.intuition"), used))
+
+// SetGadgetAttrsA's signature names these; v0 ignores them (the gadget
+// refresh path is L8 gadtools), so a forward declaration suffices.
+struct Window;
+struct Requester;
 
 // The helpers MUST be force-inlined: a real call from the RX page to a
 // static in .text would PC-rel-overflow (the L1/L4.4 rule). always_inline
@@ -96,6 +103,29 @@ LIBTEXT_I IPTR Croi_Boopsi_RootDispatch(struct Hook *hook, APTR obj, APTR msg)
         struct opGet *og = (struct opGet *)msg;
         if (og->opg_Storage) {
             *og->opg_Storage = 0;
+        }
+        return 0;
+    }
+    case OM_ADDTAIL: {
+        // Link this object onto the caller's list (inline AddTail — no
+        // out-of-section call). o_Node is at offset 0 of _Object.
+        struct opAddTail *oat = (struct opAddTail *)msg;
+        struct List *l = oat->opat_List;
+        if (l) {
+            struct Node *n = (struct Node *)&SHIFTOBJECT(obj)->o_Node;
+            n->ln_Succ = (struct Node *)&l->lh_Tail;
+            n->ln_Pred = l->lh_TailPred;
+            l->lh_TailPred->ln_Succ = n;
+            l->lh_TailPred = n;
+        }
+        return 0;
+    }
+    case OM_REMOVE: {
+        // Unlink this object from whatever list it is on (inline Remove).
+        struct Node *n = (struct Node *)&SHIFTOBJECT(obj)->o_Node;
+        if (n->ln_Succ && n->ln_Pred) {
+            n->ln_Pred->ln_Succ = n->ln_Succ;
+            n->ln_Succ->ln_Pred = n->ln_Pred;
         }
         return 0;
     }
@@ -184,4 +214,74 @@ LIBTEXT_I BOOL Croi_Intuition_FreeClass(struct IClass *cl)
     }
     boopsi_freevec(cl);
     return TRUE;
+}
+
+// SetAttrsA(obj, tags): OM_SET on the object's own class. Returns the
+// dispatcher result (a class typically returns the count of attributes
+// that need a visual refresh).
+LIBTEXT_I ULONG Croi_Intuition_SetAttrsA(APTR obj, struct TagItem *tagList)
+{
+    if (!obj) {
+        return 0;
+    }
+    struct IClass *cl = OCLASS(obj);
+    if (!cl) {
+        return 0;
+    }
+    struct opSet ops = { .MethodID = OM_SET, .ops_AttrList = tagList, .ops_GInfo = nullptr };
+    return (ULONG)boopsi_dispatch(cl, obj, &ops);
+}
+
+// GetAttr(attrID, obj, storage): OM_GET on the object's own class.
+// Returns non-zero if the attribute was gettable (the dispatcher result).
+LIBTEXT_I ULONG Croi_Intuition_GetAttr(ULONG attrID, APTR obj, IPTR *storagePtr)
+{
+    if (!obj) {
+        return 0;
+    }
+    struct IClass *cl = OCLASS(obj);
+    if (!cl) {
+        return 0;
+    }
+    struct opGet og = { .MethodID = OM_GET, .opg_AttrID = attrID, .opg_Storage = storagePtr };
+    return (ULONG)boopsi_dispatch(cl, obj, &og);
+}
+
+// SetGadgetAttrsA(gadget, window, requester, tags): OM_SET on a gadget
+// object. v0 dispatches the set; the window/requester visual refresh is
+// deferred until gadgetclass bridges BOOPSI to the Leargas gadget
+// substrate (L8 gadtools) — ops_GInfo is nullptr for now.
+LIBTEXT_I ULONG Croi_Intuition_SetGadgetAttrsA(APTR gadget, struct Window *window,
+                                               struct Requester *requester, struct TagItem *tagList)
+{
+    (void)window;
+    (void)requester;
+    if (!gadget) {
+        return 0;
+    }
+    struct IClass *cl = OCLASS(gadget);
+    if (!cl) {
+        return 0;
+    }
+    struct opSet ops = { .MethodID = OM_SET, .ops_AttrList = tagList, .ops_GInfo = nullptr };
+    return (ULONG)boopsi_dispatch(cl, gadget, &ops);
+}
+
+// NextObject(objectPtrPtr): step a list iterator over objects linked by
+// OM_ADDTAIL. The caller initialises *objectPtrPtr to the list's lh_Head;
+// each call returns the current object and advances, or nullptr at the
+// tail sentinel (whose ln_Succ is NULL). o_Node is at offset 0 of
+// _Object, so a node pointer is the _Object pointer.
+LIBTEXT_I APTR Croi_Intuition_NextObject(APTR objectPtrPtr)
+{
+    if (!objectPtrPtr) {
+        return nullptr;
+    }
+    struct MinNode **statep = (struct MinNode **)objectPtrPtr;
+    struct MinNode *cur = *statep;
+    if (!cur || cur->mln_Succ == nullptr) {
+        return nullptr; // tail sentinel (or empty) — iteration done
+    }
+    *statep = cur->mln_Succ;
+    return BASEOBJECT((struct _Object *)cur);
 }
