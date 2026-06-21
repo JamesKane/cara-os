@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+b599c77 phase-3/L6.1  exec device IO primitives + device registry (OpenDevice/DoIO/…)
 378555f phase-3/L5.6  intuition screens (OpenScreen/OpenScreenTagList/CloseScreen) — L5 complete
 c7ff55c phase-3/L5    intuition requesters (AutoRequest/EasyRequestArgs)
 7fdf02b phase-3/L5.5  intuition rendering helpers + gadget widen (DrawBorder/PrintIText/AddGList/…)
@@ -73,7 +74,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**39 passed / 0 failed** (L5.6 added `intuition_screens`), QEMU
+**40 passed / 0 failed** (L6.1 added `device_io`), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -659,8 +660,16 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   deferred). (4) all `syscall`, IORequests read SUM=1 (≤7 args, no stub).
   New `exec/io.h`. Slice plan: L6.1 IO prims + registry → L6.2 timer →
   L6.3 console → L6.4 input (minimal). LVO anchors: `OpenDevice -444` …
-  `AbortIO -480` (slot into exec.conf pads). **NEXT: start L6.1.**
-  (`OpenDevice`/`DoIO` were the L1-deferred "device prims = L6 not L1".)
+  `AbortIO -480` (slot into exec.conf pads).
+- **L6.1 shipped (`b599c77`): exec IO primitives + device registry.**
+  `exec/io.h`; `cara/device.h` + `src/croi/exec_lib/device.c` (the
+  `CaraDevice` registry + the 7 IO verbs, synchronous v0). exec coverage
+  **39%** (44 impl). **NEXT: L6.2** — `timer.device`: `struct timerequest`
+  + `TR_*`/`UNIT_*` (devices/timer.h), register the device at boot,
+  `TR_GETSYSTIME` + `TR_ADDREQUEST` over `Croi_Time`. Then L6.3
+  console.device (`CMD_WRITE` → L3.6 console), L6.4 input.device (minimal).
+  Devices register at boot via `Croi_Device_Register` (add an init call in
+  entry.c when the first real device lands).
 - **Rich gadgets (list/cycle/slider/…) are gadtools (L8) on BOOPSI (L7);
   the file requester is asl (L9)** — not L5. L5 is the window-system core
   + menus + requesters.
