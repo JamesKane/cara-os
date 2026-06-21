@@ -644,12 +644,23 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   interactive loop is pump-driven (core tested via pre-post), v0
   no-occlusion/no-Layers, menu all-dropdowns + EasyRequest verbatim body,
   custom-screen no-repaint-on-close.
-- **NEXT: scope L6 — devices (Croi):** console/input/timer first, as
-  `KOBJ_DEVICE`s reached via exec's L1 device primitives (`OpenDevice`/
-  `DoIO`/…) — `console.device` (under the dos console handler),
-  `input.device` + `timer.device`, bridging the Leargas input ring into
-  the canonical `input.device` path (`PHASE3.md §L6`). Write a
-  `docs/<device>.md` scope first (as L3/L4/L5 got design docs).
+- **L6 — devices (Croi): SCOPED (`docs/CROI_DEVICES.md`).** Read that doc
+  before cutting L6 code. Decisions locked there: (1) a device is a
+  name-registered **`KOBJ_DEVICE`** (`struct CaraDevice` = exec `Device` +
+  name + a kernel **`beginio` fn pointer** + open/close) in a small kernel
+  registry (`Croi_Device_Register` at boot); `OpenDevice(name,…)` looks it
+  up, fills `io_Device`. No classic negative device vec in v0 — `DoIO`
+  calls `beginio` directly + an `io_Command` switch. (2) **Synchronous v0
+  IO**: `DoIO` = `BeginIO`+return; `SendIO`→BeginIO+ReplyMsg, `WaitIO`/
+  `CheckIO`/`AbortIO` degenerate; `TR_ADDREQUEST` is the one blocking
+  command (over `Croi_Time`). (3) `timer.device` over `Croi_Time`
+  (GETSYSTIME/ADDREQUEST); `console.device` `CMD_WRITE` → the L3.6 console;
+  `input.device` minimal (IND_WRITEEVENT → Leargas ring; handler chain
+  deferred). (4) all `syscall`, IORequests read SUM=1 (≤7 args, no stub).
+  New `exec/io.h`. Slice plan: L6.1 IO prims + registry → L6.2 timer →
+  L6.3 console → L6.4 input (minimal). LVO anchors: `OpenDevice -444` …
+  `AbortIO -480` (slot into exec.conf pads). **NEXT: start L6.1.**
+  (`OpenDevice`/`DoIO` were the L1-deferred "device prims = L6 not L1".)
 - **Rich gadgets (list/cycle/slider/…) are gadtools (L8) on BOOPSI (L7);
   the file requester is asl (L9)** — not L5. L5 is the window-system core
   + menus + requesters.
