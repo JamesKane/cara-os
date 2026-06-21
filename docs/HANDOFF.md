@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+378555f phase-3/L5.6  intuition screens (OpenScreen/OpenScreenTagList/CloseScreen) — L5 complete
 c7ff55c phase-3/L5    intuition requesters (AutoRequest/EasyRequestArgs)
 7fdf02b phase-3/L5.5  intuition rendering helpers + gadget widen (DrawBorder/PrintIText/AddGList/…)
 d5a1665 phase-3/L5.4  intuition feedback/timing (CurrentTime/DoubleClick/DisplayBeep/…)
@@ -72,8 +73,8 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**38 passed / 0 failed** (the requester slice added `intuition_requester`),
-QEMU boot smoke ok (two boots: partition +
+**39 passed / 0 failed** (L5.6 added `intuition_screens`), QEMU
+boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
 
@@ -630,14 +631,25 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   L4.4 pattern); `EasyRequestArgs` (4 args) is syscall (splits
   `es_GadgetFormat` on `|`). `SYS_*` 107-108. Coverage **31%** (31 impl /
   66 stub).
-- **NEXT: L5.6 — screens (apps-gated):** `OpenScreenTagList`/`OpenScreen`/
-  `CloseScreen` + `struct NewScreen` + `SA_*` tags, over the existing
-  `Leargas_OpenScreen`. Then **L5 is effectively complete** (the
-  window-system core, menus, requesters, rendering, gadgets are in).
+- **L5.6 shipped (`378555f`): screens — L5 EFFECTIVELY COMPLETE.**
+  `OpenScreen`/`OpenScreenTagList`/`CloseScreen` + `struct NewScreen` +
+  `SA_*` tags. v0 opens custom screens over the single boot display fb
+  (registered via `Leargas_SetDisplayFramebuffer(&g_fb)` at boot); active
+  save/restore via a new `LeargasScreen.prev_active`. `SYS_*` 109-111.
+  Coverage **34%** (34 impl / 64 stub).
+- **L5 — intuition.library: DONE** (L5.1 tag opener + window RPort, L5.2
+  window ops, L5.3 menus, L5.4 feedback, L5.5 rendering + gadgets,
+  requesters, L5.6 screens). The window system a V36 app drives is in.
   Tracked gaps: `DrawImage` (planar decode), the requester's live
-  interactive loop is pump-driven (core tested via pre-post), v0 menu/
-  EasyRequest simplifications. After L5: **L6 devices** (console/input/
-  timer) per the epic order.
+  interactive loop is pump-driven (core tested via pre-post), v0
+  no-occlusion/no-Layers, menu all-dropdowns + EasyRequest verbatim body,
+  custom-screen no-repaint-on-close.
+- **NEXT: scope L6 — devices (Croi):** console/input/timer first, as
+  `KOBJ_DEVICE`s reached via exec's L1 device primitives (`OpenDevice`/
+  `DoIO`/…) — `console.device` (under the dos console handler),
+  `input.device` + `timer.device`, bridging the Leargas input ring into
+  the canonical `input.device` path (`PHASE3.md §L6`). Write a
+  `docs/<device>.md` scope first (as L3/L4/L5 got design docs).
 - **Rich gadgets (list/cycle/slider/…) are gadtools (L8) on BOOPSI (L7);
   the file requester is asl (L9)** — not L5. L5 is the window-system core
   + menus + requesters.
