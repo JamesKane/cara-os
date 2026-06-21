@@ -381,6 +381,68 @@ struct StringInfo {
     struct KeyMap *AltKeyMap; // alternate keymap; null = default (Phase 3)
 };
 
+// ---- struct Menu / MenuItem (V36+) — menu strips (L5.3) --------------------
+//
+// SetMenuStrip(window, menu) attaches a Menu list; each Menu owns a
+// MenuItem list. The geometry fields (LeftEdge/TopEdge/Width/Height) are
+// laid out by Leargas at SetMenuStrip time. A menu-button pick posts
+// IDCMP_MENUPICK with the packed FULLMENUNUM code; ItemAddress resolves
+// it back. v0: flat text items (no sub-menus / image items / command
+// keys) — docs/LEARGAS_INTUITION.md §2.3.
+
+struct Menu {
+    struct Menu *NextMenu;
+    WORD LeftEdge, TopEdge;
+    WORD Width, Height;
+    UWORD Flags; // MENUENABLED / MIDRAWN
+    BYTE *MenuName;
+    struct MenuItem *FirstItem;
+    WORD JazzX, JazzY, BeatX, BeatY; // Intuition-private layout scratch
+};
+
+struct MenuItem {
+    struct MenuItem *NextItem;
+    WORD LeftEdge, TopEdge;
+    WORD Width, Height;
+    UWORD Flags; // CHECKIT / ITEMTEXT / ITEMENABLED / CHECKED / …
+    LONG MutualExclude;
+    APTR ItemFill;   // IntuiText * (or Image *) for the item's look
+    APTR SelectFill; // highlight imagery
+    BYTE Command;    // command-key (COMMSEQ); unused in v0
+    struct MenuItem *SubItem;
+    UWORD NextSelect; // next selected item during multi-select
+};
+
+// Menu Flags.
+#define MENUENABLED 0x0001
+#define MIDRAWN 0x0100
+
+// MenuItem Flags.
+#define CHECKIT 0x0001
+#define ITEMTEXT 0x0002
+#define COMMSEQ 0x0004
+#define MENUTOGGLE 0x0008
+#define ITEMENABLED 0x0010
+#define HIGHCOMP 0x0040
+#define HIGHBOX 0x0080
+#define HIGHFLAGS 0x00C0
+#define ISDRAWN 0x0100
+#define HIGHITEM 0x0200
+#define CHECKED 0x0400
+
+// Menu-number packing (the IDCMP_MENUPICK Code field).
+#define MENUNULL 0xFFFF
+#define NOMENU 0x001F
+#define NOITEM 0x003F
+#define NOSUB 0x001F
+#define MENUNUM(n) ((UWORD)((n) & 0x1F))
+#define ITEMNUM(n) ((UWORD)(((n) >> 5) & 0x3F))
+#define SUBNUM(n) ((UWORD)(((n) >> 11) & 0x1F))
+#define SHIFTMENU(n) ((UWORD)((n) & 0x1F))
+#define SHIFTITEM(n) ((UWORD)(((n) & 0x3F) << 5))
+#define SHIFTSUB(n) ((UWORD)(((n) & 0x1F) << 11))
+#define FULLMENUNUM(menu, item, sub) (SHIFTMENU(menu) | SHIFTITEM(item) | SHIFTSUB(sub))
+
 // ---- Phase 1 default chrome metrics ---------------------------------------
 //
 // Default border insets when a window has WFLG_DRAGBAR (drag bar at

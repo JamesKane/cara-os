@@ -40,6 +40,15 @@ void Leargas_SetCloseWindowRouter(Leargas_CloseWindowFn fn)
     g_closewin_router = fn;
 }
 
+// L5.3 — menu-pick delivery hook (kernel installs the IDCMP_MENUPICK
+// poster). Unset on host builds → a pick is computed but not delivered.
+static Leargas_MenuPickFn g_menupick_router = nullptr;
+
+void Leargas_SetMenuPickRouter(Leargas_MenuPickFn fn)
+{
+    g_menupick_router = fn;
+}
+
 static i32 clamp_i32(i32 v, i32 lo, i32 hi)
 {
     if (v < lo) {
@@ -170,6 +179,23 @@ u32 Leargas_Input_Drain(struct LeargasPointer *p)
                         (void)Leargas_Gadget_RouteUp(aw, g);
                     }
                 }
+            }
+        } else if (ev.ie_code == IECODE_RBUTTON) {
+            // L5.3 — menu button down: drop the menu bar of the active
+            // window (if it has a strip) over the screen.
+            Leargas_Pointer_Hide(p);
+            (void)Leargas_Menu_Begin(Leargas_ActiveWindow());
+            Leargas_Pointer_Show(p);
+        } else if (ev.ie_code == (IECODE_RBUTTON | IECODE_UP_PREFIX)) {
+            // L5.3 — menu button up: pick the item under the pointer,
+            // post IDCMP_MENUPICK, and restore the screen.
+            struct Window *mw = nullptr;
+            u16 code = 0;
+            Leargas_Pointer_Hide(p);
+            bool was_menu = Leargas_Menu_End(nx, ny, &mw, &code);
+            Leargas_Pointer_Show(p);
+            if (was_menu && g_menupick_router) {
+                (void)g_menupick_router(mw, code);
             }
         }
 

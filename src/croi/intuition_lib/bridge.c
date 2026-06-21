@@ -219,6 +219,23 @@ void Croi_ActivateWindow_Impl(struct Window *w)
     }
 }
 
+// ---- Menus (L5.3) ---------------------------------------------------
+
+void Croi_SetMenuStrip_Impl(struct Window *w, struct Menu *menu)
+{
+    Leargas_SetMenuStrip(w, menu);
+}
+
+void Croi_ClearMenuStrip_Impl(struct Window *w)
+{
+    Leargas_ClearMenuStrip(w);
+}
+
+struct MenuItem *Croi_ItemAddress_Impl(struct Menu *menuStrip, UWORD menuNumber)
+{
+    return Leargas_ItemAddress(menuStrip, menuNumber);
+}
+
 // ---- Gadgets --------------------------------------------------------
 
 UWORD Croi_AddGadget_Impl(struct Window *w, struct Gadget *g, ULONG position)

@@ -109,6 +109,42 @@ void Leargas_IDCMP_DisposeMsg(struct IntuiMessage *im)
     return true;
 }
 
+// Post IDCMP_MENUPICK with the packed menu Code (L5.3).
+[[nodiscard]] bool Leargas_IDCMP_PostMenuPick(struct Window *w, u16 code)
+{
+    if (!w || !w->UserPort) {
+        return false;
+    }
+    if (!(w->IDCMPFlags & IDCMP_MENUPICK)) {
+        return false;
+    }
+    struct IntuiMessage *im = (struct IntuiMessage *)Croi_AllocShared(sizeof(struct IntuiMessage));
+    if (!im) {
+        return false;
+    }
+    *im = (struct IntuiMessage){ 0 };
+    im->ExecMessage.mn_Length = (UWORD)sizeof(struct IntuiMessage);
+    im->Class = IDCMP_MENUPICK;
+    im->Code = code;
+    im->IDCMPWindow = w;
+    if (w->WScreen) {
+        im->MouseX = (WORD)(w->WScreen->MouseX - w->LeftEdge);
+        im->MouseY = (WORD)(w->WScreen->MouseY - w->TopEdge);
+    }
+    struct CroiMsgPort *port = (struct CroiMsgPort *)w->UserPort;
+    struct RingSlot slot = {
+        .kind = IDCMP_MENUPICK,
+        .length = (u32)sizeof(struct IntuiMessage),
+        .payload = (uptr)im,
+        .reserved = 0,
+    };
+    if (!Croi_PutMsg(port, slot)) {
+        Croi_Free(im);
+        return false;
+    }
+    return true;
+}
+
 [[nodiscard]] bool Leargas_IDCMP_PostMouseButtons(struct Window *w,
                                                   const struct LeargasInputEvent *ev)
 {

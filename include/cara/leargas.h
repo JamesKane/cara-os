@@ -583,6 +583,29 @@ void Leargas_SetMouseButtonRouter(Leargas_MouseButtonFn fn);
 typedef bool (*Leargas_CloseWindowFn)(struct Window *w);
 void Leargas_SetCloseWindowRouter(Leargas_CloseWindowFn fn);
 
+// ---- L5.3 menus -----------------------------------------------------------
+struct Menu;
+struct MenuItem;
+// Data model (dual-target): attach/detach a menu strip + resolve a packed
+// menu number to its MenuItem. SetMenuStrip lays out the bar + dropdowns.
+void Leargas_Menu_Layout(struct Menu *menu, struct Screen *screen);
+void Leargas_SetMenuStrip(struct Window *w, struct Menu *menu);
+void Leargas_ClearMenuStrip(struct Window *w);
+struct MenuItem *Leargas_ItemAddress(struct Menu *menu, u16 code);
+// Menu-button interaction (dual-target): Begin renders the bar on RMB-down,
+// End hit-tests on RMB-up and full-refreshes. Reset drops menu mode.
+[[nodiscard]] bool Leargas_Menu_Begin(struct Window *w);
+[[nodiscard]] bool Leargas_Menu_End(i32 x, i32 y, struct Window **win_out, u16 *code_out);
+void Leargas_Menu_Reset(void);
+
+// Menu-pick delivery hook (kernel installs the poster). The router calls
+// it on RMB-up with the packed FULLMENUNUM (or MENUNULL).
+typedef bool (*Leargas_MenuPickFn)(struct Window *w, u16 code);
+void Leargas_SetMenuPickRouter(Leargas_MenuPickFn fn);
+// Kernel-only: the default menu-pick poster — IntuiMessage (Class =
+// IDCMP_MENUPICK, Code = code) to w->UserPort. Install via the setter.
+[[nodiscard]] bool Leargas_IDCMP_PostMenuPick(struct Window *w, u16 code);
+
 // Kernel-only: the default mouse-button hook. Allocates an IntuiMessage
 // (Class = IDCMP_MOUSEBUTTONS, Code = ev->ie_code, MouseX/Y window-
 // relative) and PutMsg's it to w->UserPort. Returns false when the

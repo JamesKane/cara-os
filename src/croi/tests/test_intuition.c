@@ -125,3 +125,77 @@ KERNEL_TEST(intuition_window_ops)
     Leargas_CloseWindow(w1);
     Leargas_CloseScreen(scr);
 }
+
+// L5.3 — menus: SetMenuStrip layout + ItemAddress + the menu-button
+// pick path (Begin/End) + IDCMP_MENUPICK delivery.
+KERNEL_TEST(intuition_menus)
+{
+    static u32 pixels[80 * 60];
+    struct DathFramebuffer fb;
+    TEST_ASSERT(ctx,
+                Dath_Framebuffer_Init(&fb, pixels, 80, 60, 80 * 4, DATH_FMT_RGBA8888) == CARA_EOK,
+                "fb init");
+    struct Screen *scr = Leargas_OpenScreen(&fb, "wb", 0);
+    TEST_ASSERT(ctx, scr != nullptr, "OpenScreen");
+
+    // A menu strip: one menu "Project" with items "New", "Quit".
+    static char nm_project[] = "Project";
+    static char nm_new[] = "New";
+    static char nm_quit[] = "Quit";
+    static struct IntuiText it_new = { .IText = (UBYTE *)nm_new, .DrawMode = JAM2 };
+    static struct IntuiText it_quit = { .IText = (UBYTE *)nm_quit, .DrawMode = JAM2 };
+    static struct MenuItem mi_quit = { .NextItem = nullptr,
+                                       .Flags = ITEMTEXT | ITEMENABLED,
+                                       .ItemFill = &it_quit };
+    static struct MenuItem mi_new = { .NextItem = &mi_quit,
+                                      .Flags = ITEMTEXT | ITEMENABLED,
+                                      .ItemFill = &it_new };
+    static struct Menu menu = { .NextMenu = nullptr,
+                                .Flags = MENUENABLED,
+                                .MenuName = (BYTE *)nm_project,
+                                .FirstItem = &mi_new };
+
+    struct TagItem tags[] = {
+        { WA_Left, 2 },
+        { WA_Top, 2 },
+        { WA_Width, 40 },
+        { WA_Height, 30 },
+        { WA_IDCMP, IDCMP_MENUPICK },
+        { WA_Activate, 1 },
+        { TAG_DONE, 0 },
+    };
+    struct Window *win = Croi_OpenWindowTagList_Impl(nullptr, tags);
+    TEST_ASSERT(ctx, win != nullptr && win->UserPort != nullptr, "open window w/ MENUPICK port");
+
+    Croi_SetMenuStrip_Impl(win, &menu);
+    TEST_ASSERT(ctx, win->MenuStrip == &menu, "SetMenuStrip");
+    TEST_ASSERT(ctx, menu.Width > 0 && mi_new.Height > 0 && mi_quit.TopEdge > mi_new.TopEdge,
+                "layout filled geometry");
+
+    // ItemAddress resolves the packed number → the 2nd item.
+    u16 code_quit = (u16)FULLMENUNUM(0, 1, NOSUB);
+    TEST_ASSERT(ctx, Croi_ItemAddress_Impl(&menu, code_quit) == &mi_quit, "ItemAddress");
+
+    // Menu-button pick: Begin (RMB-down), then End at the laid-out box of
+    // "Quit" (RMB-up) → its packed code.
+    TEST_ASSERT(ctx, Leargas_Menu_Begin(win), "Menu_Begin");
+    struct Window *mw = nullptr;
+    u16 code = 0;
+    i32 px = mi_quit.LeftEdge + 2;
+    i32 py = mi_quit.TopEdge + 1;
+    TEST_ASSERT(ctx, Leargas_Menu_End(px, py, &mw, &code), "Menu_End");
+    TEST_ASSERT(ctx, mw == win && code == code_quit, "pick resolves to Quit");
+
+    // Deliver IDCMP_MENUPICK and read it back from the UserPort.
+    TEST_ASSERT(ctx, Leargas_IDCMP_PostMenuPick(win, code), "PostMenuPick");
+    struct IntuiMessage *im = nullptr;
+    TEST_ASSERT(ctx, Leargas_IDCMP_GetMsg(win, &im), "GetMsg");
+    TEST_ASSERT(ctx, im->Class == IDCMP_MENUPICK && im->Code == code_quit, "MENUPICK delivered");
+    Leargas_IDCMP_DisposeMsg(im);
+
+    Croi_ClearMenuStrip_Impl(win);
+    TEST_ASSERT(ctx, win->MenuStrip == nullptr, "ClearMenuStrip");
+
+    Leargas_CloseWindow(win);
+    Leargas_CloseScreen(scr);
+}

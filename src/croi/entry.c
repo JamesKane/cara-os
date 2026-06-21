@@ -216,6 +216,7 @@ static void console_putc(char c)
     // window with a UserPort exists.
     Leargas_SetMouseButtonRouter(Leargas_IDCMP_PostMouseButtons);
     Leargas_SetCloseWindowRouter(Leargas_IDCMP_PostCloseWindow);
+    Leargas_SetMenuPickRouter(Leargas_IDCMP_PostMenuPick); // L5.3
 
     // ---- Physical memory map ----
     u64 kphys_start = _kernel_image_phys_start;

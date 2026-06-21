@@ -46,6 +46,9 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_WindowToFront,     SYS_WindowToFront
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_WindowToBack,      SYS_WindowToBack
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_SetWindowTitles,   SYS_SetWindowTitles
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_ActivateWindow,    SYS_ActivateWindow
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_SetMenuStrip,      SYS_SetMenuStrip
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_ClearMenuStrip,    SYS_ClearMenuStrip
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_ItemAddress,       SYS_ItemAddress
 
 // ---- Gadgets ----
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AddGadget,       SYS_AddGadget

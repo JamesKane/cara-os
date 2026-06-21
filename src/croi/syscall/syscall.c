@@ -334,6 +334,14 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_ActivateWindow:
         Croi_ActivateWindow_Impl((struct Window *)(uptr)a0);
         return 0;
+    case SYS_SetMenuStrip:
+        Croi_SetMenuStrip_Impl((struct Window *)(uptr)a0, (struct Menu *)(uptr)a1);
+        return 0;
+    case SYS_ClearMenuStrip:
+        Croi_ClearMenuStrip_Impl((struct Window *)(uptr)a0);
+        return 0;
+    case SYS_ItemAddress:
+        return (i64)(uptr)Croi_ItemAddress_Impl((struct Menu *)(uptr)a0, (UWORD)a1);
 
     // ---- intuition.library gadgets ----
     case SYS_AddGadget:

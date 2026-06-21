@@ -50,6 +50,13 @@ void Croi_WindowToBack_Impl(struct Window *w);
 void Croi_SetWindowTitles_Impl(struct Window *w, STRPTR windowTitle, STRPTR screenTitle);
 void Croi_ActivateWindow_Impl(struct Window *w);
 
+// ---- Menus (L5.3) ---------------------------------------------------
+struct Menu;
+struct MenuItem;
+void Croi_SetMenuStrip_Impl(struct Window *w, struct Menu *menu);
+void Croi_ClearMenuStrip_Impl(struct Window *w);
+struct MenuItem *Croi_ItemAddress_Impl(struct Menu *menuStrip, UWORD menuNumber);
+
 // ---- Gadgets --------------------------------------------------------
 
 UWORD Croi_AddGadget_Impl(struct Window *w, struct Gadget *g, ULONG position);

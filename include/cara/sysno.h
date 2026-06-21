@@ -132,6 +132,9 @@ enum {
     SYS_WindowToBack = 88,
     SYS_SetWindowTitles = 89,
     SYS_ActivateWindow = 90,
+    SYS_SetMenuStrip = 91,
+    SYS_ClearMenuStrip = 92,
+    SYS_ItemAddress = 93,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -237,6 +240,9 @@ enum {
 #define SYS_WindowToBack 88
 #define SYS_SetWindowTitles 89
 #define SYS_ActivateWindow 90
+#define SYS_SetMenuStrip 91
+#define SYS_ClearMenuStrip 92
+#define SYS_ItemAddress 93
 #endif
 
 #endif
