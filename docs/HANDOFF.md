@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+f0d6bd5 phase-3/L5.3  intuition menus (SetMenuStrip/ItemAddress/IDCMP_MENUPICK)
 5c0426f phase-3/L5.2  intuition window ops + activation (Move/Size/ToFront/Activate/…)
 872117c phase-3/L5.1  intuition tag window opener + window RPort + ModifyIDCMP
 95a593d phase-3/L4.7  live Screen.RastPort over the framebuffer (L4 complete)
@@ -68,7 +69,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**34 passed / 0 failed** (L5.2 added `intuition_window_ops`), QEMU
+**35 passed / 0 failed** (L5.3 added `intuition_menus`), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -594,11 +595,18 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `Leargas_IDCMP_PostClass`). **Fixed a latent focus bug:**
   `Leargas_CloseWindow` now clears the active-window pointer (else it
   dangles and a later `ActivateWindow` short-circuits on heap reuse).
-  `SYS_*` 85-90. Coverage **13%** (13 impl / 84 stub). **NEXT: L5.3** —
-  **menus** (the biggest new substrate): `struct Menu`/`MenuItem`;
-  `SetMenuStrip`/`ClearMenuStrip`/`ItemAddress`; a Leargas menu bar
-  render + menu-button router + `IDCMP_MENUPICK` (§2.3). Test via the
-  input ring like `clar_smoke`.
+  `SYS_*` 85-90. Coverage **13%** (13 impl / 84 stub).
+- **L5.3 shipped (`f0d6bd5`): menus.** `struct Menu`/`MenuItem` + the
+  FULLMENUNUM packing macros; new Leargas menu engine (`menu.c`):
+  `SetMenuStrip` (lays out bar + dropdown boxes into the structs),
+  `ClearMenuStrip`, `ItemAddress`; `Menu_Begin`/`Menu_End` drive the RMB
+  pick (render → hit-test → `IDCMP_MENUPICK` with the packed code, then
+  full-refresh). RBUTTON wired in router.c; `Leargas_IDCMP_PostMenuPick`
+  installed at boot. v0: flat text items, all dropdowns shown at once, no
+  sub-menus/imagery/command-keys. Coverage **16%** (16 impl / 81 stub).
+  **NEXT: L5.4** — requesters + feedback: `AutoRequest`/`EasyRequestArgs`
+  (modal dialog over the bool-gadget + IDCMP substrate, nested loop),
+  `DisplayBeep`, plus `CurrentTime`/`DoubleClick`/`ReportMouse` (§2.4).
 - **Rich gadgets (list/cycle/slider/…) are gadtools (L8) on BOOPSI (L7);
   the file requester is asl (L9)** — not L5. L5 is the window-system core
   + menus + requesters.
