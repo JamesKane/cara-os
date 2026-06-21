@@ -131,3 +131,98 @@ KERNEL_TEST(gadtools_creategadget)
     Croi_GT_FreeVisualInfo_Impl(vi);
     Leargas_CloseScreen(scr);
 }
+
+// L8.3 — CYCLE/MX/STRING/INTEGER kinds + GT_GetGadgetAttrsA + DrawBevelBoxA.
+KERNEL_TEST(gadtools_kinds)
+{
+    static u32 pixels[64 * 48];
+    struct DathFramebuffer fb;
+    TEST_ASSERT(ctx,
+                Dath_Framebuffer_Init(&fb, pixels, 64, 48, 64 * 4, DATH_FMT_RGBA8888) == CARA_EOK,
+                "fb init");
+    struct Screen *scr = Leargas_OpenScreen(&fb, "wb", 0);
+    TEST_ASSERT(ctx, scr != nullptr, "OpenScreen");
+    struct CaraVisualInfo *vi = (struct CaraVisualInfo *)Croi_GT_GetVisualInfoA_Impl(scr, nullptr);
+    TEST_ASSERT(ctx, vi != nullptr, "GetVisualInfoA");
+
+    struct Gadget *glist = nullptr;
+    struct Gadget *prev = Croi_GT_CreateContext_Impl(&glist);
+    TEST_ASSERT(ctx, prev != nullptr, "CreateContext");
+
+    struct NewGadget ng = {
+        .ng_LeftEdge = 4, .ng_TopEdge = 4, .ng_Width = 50, .ng_Height = 12, .ng_VisualInfo = vi
+    };
+
+    // CYCLE: 3 labels, start at index 1 ("B").
+    static const char *cyc[] = { "A", "B", "C", nullptr };
+    struct TagItem cy_tags[] = { { GTCY_Labels, (IPTR)(uptr)cyc },
+                                 { GTCY_Active, 1 },
+                                 { TAG_END, 0 } };
+    struct Gadget *gcy = Croi_GT_CreateGadgetA_Impl(CYCLE_KIND, prev, &ng, cy_tags);
+    struct GtGadgetExt *cye = (struct GtGadgetExt *)gcy->SpecialInfo;
+    TEST_ASSERT(ctx, cye->kind == CYCLE_KIND && cye->nlabels == 3 && cye->active == 1,
+                "CYCLE setup");
+    TEST_ASSERT(ctx, gcy->GadgetText->IText[0] == 'B', "CYCLE shows active label");
+    struct TagItem cy_set[] = { { GTCY_Active, 2 }, { TAG_END, 0 } };
+    Croi_GT_SetGadgetAttrsA_Impl(gcy, nullptr, nullptr, cy_set);
+    TEST_ASSERT(ctx, cye->active == 2 && gcy->GadgetText->IText[0] == 'C', "CYCLE advance");
+    ULONG cyget = 0;
+    struct TagItem cy_get[] = { { GTCY_Active, (IPTR)(uptr)&cyget }, { TAG_END, 0 } };
+    TEST_ASSERT(ctx, Croi_GT_GetGadgetAttrsA_Impl(gcy, nullptr, nullptr, cy_get) == 1 && cyget == 2,
+                "CYCLE GetGadgetAttrs");
+    prev = gcy;
+
+    // MX: 2 labels, active 0.
+    static const char *mxl[] = { "X", "Y", nullptr };
+    struct TagItem mx_tags[] = { { GTMX_Labels, (IPTR)(uptr)mxl },
+                                 { GTMX_Active, 0 },
+                                 { TAG_END, 0 } };
+    struct Gadget *gmx = Croi_GT_CreateGadgetA_Impl(MX_KIND, prev, &ng, mx_tags);
+    struct GtGadgetExt *mxe = (struct GtGadgetExt *)gmx->SpecialInfo;
+    TEST_ASSERT(ctx, mxe->nlabels == 2 && mxe->active == 0 && gmx->GadgetText->IText[0] == 'X',
+                "MX setup");
+    prev = gmx;
+
+    // STRING: GTYP_STRGADGET, SpecialInfo IS a StringInfo (offset 0).
+    struct TagItem st_tags[] = { { GTST_String, (IPTR)(uptr) "hi" },
+                                 { GTST_MaxChars, 10 },
+                                 { TAG_END, 0 } };
+    struct Gadget *gst = Croi_GT_CreateGadgetA_Impl(STRING_KIND, prev, &ng, st_tags);
+    TEST_ASSERT(ctx, (gst->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET, "STRING type");
+    struct StringInfo *si = (struct StringInfo *)gst->SpecialInfo; // == &ext->sinfo
+    TEST_ASSERT(ctx,
+                si->Buffer && si->Buffer[0] == 'h' && si->Buffer[1] == 'i' && si->NumChars == 2,
+                "STRING buffer");
+    struct TagItem st_set[] = { { GTST_String, (IPTR)(uptr) "world" }, { TAG_END, 0 } };
+    Croi_GT_SetGadgetAttrsA_Impl(gst, nullptr, nullptr, st_set);
+    TEST_ASSERT(ctx, si->Buffer[0] == 'w' && si->NumChars == 5, "STRING SetGadgetAttrs");
+    STRPTR gotstr = nullptr;
+    struct TagItem st_get[] = { { GTST_String, (IPTR)(uptr)&gotstr }, { TAG_END, 0 } };
+    TEST_ASSERT(ctx,
+                Croi_GT_GetGadgetAttrsA_Impl(gst, nullptr, nullptr, st_get) == 1 && gotstr &&
+                    gotstr[0] == 'w',
+                "STRING GetGadgetAttrs");
+    prev = gst;
+
+    // INTEGER: GTIN_Number formatted; read back parses.
+    struct TagItem in_tags[] = { { GTIN_Number, 1234 }, { TAG_END, 0 } };
+    struct Gadget *gin = Croi_GT_CreateGadgetA_Impl(INTEGER_KIND, prev, &ng, in_tags);
+    struct StringInfo *isi = (struct StringInfo *)gin->SpecialInfo;
+    TEST_ASSERT(ctx, isi->Buffer[0] == '1' && isi->Buffer[3] == '4', "INTEGER formatted");
+    LONG gotnum = 0;
+    struct TagItem in_get[] = { { GTIN_Number, (IPTR)(uptr)&gotnum }, { TAG_END, 0 } };
+    TEST_ASSERT(ctx,
+                Croi_GT_GetGadgetAttrsA_Impl(gin, nullptr, nullptr, in_get) == 1 && gotnum == 1234,
+                "INTEGER GetGadgetAttrs");
+
+    // DrawBevelBoxA over the screen's RastPort — runs + leaves the pen
+    // cursor at the last drawn vertex (left,bottom).
+    if (scr->RastPort) {
+        Croi_GT_DrawBevelBoxA_Impl(scr->RastPort, 2, 2, 20, 10, nullptr);
+        TEST_ASSERT(ctx, scr->RastPort->cp_x == 2, "DrawBevelBoxA ran (cursor at left)");
+    }
+
+    TEST_ASSERT(ctx, Croi_GT_FreeGadgets_Impl(glist) == nullptr, "FreeGadgets");
+    Croi_GT_FreeVisualInfo_Impl(vi);
+    Leargas_CloseScreen(scr);
+}

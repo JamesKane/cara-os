@@ -430,6 +430,14 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         Croi_GT_SetGadgetAttrsA_Impl((struct Gadget *)(uptr)a0, (struct Window *)(uptr)a1,
                                      (struct Requester *)(uptr)a2, (struct TagItem *)(uptr)a3);
         return 0;
+    case SYS_GT_DrawBevelBoxA:
+        Croi_GT_DrawBevelBoxA_Impl((struct RastPort *)(uptr)a0, (WORD)a1, (WORD)a2, (WORD)a3,
+                                   (WORD)frame->x[14], (struct TagItem *)(uptr)frame->x[15]);
+        return 0;
+    case SYS_GT_GetGadgetAttrsA:
+        return (i64)Croi_GT_GetGadgetAttrsA_Impl(
+            (struct Gadget *)(uptr)a0, (struct Window *)(uptr)a1, (struct Requester *)(uptr)a2,
+            (struct TagItem *)(uptr)a3);
 
     // ---- exec device IO primitives (L6) ----
     case SYS_OpenDevice:

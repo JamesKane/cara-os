@@ -175,6 +175,8 @@ enum {
     SYS_GT_FreeGadgets = 125,
     SYS_GT_CreateGadgetA = 126,
     SYS_GT_SetGadgetAttrsA = 127,
+    SYS_GT_DrawBevelBoxA = 128,
+    SYS_GT_GetGadgetAttrsA = 129,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -317,6 +319,8 @@ enum {
 #define SYS_GT_FreeGadgets 125
 #define SYS_GT_CreateGadgetA 126
 #define SYS_GT_SetGadgetAttrsA 127
+#define SYS_GT_DrawBevelBoxA 128
+#define SYS_GT_GetGadgetAttrsA 129
 #endif
 
 #endif

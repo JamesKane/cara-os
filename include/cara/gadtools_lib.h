@@ -26,17 +26,26 @@ struct TagItem;
 struct Library;
 struct GadToolsBase;
 
-// gadtools-private per-gadget state, hung off Gadget.SpecialInfo for the
-// L8.2 kinds (BUTTON/TEXT/NUMBER/CHECKBOX). Carries the label IntuiText
-// (GadgetText points into it), the kind code, and a NUMBER_KIND value +
-// its formatted text buffer. FreeGadgets frees this block. (STRING/
-// INTEGER kinds, L8.3, need SpecialInfo == a StringInfo for the Leargas
-// string-gadget renderer — handled separately when they land.)
+// gadtools-private per-gadget state, hung off Gadget.SpecialInfo for all
+// kinds. The StringInfo is FIRST (offset 0): for STRING/INTEGER kinds the
+// gadget is GTYP_STRGADGET and the Leargas string renderer reads
+// g->SpecialInfo as a struct StringInfo* — which is &ext->sinfo (offset
+// 0). gadtools casts the same pointer to GtGadgetExt*. So one allocation
+// serves both views, and FreeGadgets does one free. For non-string kinds
+// the sinfo is unused/zeroed (Leargas never reads it).
+#define CARA_GT_STRBUF 64
+
 struct GtGadgetExt {
-    struct IntuiText label;
-    UWORD kind;      // BUTTON_KIND / TEXT_KIND / NUMBER_KIND / CHECKBOX_KIND
-    LONG number;     // NUMBER_KIND value
-    char numbuf[16]; // formatted NUMBER text (label.IText points here)
+    struct StringInfo sinfo;      // offset 0 — STRING/INTEGER (Leargas reads it)
+    struct IntuiText label;       // GadgetText points here
+    UWORD kind;                   // *_KIND
+    LONG number;                  // NUMBER value / INTEGER parsed result
+    char numbuf[16];              // formatted NUMBER text
+    const char **labels;          // CYCLE/MX label array (app-owned, NULL-term)
+    UWORD active;                 // CYCLE/MX active index
+    UWORD nlabels;                // CYCLE/MX label count
+    char strbuf[CARA_GT_STRBUF];  // STRING/INTEGER edit buffer
+    char undobuf[CARA_GT_STRBUF]; // StringInfo undo scratch
 };
 
 // VisualInfo (L8.1): the opaque GetVisualInfoA handle. Allocated on the
@@ -61,6 +70,13 @@ struct Gadget *Croi_GT_CreateGadgetA_Impl(ULONG kind, struct Gadget *prevGad, st
                                           struct TagItem *tags);
 void Croi_GT_SetGadgetAttrsA_Impl(struct Gadget *gad, struct Window *win, struct Requester *req,
                                   struct TagItem *tags);
+
+// ---- Bevel + choice/edit kinds + attribute read (L8.3) --------------
+struct RastPort;
+void Croi_GT_DrawBevelBoxA_Impl(struct RastPort *rp, WORD left, WORD top, WORD width, WORD height,
+                                struct TagItem *tags);
+ULONG Croi_GT_GetGadgetAttrsA_Impl(struct Gadget *gad, struct Window *win, struct Requester *req,
+                                   struct TagItem *tags);
 
 // ---- Reserved-slot library hooks (`local` flavour) ------------------
 // Vec slots 0..3. As with the other bases, OpenLibrary/CloseLibrary are
