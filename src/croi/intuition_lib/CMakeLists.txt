@@ -17,6 +17,7 @@ cara_lvo_gen_library("${CMAKE_SOURCE_DIR}/tools/lvo-gen/intuition.conf")
 add_library(cara_intuition_lib STATIC
     bridge.c
     intuition_hooks.c
+    req_stubs.c
     trampolines.S
 )
 target_link_libraries(cara_intuition_lib

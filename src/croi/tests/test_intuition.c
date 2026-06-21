@@ -256,6 +256,45 @@ KERNEL_TEST(intuition_render_gadgets)
     Leargas_CloseScreen(scr);
 }
 
+// L5 requester — the modal dialog core (build + pre-post a GADGETUP so
+// the Wait returns at once, the single-task analogue of the live pump).
+KERNEL_TEST(intuition_requester)
+{
+    static u32 pixels[120 * 80];
+    struct DathFramebuffer fb;
+    TEST_ASSERT(ctx,
+                Dath_Framebuffer_Init(&fb, pixels, 120, 80, 120 * 4, DATH_FMT_RGBA8888) == CARA_EOK,
+                "fb init");
+    struct Screen *scr = Leargas_OpenScreen(&fb, "wb", 0);
+    TEST_ASSERT(ctx, scr != nullptr, "OpenScreen");
+
+    static char btxt[] = "Quit?";
+    static char ptxt[] = "OK";
+    static char ntxt[] = "Cancel";
+    static struct IntuiText body = { .FrontPen = 1, .DrawMode = JAM2, .IText = (UBYTE *)btxt };
+    static struct IntuiText pos = { .FrontPen = 1, .DrawMode = JAM2, .IText = (UBYTE *)ptxt };
+    static struct IntuiText neg = { .FrontPen = 1, .DrawMode = JAM2, .IText = (UBYTE *)ntxt };
+
+    // Positive pick → TRUE.
+    struct Window *req = Croi_Requester_Build(&body, &pos, &neg, 0, 0);
+    TEST_ASSERT(ctx, req != nullptr && req->UserPort != nullptr && req->FirstGadget != nullptr,
+                "requester built with port + gadgets");
+    struct Gadget *pg = req->FirstGadget; // positive heads the list (id 1)
+    TEST_ASSERT(ctx, pg->GadgetID == 1, "positive gadget first");
+    TEST_ASSERT(ctx, Leargas_IDCMP_PostGadgetUp(req, pg), "pre-post positive GADGETUP");
+    TEST_ASSERT(ctx, Croi_Requester_Wait(req) == TRUE, "positive pick → TRUE");
+
+    // Negative pick → FALSE.
+    struct Window *req2 = Croi_Requester_Build(&body, &pos, &neg, 0, 0);
+    TEST_ASSERT(ctx, req2 != nullptr && req2->FirstGadget != nullptr, "requester 2 built");
+    struct Gadget *ng = req2->FirstGadget->NextGadget; // negative (id 0)
+    TEST_ASSERT(ctx, ng != nullptr && ng->GadgetID == 0, "negative gadget second");
+    TEST_ASSERT(ctx, Leargas_IDCMP_PostGadgetUp(req2, ng), "pre-post negative GADGETUP");
+    TEST_ASSERT(ctx, Croi_Requester_Wait(req2) == FALSE, "negative pick → FALSE");
+
+    Leargas_CloseScreen(scr);
+}
+
 // L5.4 — feedback / timing helpers.
 KERNEL_TEST(intuition_feedback)
 {

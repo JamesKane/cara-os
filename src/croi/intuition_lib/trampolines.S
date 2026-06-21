@@ -62,6 +62,9 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_OnGadget,          SYS_OnGadget
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_OffGadget,         SYS_OffGadget
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_RefreshGList,      SYS_RefreshGList
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_RefreshWindowFrame, SYS_RefreshWindowFrame
+// AutoRequest is `local` (req_stubs.c packs its 8 args); only
+// EasyRequestArgs needs a syscall trampoline.
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_EasyRequestArgs,   SYS_EasyRequestArgs
 
 // ---- Gadgets ----
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AddGadget,       SYS_AddGadget

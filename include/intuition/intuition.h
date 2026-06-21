@@ -468,6 +468,19 @@ struct MenuItem {
 #define SHIFTSUB(n) ((UWORD)(((n) & 0x1F) << 11))
 #define FULLMENUNUM(menu, item, sub) (SHIFTMENU(menu) | SHIFTITEM(item) | SHIFTSUB(sub))
 
+// ---- struct EasyStruct (V36+) — EasyRequestArgs descriptor (L5) -----------
+//
+// es_TextFormat is the body (a printf-style format; v0 prints it
+// verbatim). es_GadgetFormat is "Positive|Negative" gadget labels
+// separated by '|' (a single label → one OK button).
+struct EasyStruct {
+    ULONG es_StructSize; // sizeof(struct EasyStruct)
+    ULONG es_Flags;
+    UBYTE *es_Title;
+    UBYTE *es_TextFormat;
+    UBYTE *es_GadgetFormat;
+};
+
 // ---- Phase 1 default chrome metrics ---------------------------------------
 //
 // Default border insets when a window has WFLG_DRAGBAR (drag bar at

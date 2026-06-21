@@ -384,6 +384,12 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_RefreshWindowFrame:
         Croi_RefreshWindowFrame_Impl((struct Window *)(uptr)a0);
         return 0;
+    case SYS_AutoRequest:
+        return (i64)Croi_AutoRequest_Impl((struct AutoReqArgs *)(uptr)a0);
+    case SYS_EasyRequestArgs:
+        return (i64)Croi_EasyRequestArgs_Impl((struct Window *)(uptr)a0,
+                                              (struct EasyStruct *)(uptr)a1, (ULONG *)(uptr)a2,
+                                              (APTR)(uptr)a3);
 
     // ---- intuition.library gadgets ----
     case SYS_AddGadget:

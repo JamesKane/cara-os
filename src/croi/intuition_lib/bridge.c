@@ -12,11 +12,14 @@
 // PRINCIPLES §intro) — no bounds-checking of the shared-heap pointers
 // beyond null guards.
 
+#include <cara/alloc.h>
 #include <cara/dath.h>
 #include <cara/graphics_lib.h>
 #include <cara/intuition_lib.h>
 #include <cara/leargas.h>
 #include <cara/log.h>
+#include <cara/sched.h>
+#include <cara/shared.h>
 #include <cara/time.h>
 #include <cara/types.h>
 #include <exec/types.h>
@@ -380,6 +383,185 @@ void Croi_RefreshWindowFrame_Impl(struct Window *window)
     if (lw) {
         Leargas_Window_Render(lw);
     }
+}
+
+// ---- Requesters (L5) ------------------------------------------------
+//
+// A modal dialog over the existing window + bool-gadget + IDCMP
+// substrate (docs/LEARGAS_INTUITION.md §2.4). Build opens a centred
+// requester window with body text + a positive (GadgetID 1) and optional
+// negative (GadgetID 0) button; Wait blocks on the requester's IDCMP port
+// until a button posts IDCMP_GADGETUP, maps it to TRUE/FALSE, and tears
+// the requester down. Live, the input-pump task delivers the click; the
+// kernel test pre-posts the GADGETUP so the Wait returns at once. Build +
+// Wait are exposed so the test can drive them across the pre-post seam.
+
+struct Window *Croi_Requester_Build(struct IntuiText *body, struct IntuiText *posText,
+                                    struct IntuiText *negText, WORD width, WORD height)
+{
+    struct Screen *scr = Leargas_ActiveScreen();
+    if (!scr) {
+        return nullptr;
+    }
+    WORD w = width > 0 ? width : 220;
+    WORD h = height > 0 ? height : 70;
+    WORD sx = (WORD)((scr->Width - w) / 2);
+    WORD sy = (WORD)((scr->Height - h) / 2);
+    if (sx < 0) {
+        sx = 0;
+    }
+    if (sy < 0) {
+        sy = 0;
+    }
+
+    struct NewWindow nw = (struct NewWindow){ 0 };
+    nw.LeftEdge = sx;
+    nw.TopEdge = sy;
+    nw.Width = w;
+    nw.Height = h;
+    nw.DetailPen = 0;
+    nw.BlockPen = 1;
+    nw.IDCMPFlags = IDCMP_GADGETUP;
+    nw.Flags = WFLG_DRAGBAR | WFLG_ACTIVATE;
+    nw.Title = (UBYTE *)(uptr) "Request";
+    struct Window *req = Leargas_OpenWindow(&nw);
+    if (!req) {
+        return nullptr;
+    }
+
+    // Positive button first → it heads the gadget list (GadgetID 1).
+    struct Gadget *pg = (struct Gadget *)Croi_AllocShared(sizeof(struct Gadget));
+    if (pg) {
+        *pg = (struct Gadget){ 0 };
+        pg->LeftEdge = 8;
+        pg->TopEdge = (WORD)(h - 18);
+        pg->Width = 64;
+        pg->Height = 14;
+        pg->Flags = GFLG_GADGHCOMP;
+        pg->Activation = GACT_RELVERIFY;
+        pg->GadgetType = GTYP_BOOLGADGET;
+        pg->GadgetText = posText;
+        pg->GadgetID = 1;
+        Leargas_AddGadget(req, pg);
+        Leargas_Gadget_Render(req, pg);
+    }
+    if (negText) {
+        struct Gadget *ng = (struct Gadget *)Croi_AllocShared(sizeof(struct Gadget));
+        if (ng) {
+            *ng = (struct Gadget){ 0 };
+            ng->LeftEdge = (WORD)(w - 72);
+            ng->TopEdge = (WORD)(h - 18);
+            ng->Width = 64;
+            ng->Height = 14;
+            ng->Flags = GFLG_GADGHCOMP;
+            ng->Activation = GACT_RELVERIFY;
+            ng->GadgetType = GTYP_BOOLGADGET;
+            ng->GadgetText = negText;
+            ng->GadgetID = 0;
+            Leargas_AddGadget(req, ng);
+            Leargas_Gadget_Render(req, ng);
+        }
+    }
+    if (body) {
+        Croi_PrintIText_Impl(req->RPort, body, 8, 8);
+    }
+    return req;
+}
+
+LONG Croi_Requester_Wait(struct Window *req)
+{
+    if (!req) {
+        return TRUE; // couldn't build → AmigaOS defaults to the positive
+    }
+    struct LeargasWindow *lw = Leargas_Window_FromPub(req);
+    i32 sig = lw ? lw->idcmp_sigbit : -1;
+    LONG result = TRUE;
+    bool done = false;
+    while (!done) {
+        if (sig >= 0) {
+            (void)Croi_Wait(1u << (u32)sig);
+        }
+        struct IntuiMessage *im;
+        while (Leargas_IDCMP_GetMsg(req, &im)) {
+            if (im->Class == IDCMP_GADGETUP) {
+                result = (im->Code == 1) ? TRUE : FALSE;
+                done = true;
+            }
+            Leargas_IDCMP_DisposeMsg(im);
+        }
+        if (sig < 0) {
+            break; // no port to block on — shouldn't happen; avoid a spin
+        }
+    }
+    // Free the requester's own gadgets, then close the window.
+    struct Gadget *g = req->FirstGadget;
+    while (g) {
+        struct Gadget *next = g->NextGadget;
+        Croi_Free(g);
+        g = next;
+    }
+    req->FirstGadget = nullptr;
+    Leargas_CloseWindow(req);
+    return result;
+}
+
+// AutoRequest (8 args, arriving packed from the .lib_text.intuition stub).
+BOOL Croi_AutoRequest_Impl(struct AutoReqArgs *a)
+{
+    if (!a) {
+        return TRUE;
+    }
+    struct Window *req = Croi_Requester_Build(a->body, a->posText, a->negText, a->width, a->height);
+    return (BOOL)Croi_Requester_Wait(req);
+}
+
+// Split "Positive|Negative" into two NUL-terminated buffers; a single
+// label (no '|') → positive only.
+static void split_gadfmt(const UBYTE *fmt, char *pos, u32 poscap, char *neg, u32 negcap,
+                         bool *hasNeg)
+{
+    u32 i = 0;
+    while (fmt && fmt[i] && fmt[i] != '|' && i + 1 < poscap) {
+        pos[i] = (char)fmt[i];
+        i++;
+    }
+    pos[i] = 0;
+    *hasNeg = false;
+    if (fmt && fmt[i] == '|') {
+        u32 j = i + 1;
+        u32 k = 0;
+        while (fmt[j] && k + 1 < negcap) {
+            neg[k++] = (char)fmt[j++];
+        }
+        neg[k] = 0;
+        *hasNeg = true;
+    } else {
+        neg[0] = 0;
+    }
+}
+
+// EasyRequestArgs — the modern modal dialog. v0 prints es_TextFormat
+// verbatim (no printf substitution) and splits es_GadgetFormat on '|'.
+LONG Croi_EasyRequestArgs_Impl(struct Window *window, struct EasyStruct *es, ULONG *idcmpPtr,
+                               APTR args)
+{
+    (void)window;
+    (void)idcmpPtr;
+    (void)args;
+    if (!es) {
+        return TRUE;
+    }
+    // Body + label IntuiTexts live on this stack frame — valid for the
+    // whole build+wait call (the requester is closed before we return).
+    char posbuf[64];
+    char negbuf[64];
+    bool hasNeg = false;
+    split_gadfmt(es->es_GadgetFormat, posbuf, sizeof(posbuf), negbuf, sizeof(negbuf), &hasNeg);
+    struct IntuiText body = { .FrontPen = 1, .DrawMode = JAM2, .IText = es->es_TextFormat };
+    struct IntuiText posT = { .FrontPen = 1, .DrawMode = JAM2, .IText = (UBYTE *)posbuf };
+    struct IntuiText negT = { .FrontPen = 1, .DrawMode = JAM2, .IText = (UBYTE *)negbuf };
+    struct Window *req = Croi_Requester_Build(&body, &posT, hasNeg ? &negT : nullptr, 0, 0);
+    return Croi_Requester_Wait(req);
 }
 
 // ---- Feedback / timing (L5.4) ---------------------------------------

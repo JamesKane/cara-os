@@ -80,6 +80,30 @@ void Croi_RefreshGList_Impl(struct Gadget *gadgets, struct Window *window,
                             struct Requester *requester, LONG numGad);
 void Croi_RefreshWindowFrame_Impl(struct Window *window);
 
+// ---- Requesters (L5) ------------------------------------------------
+struct EasyStruct;
+// AutoRequest's 8 args, packed by the .lib_text.intuition stub (>7-reg
+// ABI) and unpacked by Croi_AutoRequest_Impl.
+struct AutoReqArgs {
+    struct Window *window;
+    struct IntuiText *body;
+    struct IntuiText *posText;
+    struct IntuiText *negText;
+    ULONG posFlags;
+    ULONG negFlags;
+    WORD width;
+    WORD height;
+};
+// Modal requester core (Build opens it + adds buttons; Wait blocks on the
+// IDCMP port for the pick, maps to TRUE/FALSE, and tears it down). Exposed
+// so the kernel test can drive them across the pre-post seam.
+struct Window *Croi_Requester_Build(struct IntuiText *body, struct IntuiText *posText,
+                                    struct IntuiText *negText, WORD width, WORD height);
+LONG Croi_Requester_Wait(struct Window *req);
+BOOL Croi_AutoRequest_Impl(struct AutoReqArgs *a);
+LONG Croi_EasyRequestArgs_Impl(struct Window *window, struct EasyStruct *easyStruct,
+                               ULONG *idcmpPtr, APTR args);
+
 // ---- Gadgets --------------------------------------------------------
 
 UWORD Croi_AddGadget_Impl(struct Window *w, struct Gadget *g, ULONG position);

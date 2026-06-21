@@ -148,6 +148,8 @@ enum {
     SYS_OffGadget = 104,
     SYS_RefreshGList = 105,
     SYS_RefreshWindowFrame = 106,
+    SYS_AutoRequest = 107, // local stub packs AutoReqArgs (8-arg LVO)
+    SYS_EasyRequestArgs = 108,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -269,6 +271,8 @@ enum {
 #define SYS_OffGadget 104
 #define SYS_RefreshGList 105
 #define SYS_RefreshWindowFrame 106
+#define SYS_AutoRequest 107
+#define SYS_EasyRequestArgs 108
 #endif
 
 #endif
