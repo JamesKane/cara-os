@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+fa70150 phase-3/L8.2  gadtools CreateGadgetA + easy kinds + GT_SetGadgetAttrsA
 5b83be4 phase-3/L8.1  gadtools.library + render context (VisualInfo/CreateContext)
 5bbf845 docs          scope L8 gadtools (docs/LEARGAS_GADTOOLS.md)
 f4bec1f phase-3/L7.3  BOOPSI public class registry (AddClass/RemoveClass) — closes L7
@@ -83,7 +84,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**44 passed / 0 failed** (L8.1 added `gadtools_visualinfo`), QEMU
+**45 passed / 0 failed** (L8.2 added `gadtools_creategadget`), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -763,11 +764,25 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   indices in `<intuition/screens.h>`. `GetVisualInfoA -126`/`FreeVisualInfo
   -132` (shared-heap `struct CaraVisualInfo` = screen + default DrawInfo),
   `CreateContext -114`, `FreeGadgets -36`; `SYS_GT_*` 122-125. gadtools
-  coverage 22% (4 impl). `KERNEL_TEST(gadtools_visualinfo)`. **NEXT: L8.2**
-  — `CreateGadgetA -30` + easy kinds (BUTTON/TEXT/NUMBER/CHECKBOX) +
-  `GT_SetGadgetAttrsA -42` + per-kind Leargas rendering (split the conf
-  pads at ord 4 and ord 6). Then L8.3 bevel + choice/edit kinds, L8.4
-  GT_GetIMsg + menu builder, L8.5 prop kinds (drag-tracking) or defer.
+  coverage 22% (4 impl). `KERNEL_TEST(gadtools_visualinfo)`.
+- **L8.2 shipped (`fa70150`): CreateGadgetA + easy kinds.**
+  `CreateGadgetA -30` + `GT_SetGadgetAttrsA -42` (syscall, SYS_GT_*
+  126-127). CreateGadgetA allocs a shared-heap `struct Gadget` + a
+  `struct GtGadgetExt` (label IntuiText + kind + NUMBER value/buf) on
+  SpecialInfo, reads the kind's GT*_* tags via `Croi_GetTagData`
+  (kernel-side), chains after prevGad. Kinds: BUTTON (RELVERIFY),
+  CHECKBOX (GTCB_Checked→GFLG_SELECTED), TEXT (GTTX_Text), NUMBER
+  (GTNM_Number formatted). GT_SetGadgetAttrsA applies post-create
+  (absent tag → unchanged) + re-renders via `Leargas_Gadget_Render`.
+  Rendering reuses the generic Leargas button look (bordered box +
+  label); kind-specific visuals (checkmark, recessed bevel) come with
+  `DrawBevelBoxA` in L8.3. gadtools coverage 33% (6 impl).
+  `KERNEL_TEST(gadtools_creategadget)`. **NEXT: L8.3** — `DrawBevelBoxA
+  -120` + CYCLE/MX/STRING/INTEGER kinds (STRING/INTEGER need
+  SpecialInfo == a StringInfo for the Leargas string renderer — the
+  GtGadgetExt-vs-StringInfo split flagged in gadtools_lib.h) +
+  `GT_GetGadgetAttrsA -138`. Then L8.4 GT_GetIMsg + menu builder, L8.5
+  prop kinds (drag-tracking) or defer.
   After L8: L9 asl → L10–14 long tail → T tools → A apps. L7 tracked
   gaps: concrete BOOPSI classes (gadgetclass/imageclass/icclass/
   modelclass), `DoGadgetMethodA`, `OM_NOTIFY`, FreeClass reaping,
