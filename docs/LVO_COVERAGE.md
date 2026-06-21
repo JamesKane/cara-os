@@ -22,7 +22,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 
 | Library | ABI slots | impl | server | stub | reserved | coverage |
 |---------|----------:|-----:|-------:|-----:|---------:|---------:|
-| exec.library | 115 | 37 | 0 | 74 | 4 | 33% |
+| exec.library | 115 | 44 | 0 | 67 | 4 | 39% |
 | intuition.library | 102 | 34 | 0 | 64 | 4 | 34% |
 | utility.library | 30 | 13 | 0 | 13 | 4 | 50% |
 | dos.library | 33 | 19 | 0 | 10 | 4 | 65% |
@@ -31,9 +31,9 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 
 ## exec.library
 
-ABI surface declared through LVO -690 (ordinal 114). 111 user-callable slots: **37 impl**, 0 server, **74 stub**; coverage **33%**.
+ABI surface declared through LVO -690 (ordinal 114). 111 user-callable slots: **44 impl**, 0 server, **67 stub**; coverage **39%**.
 
-### Implemented (37)
+### Implemented (44)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
@@ -63,6 +63,13 @@ ABI surface declared through LVO -690 (ordinal 114). 111 user-callable slots: **
 | 63 | -384 | `WaitPort` | syscall |
 | 67 | -408 | `OldOpenLibrary` | syscall |
 | 68 | -414 | `CloseLibrary` | syscall |
+| 73 | -444 | `OpenDevice` | syscall |
+| 74 | -450 | `CloseDevice` | syscall |
+| 75 | -456 | `DoIO` | syscall |
+| 76 | -462 | `SendIO` | syscall |
+| 77 | -468 | `CheckIO` | syscall |
+| 78 | -474 | `WaitIO` | syscall |
+| 79 | -480 | `AbortIO` | syscall |
 | 91 | -552 | `OpenLibrary` | syscall |
 | 92 | -558 | `InitSemaphore` | syscall |
 | 93 | -564 | `ObtainSemaphore` | syscall |
@@ -75,7 +82,7 @@ ABI surface declared through LVO -690 (ordinal 114). 111 user-callable slots: **
 | 113 | -684 | `AllocVec` | syscall |
 | 114 | -690 | `FreeVec` | syscall |
 
-### Unimplemented stub slots (74)
+### Unimplemented stub slots (67)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
@@ -90,7 +97,8 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 | 51..51 | -312..-312 | 1 |
 | 56..59 | -342..-360 | 4 |
 | 64..66 | -390..-402 | 3 |
-| 69..90 | -420..-546 | 22 |
+| 69..72 | -420..-438 | 4 |
+| 80..90 | -486..-546 | 11 |
 | 96..102 | -582..-618 | 7 |
 | 105..109 | -636..-660 | 5 |
 | 112..112 | -678..-678 | 1 |

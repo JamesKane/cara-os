@@ -11,6 +11,7 @@
 // arm below reads the args it cares about and routes to the matching
 // Croi_*_Impl helper from src/croi/exec_lib/.
 
+#include <cara/device.h>
 #include <cara/dos_lib.h>
 #include <cara/exec_lib.h>
 #include <cara/graphics_lib.h>
@@ -398,6 +399,26 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_OpenScreenTagList:
         return (i64)(uptr)Croi_OpenScreenTagList_Impl((struct NewScreen *)(uptr)a0,
                                                       (struct TagItem *)(uptr)a1);
+
+    // ---- exec device IO primitives (L6) ----
+    case SYS_OpenDevice:
+        return (i64)Croi_OpenDevice_Impl((STRPTR)(uptr)a0, (ULONG)a1, (struct IORequest *)(uptr)a2,
+                                         (ULONG)a3);
+    case SYS_CloseDevice:
+        Croi_CloseDevice_Impl((struct IORequest *)(uptr)a0);
+        return 0;
+    case SYS_DoIO:
+        return (i64)Croi_DoIO_Impl((struct IORequest *)(uptr)a0);
+    case SYS_SendIO:
+        Croi_SendIO_Impl((struct IORequest *)(uptr)a0);
+        return 0;
+    case SYS_CheckIO:
+        return (i64)(uptr)Croi_CheckIO_Impl((struct IORequest *)(uptr)a0);
+    case SYS_WaitIO:
+        return (i64)Croi_WaitIO_Impl((struct IORequest *)(uptr)a0);
+    case SYS_AbortIO:
+        Croi_AbortIO_Impl((struct IORequest *)(uptr)a0);
+        return 0;
 
     // ---- intuition.library gadgets ----
     case SYS_AddGadget:

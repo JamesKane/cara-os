@@ -153,6 +153,15 @@ enum {
     SYS_OpenScreen = 109,
     SYS_CloseScreen = 110,
     SYS_OpenScreenTagList = 111,
+
+    // Phase 3 L6 — exec device IO primitives (device.c + the registry).
+    SYS_OpenDevice = 112,
+    SYS_CloseDevice = 113,
+    SYS_DoIO = 114,
+    SYS_SendIO = 115,
+    SYS_CheckIO = 116,
+    SYS_WaitIO = 117,
+    SYS_AbortIO = 118,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -279,6 +288,13 @@ enum {
 #define SYS_OpenScreen 109
 #define SYS_CloseScreen 110
 #define SYS_OpenScreenTagList 111
+#define SYS_OpenDevice 112
+#define SYS_CloseDevice 113
+#define SYS_DoIO 114
+#define SYS_SendIO 115
+#define SYS_CheckIO 116
+#define SYS_WaitIO 117
+#define SYS_AbortIO 118
 #endif
 
 #endif

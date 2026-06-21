@@ -18,6 +18,7 @@ add_library(cara_exec_lib STATIC
     open_library.c
     exec_hooks.c
     image.c
+    device.c
     trampolines.S
 )
 target_link_libraries(cara_exec_lib

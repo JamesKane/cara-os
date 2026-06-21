@@ -77,3 +77,12 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_WaitPort,        SYS_WaitPort
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_ReplyMsg,        SYS_ReplyMsg
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_CreateMsgPort,   SYS_CreateMsgPort
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DeleteMsgPort,   SYS_DeleteMsgPort
+
+// ---- Devices (L6) ----
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_OpenDevice,      SYS_OpenDevice
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_CloseDevice,     SYS_CloseDevice
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DoIO,            SYS_DoIO
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_SendIO,          SYS_SendIO
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_CheckIO,         SYS_CheckIO
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_WaitIO,          SYS_WaitIO
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AbortIO,         SYS_AbortIO
