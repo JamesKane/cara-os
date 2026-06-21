@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+76700e7 phase-3/L6.2  timer.device (TR_GETSYSTIME/TR_ADDREQUEST over Croi_Time)
 b599c77 phase-3/L6.1  exec device IO primitives + device registry (OpenDevice/DoIO/…)
 378555f phase-3/L5.6  intuition screens (OpenScreen/OpenScreenTagList/CloseScreen) — L5 complete
 c7ff55c phase-3/L5    intuition requesters (AutoRequest/EasyRequestArgs)
@@ -74,7 +75,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**40 passed / 0 failed** (L6.1 added `device_io`), QEMU
+**41 passed / 0 failed** (L6.2 added `timer_device`), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -664,12 +665,20 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
 - **L6.1 shipped (`b599c77`): exec IO primitives + device registry.**
   `exec/io.h`; `cara/device.h` + `src/croi/exec_lib/device.c` (the
   `CaraDevice` registry + the 7 IO verbs, synchronous v0). exec coverage
-  **39%** (44 impl). **NEXT: L6.2** — `timer.device`: `struct timerequest`
-  + `TR_*`/`UNIT_*` (devices/timer.h), register the device at boot,
-  `TR_GETSYSTIME` + `TR_ADDREQUEST` over `Croi_Time`. Then L6.3
-  console.device (`CMD_WRITE` → L3.6 console), L6.4 input.device (minimal).
-  Devices register at boot via `Croi_Device_Register` (add an init call in
-  entry.c when the first real device lands).
+  **39%** (44 impl).
+- **L6.2 shipped (`76700e7`): timer.device.** `devices/timer.h`
+  (`struct timerequest`, `TR_*`/`UNIT_*`); `src/croi/device/timer_device.c`
+  registered at boot via `Croi_Timer_Init()` (entry.c, after the dos
+  handler). `TR_GETSYSTIME` reads `Croi_Time_Now` (normalised
+  secs/micros); `TR_ADDREQUEST` waits a duration by cooperative
+  poll-yield (like `Delay`); `TR_SETSYSTIME` accepted-but-ignored;
+  `CMD_CLEAR` no-op; else `IOERR_NOCMD`. The registry now skips
+  duplicate names so `Croi_Timer_Init` is idempotent (boot + self-test
+  both call it). New `src/croi/device/` lib (`cara_devices`), linked
+  normally into croi. **NEXT: L6.3** — console.device: `CMD_WRITE` →
+  the L3.6 console/cout log; `CMD_READ` EOF stub. Then L6.4
+  input.device (minimal: `IND_WRITEEVENT` → `Leargas_Input_Post`,
+  `IND_ADDHANDLER` recorded, chain deferred).
 - **Rich gadgets (list/cycle/slider/…) are gadtools (L8) on BOOPSI (L7);
   the file requester is asl (L9)** — not L5. L5 is the window-system core
   + menus + requesters.
