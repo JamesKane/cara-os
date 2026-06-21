@@ -14,6 +14,7 @@
 #include <cara/device.h>
 #include <cara/dos_lib.h>
 #include <cara/exec_lib.h>
+#include <cara/gadtools_lib.h>
 #include <cara/graphics_lib.h>
 #include <cara/intuition_lib.h>
 #include <cara/log.h>
@@ -409,6 +410,18 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_RemoveClass:
         Croi_Boopsi_UnregisterClass((struct IClass *)(uptr)a0);
         return 0;
+
+    // ---- gadtools.library render context (L8) ----
+    case SYS_GT_GetVisualInfoA:
+        return (i64)(uptr)Croi_GT_GetVisualInfoA_Impl((struct Screen *)(uptr)a0,
+                                                      (struct TagItem *)(uptr)a1);
+    case SYS_GT_FreeVisualInfo:
+        Croi_GT_FreeVisualInfo_Impl((APTR)(uptr)a0);
+        return 0;
+    case SYS_GT_CreateContext:
+        return (i64)(uptr)Croi_GT_CreateContext_Impl((struct Gadget **)(uptr)a0);
+    case SYS_GT_FreeGadgets:
+        return (i64)(uptr)Croi_GT_FreeGadgets_Impl((struct Gadget *)(uptr)a0);
 
     // ---- exec device IO primitives (L6) ----
     case SYS_OpenDevice:

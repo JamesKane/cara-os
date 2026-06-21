@@ -113,6 +113,7 @@ target_link_libraries(croi PRIVATE
     cara_utility_lib
     cara_dos_lib
     cara_graphics_lib
+    cara_gadtools_lib
     cara_kernel_tests
     -Wl,--no-whole-archive
 )

@@ -206,6 +206,10 @@ SECTIONS
          * shared RX+U region; graphics's base + vec live in the SASOS
          * shared heap (entry.c). */
         KEEP(*(.lib_text.graphics))
+        /* gadtools.library's `syscall`-flavour trampolines (L8). Same
+         * shared RX+U region; gadtools's base + vec live in the SASOS
+         * shared heap (entry.c). */
+        KEEP(*(.lib_text.gadtools))
         . = ALIGN(4K);
         __exec_lib_end = .;
     } > LIB_VIRT AT > RAM_PHYS :lib_exec

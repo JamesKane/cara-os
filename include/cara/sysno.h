@@ -167,6 +167,12 @@ enum {
     SYS_FindClass = 119,
     SYS_AddClass = 120,
     SYS_RemoveClass = 121,
+
+    // Phase 3 L8 — gadtools.library render context (gadtools_lib.c).
+    SYS_GT_GetVisualInfoA = 122,
+    SYS_GT_FreeVisualInfo = 123,
+    SYS_GT_CreateContext = 124,
+    SYS_GT_FreeGadgets = 125,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -303,6 +309,10 @@ enum {
 #define SYS_FindClass 119
 #define SYS_AddClass 120
 #define SYS_RemoveClass 121
+#define SYS_GT_GetVisualInfoA 122
+#define SYS_GT_FreeVisualInfo 123
+#define SYS_GT_CreateContext 124
+#define SYS_GT_FreeGadgets 125
 #endif
 
 #endif

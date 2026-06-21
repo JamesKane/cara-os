@@ -129,6 +129,42 @@ struct NewScreen {
 #define SA_AutoScroll (SA_Dummy + 30)
 #define SA_Pens (SA_Dummy + 31)
 
+// ---- struct DrawInfo (V36+) -----------------------------------------------
+//
+// The rendering context a screen exposes: the pen map, font, depth, and
+// resolution that gadtools / BOOPSI imagery draw with. GetScreenDrawInfo
+// (intuition) and gadtools' VisualInfo hand it out. dri_Pens is a UWORD
+// array indexed by the *PEN names below (DETAILPEN/SHINEPEN/…); CaraOS v0
+// fills it from a fixed default map over the L4.2 8-entry palette.
+
+struct DrawInfo {
+    UWORD dri_Version; // DRI_VERSION
+    UWORD dri_NumPens; // entries in dri_Pens
+    UWORD *dri_Pens;   // pen array, indexed by DRIPEN_*
+    struct TextFont *dri_Font;
+    UWORD dri_Depth; // screen bitplane depth
+    struct {
+        UWORD X, Y;
+    } dri_Resolution;      // display ticks per pixel
+    ULONG dri_Flags;       // DRIF_*
+    ULONG dri_CheckMark;   // reserved (V39 imagery)
+    ULONG dri_Reserved[7]; // V39+ growth headroom
+};
+
+#define DRI_VERSION 1
+
+// DrawInfo pen indices (dri_Pens[]) — V36+ verbatim *PEN names.
+#define DETAILPEN 0
+#define BLOCKPEN 1
+#define TEXTPEN 2
+#define SHINEPEN 3
+#define SHADOWPEN 4
+#define FILLPEN 5
+#define FILLTEXTPEN 6
+#define BACKGROUNDPEN 7
+#define HIGHLIGHTTEXTPEN 8
+#define NUMDRIPENS 9
+
 // V36+ default chrome metrics — values Leargas_OpenScreen seeds into
 // the BarHeight / WBor* fields on Workbench-flavour screens.
 constexpr i8 LEARGAS_DEFAULT_BAR_HEIGHT = 11;
