@@ -41,6 +41,7 @@ struct CaraAslReq {
     struct Window *parent;
     char dirbuf[CARA_ASL_DIRMAX];
     char filebuf[CARA_ASL_FILEMAX];
+    char namebuf[32]; // FontRequester fo_Attr.ta_Name backing (L9.3)
 
     // Modal-window state (L9.2), valid between Croi_Asl_Build and the end
     // of Croi_Asl_Wait.

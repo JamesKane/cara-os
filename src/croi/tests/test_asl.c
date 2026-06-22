@@ -122,3 +122,46 @@ KERNEL_TEST(asl_filereq)
     Leargas_CloseScreen(scr);
     Leargas_SetDisplayFramebuffer(nullptr);
 }
+
+// L9.3 — the font + screen-mode requesters (modal, pre-post OK).
+KERNEL_TEST(asl_fontmode)
+{
+    Leargas_SetGadgetRouter(Leargas_IDCMP_PostGadgetUp);
+
+    static u32 pixels[200 * 140];
+    struct DathFramebuffer fb;
+    TEST_ASSERT(
+        ctx, Dath_Framebuffer_Init(&fb, pixels, 200, 140, 200 * 4, DATH_FMT_RGBA8888) == CARA_EOK,
+        "fb init");
+    Leargas_SetDisplayFramebuffer(&fb);
+    struct Screen *scr = Leargas_OpenScreen(&fb, "wb", 0);
+    TEST_ASSERT(ctx, scr != nullptr, "OpenScreen");
+
+    // Font requester: OK → fo_Attr is the one Dath face.
+    struct FontRequester *fo =
+        (struct FontRequester *)Croi_Asl_AllocAslRequest_Impl(ASL_FontRequest, nullptr);
+    struct CaraAslReq *freq = (struct CaraAslReq *)fo;
+    struct Window *fw = Croi_Asl_Build(freq, nullptr);
+    TEST_ASSERT(ctx, fw != nullptr && freq->g_ok, "build font requester");
+    TEST_ASSERT(ctx, Leargas_IDCMP_PostGadgetUp(fw, freq->g_ok), "pre-post OK (font)");
+    TEST_ASSERT(ctx, Croi_Asl_Wait(freq) == TRUE, "font Wait TRUE");
+    TEST_ASSERT(ctx, fo->fo_Attr.ta_Name && streq((const char *)fo->fo_Attr.ta_Name, "topaz.font"),
+                "font name");
+    TEST_ASSERT(ctx, fo->fo_Attr.ta_YSize == 8, "font size");
+    Croi_Asl_FreeAslRequest_Impl(fo);
+
+    // Screen-mode requester: OK → the single display mode (screen dims).
+    struct ScreenModeRequester *sm =
+        (struct ScreenModeRequester *)Croi_Asl_AllocAslRequest_Impl(ASL_ScreenModeRequest, nullptr);
+    struct CaraAslReq *sreq = (struct CaraAslReq *)sm;
+    struct Window *sw = Croi_Asl_Build(sreq, nullptr);
+    TEST_ASSERT(ctx, sw != nullptr && sreq->g_ok, "build screenmode requester");
+    TEST_ASSERT(ctx, Leargas_IDCMP_PostGadgetUp(sw, sreq->g_ok), "pre-post OK (sm)");
+    TEST_ASSERT(ctx, Croi_Asl_Wait(sreq) == TRUE, "screenmode Wait TRUE");
+    TEST_ASSERT(ctx, sm->sm_DisplayWidth == (UWORD)scr->Width && sm->sm_DisplayDepth == 8,
+                "screenmode filled from display");
+    Croi_Asl_FreeAslRequest_Impl(sm);
+
+    Leargas_CloseScreen(scr);
+    Leargas_SetDisplayFramebuffer(nullptr);
+}

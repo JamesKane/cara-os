@@ -102,25 +102,39 @@ static void asl_strcopy_n(char *dst, const char *src, int max)
     dst[n] = '\0';
 }
 
-// Build the modal window for a file requester: a drawer + a file STRING
-// gadget (seeded from req->dirbuf/filebuf) and OK/Cancel buttons, over
-// the L8 gadtools kinds. Stores the window + gadgets in `req`. Returns
-// the window, or nullptr. (Font/screen-mode requesters arrive in L9.3.)
+// The v0 font list — a single face (the Dath 8x8 / topaz). NULL-term'd
+// so it works directly as a CYCLE gadget's GTCY_Labels.
+static const char *g_asl_fonts[] = { "topaz.font", nullptr };
+
+// Build the modal window for the requester's type, over the L8 gadtools
+// kinds: a file requester gets two STRING fields, a font requester a
+// CYCLE of faces, a screen-mode requester a display label — each plus
+// OK/Cancel. Stores the window + gadgets in `req`. Returns the window,
+// or nullptr for an unsupported type.
 struct Window *Croi_Asl_Build(struct CaraAslReq *req, struct TagItem *tags)
 {
-    if (!req || req->type != ASL_FileRequest) {
+    if (!req || (req->type != ASL_FileRequest && req->type != ASL_FontRequest &&
+                 req->type != ASL_ScreenModeRequest)) {
         return nullptr;
     }
-    // Call-time tags override the alloc-time initial path / title.
-    const char *d = (const char *)(uptr)Croi_GetTagData(tags, ASLFR_InitialDrawer, 0);
-    if (d) {
-        asl_strcopy_n(req->dirbuf, d, CARA_ASL_DIRMAX);
+    // File: call-time tags override the alloc-time initial path / title.
+    if (req->type == ASL_FileRequest) {
+        const char *d = (const char *)(uptr)Croi_GetTagData(tags, ASLFR_InitialDrawer, 0);
+        if (d) {
+            asl_strcopy_n(req->dirbuf, d, CARA_ASL_DIRMAX);
+        }
+        const char *f = (const char *)(uptr)Croi_GetTagData(tags, ASLFR_InitialFile, 0);
+        if (f) {
+            asl_strcopy_n(req->filebuf, f, CARA_ASL_FILEMAX);
+        }
+        const char *t = (const char *)(uptr)Croi_GetTagData(tags, ASLFR_TitleText,
+                                                            (IPTR)req->title);
+        if (t) {
+            req->title = t;
+        }
+    } else {
+        (void)tags;
     }
-    const char *f = (const char *)(uptr)Croi_GetTagData(tags, ASLFR_InitialFile, 0);
-    if (f) {
-        asl_strcopy_n(req->filebuf, f, CARA_ASL_FILEMAX);
-    }
-    const char *t = (const char *)(uptr)Croi_GetTagData(tags, ASLFR_TitleText, (IPTR)req->title);
 
     struct Screen *scr = req->parent && req->parent->WScreen ? req->parent->WScreen
                                                              : Leargas_ActiveScreen();
@@ -136,6 +150,9 @@ struct Window *Croi_Asl_Build(struct CaraAslReq *req, struct TagItem *tags)
     if (sy < 0) {
         sy = 0;
     }
+    const char *deftitle = req->type == ASL_FontRequest         ? "Select a Font"
+                           : req->type == ASL_ScreenModeRequest ? "Select a Screen Mode"
+                                                                : "Select a File";
     struct NewWindow nw = (struct NewWindow){ 0 };
     nw.LeftEdge = sx;
     nw.TopEdge = sy;
@@ -145,7 +162,7 @@ struct Window *Croi_Asl_Build(struct CaraAslReq *req, struct TagItem *tags)
     nw.BlockPen = 1;
     nw.IDCMPFlags = IDCMP_GADGETUP;
     nw.Flags = WFLG_DRAGBAR | WFLG_ACTIVATE;
-    nw.Title = (UBYTE *)(uptr)(t ? t : "Select a File");
+    nw.Title = (UBYTE *)(uptr)(req->title ? req->title : deftitle);
     struct Window *win = Leargas_OpenWindow(&nw);
     if (!win) {
         return nullptr;
@@ -157,48 +174,82 @@ struct Window *Croi_Asl_Build(struct CaraAslReq *req, struct TagItem *tags)
 
     struct NewGadget ng = (struct NewGadget){ 0 };
     ng.ng_VisualInfo = vi;
-    // Drawer field.
     ng.ng_LeftEdge = 8;
-    ng.ng_TopEdge = 14;
     ng.ng_Width = (WORD)(w - 16);
     ng.ng_Height = 12;
-    ng.ng_GadgetID = 10;
-    struct TagItem dtags[] = { { GTST_String, (IPTR)(uptr)req->dirbuf },
-                               { GTST_MaxChars, CARA_ASL_DIRMAX - 1 },
-                               { TAG_END, 0 } };
-    struct Gadget *gd = Croi_GT_CreateGadgetA_Impl(STRING_KIND, prev, &ng, dtags);
-    // File field.
-    ng.ng_TopEdge = 30;
-    ng.ng_GadgetID = 11;
-    struct TagItem ftags[] = { { GTST_String, (IPTR)(uptr)req->filebuf },
-                               { GTST_MaxChars, CARA_ASL_FILEMAX - 1 },
-                               { TAG_END, 0 } };
-    struct Gadget *gf = Croi_GT_CreateGadgetA_Impl(STRING_KIND, gd, &ng, ftags);
-    // OK (id 1) + Cancel (id 0) buttons.
+
+    // Per-type content gadget(s); g_drawer is always the first one.
+    struct Gadget *first = nullptr;
+    req->g_file = nullptr;
+    switch (req->type) {
+    case ASL_FileRequest: {
+        ng.ng_TopEdge = 14;
+        ng.ng_GadgetID = 10;
+        struct TagItem dtags[] = { { GTST_String, (IPTR)(uptr)req->dirbuf },
+                                   { GTST_MaxChars, CARA_ASL_DIRMAX - 1 },
+                                   { TAG_END, 0 } };
+        struct Gadget *gd = Croi_GT_CreateGadgetA_Impl(STRING_KIND, prev, &ng, dtags);
+        ng.ng_TopEdge = 30;
+        ng.ng_GadgetID = 11;
+        struct TagItem ftags[] = { { GTST_String, (IPTR)(uptr)req->filebuf },
+                                   { GTST_MaxChars, CARA_ASL_FILEMAX - 1 },
+                                   { TAG_END, 0 } };
+        struct Gadget *gf = Croi_GT_CreateGadgetA_Impl(STRING_KIND, gd, &ng, ftags);
+        req->g_drawer = gd;
+        req->g_file = gf;
+        first = gd;
+        prev = gf;
+        break;
+    }
+    case ASL_FontRequest: {
+        ng.ng_TopEdge = 20;
+        ng.ng_GadgetID = 10;
+        struct TagItem cytags[] = { { GTCY_Labels, (IPTR)(uptr)g_asl_fonts },
+                                    { GTCY_Active, 0 },
+                                    { TAG_END, 0 } };
+        struct Gadget *gc = Croi_GT_CreateGadgetA_Impl(CYCLE_KIND, prev, &ng, cytags);
+        req->g_drawer = gc;
+        first = gc;
+        prev = gc;
+        break;
+    }
+    case ASL_ScreenModeRequest: {
+        ng.ng_TopEdge = 24;
+        ng.ng_GadgetID = 10;
+        struct TagItem txtags[] = { { GTTX_Text, (IPTR)(uptr) "Default Display" }, { TAG_END, 0 } };
+        struct Gadget *gt = Croi_GT_CreateGadgetA_Impl(TEXT_KIND, prev, &ng, txtags);
+        req->g_drawer = gt;
+        first = gt;
+        prev = gt;
+        break;
+    }
+    default:
+        break;
+    }
+
+    // OK (id 1) + Cancel (id 0) buttons, after the content.
     ng.ng_TopEdge = (WORD)(h - 18);
     ng.ng_Width = 64;
     ng.ng_Height = 14;
     ng.ng_LeftEdge = 8;
     ng.ng_GadgetID = 1;
     ng.ng_GadgetText = (STRPTR) "OK";
-    struct Gadget *gok = Croi_GT_CreateGadgetA_Impl(BUTTON_KIND, gf, &ng, nullptr);
+    struct Gadget *gok = Croi_GT_CreateGadgetA_Impl(BUTTON_KIND, prev, &ng, nullptr);
     ng.ng_LeftEdge = (WORD)(w - 72);
     ng.ng_GadgetID = 0;
     ng.ng_GadgetText = (STRPTR) "Cancel";
     (void)Croi_GT_CreateGadgetA_Impl(BUTTON_KIND, gok, &ng, nullptr);
 
-    // The gadgets are chained context→gd→gf→gok→cancel; adding gd brings
-    // the whole chain onto the window.
-    if (gd) {
-        Leargas_AddGadget(win, gd);
+    // Adding the first content gadget brings the whole chain (it is
+    // linked context→first→…→gok→cancel via NextGadget).
+    if (first) {
+        Leargas_AddGadget(win, first);
     }
     Leargas_Window_RenderGadgets(win);
 
     req->win = win;
     req->glist = glist;
     req->vi = vi;
-    req->g_drawer = gd;
-    req->g_file = gf;
     req->g_ok = gok;
     return win;
 }
@@ -235,9 +286,28 @@ BOOL Croi_Asl_Wait(struct CaraAslReq *req)
             if (im->Class == IDCMP_GADGETUP) {
                 struct Gadget *g = (struct Gadget *)im->IAddress;
                 UWORD id = g ? g->GadgetID : (UWORD)im->Code;
-                if (id == 1) { // OK
-                    asl_strcopy_n(req->dirbuf, asl_gadget_str(req->g_drawer), CARA_ASL_DIRMAX);
-                    asl_strcopy_n(req->filebuf, asl_gadget_str(req->g_file), CARA_ASL_FILEMAX);
+                if (id == 1) { // OK — write the result per requester type.
+                    if (req->type == ASL_FileRequest) {
+                        asl_strcopy_n(req->dirbuf, asl_gadget_str(req->g_drawer), CARA_ASL_DIRMAX);
+                        asl_strcopy_n(req->filebuf, asl_gadget_str(req->g_file), CARA_ASL_FILEMAX);
+                    } else if (req->type == ASL_FontRequest) {
+                        // The CYCLE's active index picks the face.
+                        LONG idx = 0;
+                        struct TagItem gt[] = { { GTCY_Active, (IPTR)(uptr)&idx }, { TAG_END, 0 } };
+                        (void)Croi_GT_GetGadgetAttrsA_Impl(req->g_drawer, nullptr, nullptr, gt);
+                        const char *fname = g_asl_fonts[idx >= 0 && idx < 1 ? idx : 0];
+                        asl_strcopy_n(req->namebuf, fname, (int)sizeof(req->namebuf));
+                        req->pub.font.fo_Attr.ta_Name = req->namebuf;
+                        req->pub.font.fo_Attr.ta_YSize = 8;
+                        req->pub.font.fo_Attr.ta_Style = 0;
+                        req->pub.font.fo_Attr.ta_Flags = 0;
+                    } else if (req->type == ASL_ScreenModeRequest) {
+                        struct Screen *s = win->WScreen;
+                        req->pub.sm.sm_DisplayID = 0; // v0: the single mode
+                        req->pub.sm.sm_DisplayWidth = s ? (UWORD)s->Width : 0;
+                        req->pub.sm.sm_DisplayHeight = s ? (UWORD)s->Height : 0;
+                        req->pub.sm.sm_DisplayDepth = 8;
+                    }
                     result = TRUE;
                     done = true;
                 } else if (id == 0) { // Cancel
