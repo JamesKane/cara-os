@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+7298c24 phase-3/L8.4  gadtools GT_GetIMsg + menu builder
 3282201 phase-3/L8.3  gadtools choice/edit kinds + DrawBevelBoxA + GT_GetGadgetAttrsA
 fa70150 phase-3/L8.2  gadtools CreateGadgetA + easy kinds + GT_SetGadgetAttrsA
 5b83be4 phase-3/L8.1  gadtools.library + render context (VisualInfo/CreateContext)
@@ -85,7 +86,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**46 passed / 0 failed** (L8.3 added `gadtools_kinds`), QEMU
+**47 passed / 0 failed** (L8.4 added `gadtools_imsg_menu`), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -790,14 +791,26 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   radio v0). DrawBevelBoxA draws shine/shadow edges via the graphics
   Move/Draw/SetAPen impls. GT_GetGadgetAttrsA reads attrs back into
   caller storage. gadtools coverage 42% (8 impl).
-  `KERNEL_TEST(gadtools_kinds)`. **NEXT: L8.4** — `GT_GetIMsg -72`/
-  `GT_ReplyIMsg -78`/`GT_RefreshWindow -84`/`GT_BeginRefresh -90`/
-  `GT_EndRefresh -96` (GT_GetIMsg does the gadtools-internal update:
-  CYCLE advance / CHECKBOX toggle / STRING commit on the IDCMP message,
-  then returns it) + the menu builder `CreateMenusA -48`/`LayoutMenusA
-  -66`/`LayoutMenuItemsA -60`/`FreeMenus -54` over the L5.3 menu chain
-  (struct NewMenu walk → struct Menu/MenuItem). Then L8.5 prop kinds
-  (SLIDER/SCROLLER/LISTVIEW) + router drag-tracking, or defer past v0.
+  `KERNEL_TEST(gadtools_kinds)`.
+- **L8.4 shipped (`7298c24`): GT_GetIMsg + menu builder.** `GT_GetIMsg
+  -72`/`GT_ReplyIMsg -78`/`GT_RefreshWindow -84`/`GT_BeginRefresh -90`/
+  `GT_EndRefresh -96` + `CreateMenusA -48`/`FreeMenus -54`/
+  `LayoutMenuItemsA -60`/`LayoutMenusA -66` (SYS_GT_* 130-138). GT_GetIMsg
+  pops the IntuiMessage from the UserPort (Leargas IDCMP ring via
+  `Croi_GetMsg`) + does the per-kind update (CYCLE/MX advance, CHECKBOX
+  toggle), rewrites Code, re-renders; GT_ReplyIMsg disposes
+  (Leargas_IDCMP_DisposeMsg). CreateMenusA walks NewMenu[] → L5.3
+  Menu/MenuItem chain (item block carries its IntuiText); LayoutMenusA →
+  Leargas_Menu_Layout off the VisualInfo screen. gadtools coverage 89%
+  (17 impl; only GT_FilterIMsg/GT_PostFilterIMsg stubbed).
+  `KERNEL_TEST(gadtools_imsg_menu)`. **NEXT: L8.5** — prop kinds
+  (SLIDER/SCROLLER/LISTVIEW/PALETTE) needing **router drag-tracking** the
+  Leargas input router lacks (router.c: SELECTUP/drag deferred — track
+  button-held mouse-move → prop pot → IDCMP_MOUSEMOVE/GADGETUP). The
+  hardest substrate work; ship as L8.5 or **defer past the L8 v0
+  done-bar** (which is already met: button/checkbox/cycle/mx/string/
+  integer/text/number + menus all work). After L8: **L9 asl** (file/font
+  requesters on gadtools) → L10–14 long tail → T tools → A apps.
   After L8: L9 asl → L10–14 long tail → T tools → A apps. L7 tracked
   gaps: concrete BOOPSI classes (gadgetclass/imageclass/icclass/
   modelclass), `DoGadgetMethodA`, `OM_NOTIFY`, FreeClass reaping,
