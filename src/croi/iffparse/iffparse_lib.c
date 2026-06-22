@@ -64,6 +64,7 @@ LONG Croi_Iff_OpenIFF_Impl(struct IFFHandle *iff, LONG rwMode)
     }
     ci->mode = (ULONG)(rwMode & IFFF_RWBITS);
     ci->depth = 0;
+    ci->write_off = 0;
     ci->nstops = 0;
     ci->nexit = 0;
     iff->iff_Depth = 0;
@@ -286,4 +287,145 @@ struct ContextNode *Croi_Iff_ParentChunk_Impl(struct ContextNode *cn)
         return nullptr;
     }
     return (struct ContextNode *)cn->cn_Node.mln_Pred;
+}
+
+// ---- The write side (L10.3) -----------------------------------------
+
+static bool iff_write(struct CaraIff *ci, const void *buf, LONG n)
+{
+    if (Croi_Dos_Write_Impl(ci->stream, (APTR)(uptr)buf, n) != n) {
+        return false;
+    }
+    ci->write_off += n;
+    return true;
+}
+
+static bool iff_write_be32(struct CaraIff *ci, ULONG v)
+{
+    UBYTE b[4] = { (UBYTE)(v >> 24), (UBYTE)(v >> 16), (UBYTE)(v >> 8), (UBYTE)v };
+    return iff_write(ci, b, 4);
+}
+
+// PushChunk(iff, type, id, size): open a new chunk for writing. A group
+// (FORM/LIST/CAT/PROP) writes its id + size + the group type; a leaf
+// writes its id + size. The size field offset is recorded in push_pos so
+// PopChunk can backpatch the true size (IFFSIZE_UNKNOWN writes 0 now).
+LONG Croi_Iff_PushChunk_Impl(struct IFFHandle *iff, LONG type, LONG id, LONG size)
+{
+    if (!iff) {
+        return IFFERR_NOMEM;
+    }
+    struct CaraIff *ci = (struct CaraIff *)iff;
+    if (!ci->stream) {
+        return IFFERR_NOHOOK;
+    }
+    if (ci->depth >= CARA_IFF_MAXDEPTH) {
+        return IFFERR_NOSCOPE;
+    }
+    bool group = (id == ID_FORM || id == ID_LIST || id == ID_CAT || id == ID_PROP);
+    LONG declared = (size == IFFSIZE_UNKNOWN) ? 0 : size;
+
+    if (!iff_write_be32(ci, (ULONG)id)) {
+        return IFFERR_WRITE;
+    }
+    ci->push_pos[ci->depth] = ci->write_off; // the size field is written next
+    if (!iff_write_be32(ci, (ULONG)declared)) {
+        return IFFERR_WRITE;
+    }
+
+    struct ContextNode *n = &ci->nodes[ci->depth];
+    *n = (struct ContextNode){ 0 };
+    n->cn_ID = id;
+    n->cn_Size = declared;
+    n->cn_Scan = 0;
+    n->cn_Node.mln_Pred = (ci->depth >= 1) ? &ci->nodes[ci->depth - 1].cn_Node : nullptr;
+    if (group) {
+        if (!iff_write_be32(ci, (ULONG)type)) {
+            return IFFERR_WRITE;
+        }
+        n->cn_Type = type;
+        n->cn_Scan = 4; // the group type counts toward the content
+    } else {
+        n->cn_Type = (ci->depth >= 1) ? ci->nodes[ci->depth - 1].cn_Type : type;
+    }
+    ci->depth++;
+    ci->pub.iff_Depth = ci->depth;
+    return 0;
+}
+
+LONG Croi_Iff_WriteChunkBytes_Impl(struct IFFHandle *iff, APTR buf, LONG size)
+{
+    if (!iff) {
+        return IFFERR_NOMEM;
+    }
+    struct CaraIff *ci = (struct CaraIff *)iff;
+    if (ci->depth < 1) {
+        return IFFERR_NOSCOPE;
+    }
+    if (size <= 0) {
+        return 0;
+    }
+    if (!iff_write(ci, buf, size)) {
+        return IFFERR_WRITE;
+    }
+    ci->nodes[ci->depth - 1].cn_Scan += size;
+    return size;
+}
+
+LONG Croi_Iff_WriteChunkRecords_Impl(struct IFFHandle *iff, APTR buf, LONG recSize, LONG numRec)
+{
+    if (recSize <= 0) {
+        return 0;
+    }
+    LONG bytes = Croi_Iff_WriteChunkBytes_Impl(iff, buf, recSize * numRec);
+    if (bytes < 0) {
+        return bytes;
+    }
+    return bytes / recSize;
+}
+
+// PopChunk: close the current chunk — pad to even, backpatch its size
+// field with the bytes actually written (cn_Scan), and account it against
+// the parent so the enclosing FORM's size is correct.
+LONG Croi_Iff_PopChunk_Impl(struct IFFHandle *iff)
+{
+    if (!iff) {
+        return IFFERR_NOMEM;
+    }
+    struct CaraIff *ci = (struct CaraIff *)iff;
+    if (ci->depth < 1) {
+        return IFFERR_NOSCOPE;
+    }
+    struct ContextNode *cur = &ci->nodes[ci->depth - 1];
+    LONG sz = cur->cn_Scan;
+    LONG pad = sz & 1;
+    if (pad) {
+        UBYTE z = 0;
+        if (!iff_write(ci, &z, 1)) {
+            return IFFERR_WRITE;
+        }
+    }
+    // Backpatch the size field (overwrite the placeholder in place), then
+    // return to the end. CaraFS Carafs_FileWrite overwrites at offset.
+    LONG endpos = ci->write_off;
+    if (Croi_Dos_Seek_Impl(ci->stream, ci->push_pos[ci->depth - 1], OFFSET_BEGINNING) < 0) {
+        return IFFERR_SEEK;
+    }
+    UBYTE b[4] = { (UBYTE)((ULONG)sz >> 24), (UBYTE)((ULONG)sz >> 16), (UBYTE)((ULONG)sz >> 8),
+                   (UBYTE)sz };
+    if (Croi_Dos_Write_Impl(ci->stream, b, 4) != 4) {
+        return IFFERR_WRITE;
+    }
+    if (Croi_Dos_Seek_Impl(ci->stream, endpos, OFFSET_BEGINNING) < 0) {
+        return IFFERR_SEEK;
+    }
+    cur->cn_Size = sz;
+
+    if (ci->depth >= 2) {
+        // header (8) + body + pad counts against the enclosing context.
+        ci->nodes[ci->depth - 2].cn_Scan += 8 + sz + pad;
+    }
+    ci->depth--;
+    ci->pub.iff_Depth = ci->depth;
+    return 0;
 }

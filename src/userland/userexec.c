@@ -623,28 +623,43 @@ int main(void)
     dos_ok = dos_ok && in != BNULL && in != out && Read(in, inbuf, sizeof(inbuf)) == 0;
     Delay(1); // ~20 ms; returns void — just prove the path is wired
 
-    // L10: iffparse.library — write a raw IFF FORM ILBM (a BMHD + a BODY
-    // chunk) via dos, reopen it, and parse it back through iffparse:
+    // L10: iffparse.library round-trip — WRITE an IFF FORM ILBM (a BMHD +
+    // a BODY chunk) with PushChunk/WriteChunkBytes/PopChunk (sizes
+    // backpatched at PopChunk), then reopen and parse it back:
     // StopChunk(BODY) + ParseIFF(SCAN) stops at the BODY, ReadChunkBytes
-    // returns its contents. Proves the read walk over a real dos stream.
+    // returns its contents.
     bool iff_ok = false;
     struct Library *ilib = OpenLibrary((STRPTR) "iffparse.library", 36);
     if (ilib) {
         IFFParseBase = (struct IFFParseBase *)ilib;
         iff_ok = (((struct Library *)IFFParseBase)->lib_Version == 36);
 
-        static const UBYTE iffbytes[] = {
-            'F', 'O', 'R', 'M', 0,   0,   0, 30,             // FORM, size 30
-            'I', 'L', 'B', 'M',                              // form type
-            'B', 'M', 'H', 'D', 0,   0,   0, 4,  1, 2, 3, 4, // BMHD chunk (4 bytes)
-            'B', 'O', 'D', 'Y', 0,   0,   0, 6,              // BODY chunk (6 bytes)
-            'h', 'e', 'l', 'l', 'o', '!',
-        };
+        static const UBYTE bmhd[4] = { 1, 2, 3, 4 };
+        static const UBYTE body[6] = { 'h', 'e', 'l', 'l', 'o', '!' };
+
+        // Write side: build the FORM with iffparse over a dos file.
         BPTR wf = Open((STRPTR) "uexec.iff", MODE_NEWFILE);
         iff_ok = iff_ok && wf != BNULL;
         if (wf) {
-            iff_ok = iff_ok &&
-                     Write(wf, (APTR)iffbytes, (LONG)sizeof(iffbytes)) == (LONG)sizeof(iffbytes);
+            struct IFFHandle *wi = AllocIFF();
+            iff_ok = iff_ok && wi != nullptr;
+            if (wi) {
+                InitIFFasDOS(wi);
+                wi->iff_Stream = (IPTR)(uptr)wf;
+                iff_ok = iff_ok && OpenIFF(wi, IFFF_WRITE) == 0;
+                iff_ok = iff_ok && PushChunk(wi, MAKE_ID('I', 'L', 'B', 'M'),
+                                             MAKE_ID('F', 'O', 'R', 'M'), IFFSIZE_UNKNOWN) == 0;
+                iff_ok = iff_ok && PushChunk(wi, 0, MAKE_ID('B', 'M', 'H', 'D'), 4) == 0;
+                iff_ok = iff_ok && WriteChunkBytes(wi, (APTR)bmhd, 4) == 4;
+                iff_ok = iff_ok && PopChunk(wi) == 0;
+                iff_ok = iff_ok &&
+                         PushChunk(wi, 0, MAKE_ID('B', 'O', 'D', 'Y'), IFFSIZE_UNKNOWN) == 0;
+                iff_ok = iff_ok && WriteChunkBytes(wi, (APTR)body, 6) == 6;
+                iff_ok = iff_ok && PopChunk(wi) == 0; // BODY
+                iff_ok = iff_ok && PopChunk(wi) == 0; // FORM (backpatches its size)
+                CloseIFF(wi);
+                FreeIFF(wi);
+            }
             Close(wf);
         }
 
@@ -663,9 +678,9 @@ int main(void)
                 struct ContextNode *cn = CurrentChunk(iff);
                 iff_ok = iff_ok && cn != nullptr && cn->cn_ID == MAKE_ID('B', 'O', 'D', 'Y') &&
                          cn->cn_Size == 6;
-                char body[8] = { 0 };
-                iff_ok = iff_ok && ReadChunkBytes(iff, body, 6) == 6;
-                iff_ok = iff_ok && body[0] == 'h' && body[4] == 'o' && body[5] == '!';
+                char rbody[8] = { 0 };
+                iff_ok = iff_ok && ReadChunkBytes(iff, rbody, 6) == 6;
+                iff_ok = iff_ok && rbody[0] == 'h' && rbody[4] == 'o' && rbody[5] == '!';
                 CloseIFF(iff);
                 FreeIFF(iff);
             }

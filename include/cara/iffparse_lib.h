@@ -31,6 +31,7 @@ struct CaraIff {
     ULONG mode;           // IFFF_READ / IFFF_WRITE
     bool as_dos;          // InitIFFasDOS installed the DOS stream
     int depth;            // pushed context nodes (0 = none)
+    LONG write_off;       // running write offset (write mode; size backpatch)
     struct ContextNode nodes[CARA_IFF_MAXDEPTH];
     LONG push_pos[CARA_IFF_MAXDEPTH]; // stream offset of each pushed chunk's size field
     // ParseIFF SCAN stop registry (L10.2).
@@ -59,6 +60,12 @@ LONG Croi_Iff_ReadChunkBytes_Impl(struct IFFHandle *iff, APTR buf, LONG size);
 LONG Croi_Iff_ReadChunkRecords_Impl(struct IFFHandle *iff, APTR buf, LONG recSize, LONG numRec);
 struct ContextNode *Croi_Iff_CurrentChunk_Impl(struct IFFHandle *iff);
 struct ContextNode *Croi_Iff_ParentChunk_Impl(struct ContextNode *cn);
+
+// ---- The write side (L10.3) -----------------------------------------
+LONG Croi_Iff_PushChunk_Impl(struct IFFHandle *iff, LONG type, LONG id, LONG size);
+LONG Croi_Iff_PopChunk_Impl(struct IFFHandle *iff);
+LONG Croi_Iff_WriteChunkBytes_Impl(struct IFFHandle *iff, APTR buf, LONG size);
+LONG Croi_Iff_WriteChunkRecords_Impl(struct IFFHandle *iff, APTR buf, LONG recSize, LONG numRec);
 
 // ---- Reserved-slot library hooks (`local` flavour) ------------------
 struct IFFParseBase;

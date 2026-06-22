@@ -208,6 +208,10 @@ enum {
     SYS_Iff_StopOnExit = 154,
     SYS_Iff_CurrentChunk = 155,
     SYS_Iff_ParentChunk = 156,
+    SYS_Iff_PushChunk = 157,
+    SYS_Iff_PopChunk = 158,
+    SYS_Iff_WriteChunkBytes = 159,
+    SYS_Iff_WriteChunkRecords = 160,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -379,6 +383,10 @@ enum {
 #define SYS_Iff_StopOnExit 154
 #define SYS_Iff_CurrentChunk 155
 #define SYS_Iff_ParentChunk 156
+#define SYS_Iff_PushChunk 157
+#define SYS_Iff_PopChunk 158
+#define SYS_Iff_WriteChunkBytes 159
+#define SYS_Iff_WriteChunkRecords 160
 #endif
 
 #endif
