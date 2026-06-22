@@ -67,6 +67,8 @@ LONG Croi_Iff_OpenIFF_Impl(struct IFFHandle *iff, LONG rwMode)
     ci->write_off = 0;
     ci->nstops = 0;
     ci->nexit = 0;
+    ci->nprops = 0;
+    ci->ncolls = 0;
     iff->iff_Depth = 0;
     iff->iff_Flags = (iff->iff_Flags & ~(ULONG)IFFF_RWBITS) | ci->mode;
     return 0;
@@ -80,6 +82,24 @@ void Croi_Iff_CloseIFF_Impl(struct IFFHandle *iff)
         return;
     }
     struct CaraIff *ci = (struct CaraIff *)iff;
+    // Free the gathered props / collections (shared-heap copies).
+    for (int i = 0; i < ci->nprops; i++) {
+        if (ci->props[i].sp) {
+            Croi_Free(ci->props[i].sp);
+            ci->props[i].sp = nullptr;
+        }
+    }
+    ci->nprops = 0;
+    for (int i = 0; i < ci->ncolls; i++) {
+        struct CollectionItem *it = ci->colls[i].head;
+        while (it) {
+            struct CollectionItem *next = it->ci_Next;
+            Croi_Free(it);
+            it = next;
+        }
+        ci->colls[i].head = nullptr;
+    }
+    ci->ncolls = 0;
     ci->depth = 0;
     ci->stream = (BPTR)0;
     iff->iff_Depth = 0;
@@ -172,6 +192,59 @@ static LONG iff_step(struct CaraIff *ci)
     return 0;
 }
 
+// If the just-entered chunk (depth-1) was registered with PropChunk /
+// CollectionChunk, slurp its whole body off the stream into a shared-heap
+// StoredProperty / CollectionItem and record it, then return true so the
+// SCAN loop consumes it transparently. A prop replaces a prior copy; a
+// collection prepends (FindCollection returns newest-first, like V36+).
+static bool iff_gather(struct CaraIff *ci)
+{
+    if (ci->depth < 2) {
+        return false;
+    }
+    struct ContextNode *cur = &ci->nodes[ci->depth - 1];
+    LONG sz = cur->cn_Size;
+
+    for (int i = 0; i < ci->nprops; i++) {
+        if (ci->props[i].type == cur->cn_Type && ci->props[i].id == cur->cn_ID) {
+            struct StoredProperty *sp = (struct StoredProperty *)Croi_AllocShared(
+                sizeof(struct StoredProperty) + (sz > 0 ? sz : 0));
+            if (!sp) {
+                return false;
+            }
+            sp->sp_Size = sz;
+            if (sz > 0 && Croi_Iff_ReadChunkBytes_Impl(&ci->pub, sp->sp_Data, sz) != sz) {
+                Croi_Free(sp);
+                return false;
+            }
+            if (ci->props[i].sp) {
+                Croi_Free(ci->props[i].sp); // replace the prior copy
+            }
+            ci->props[i].sp = sp;
+            return true;
+        }
+    }
+    for (int i = 0; i < ci->ncolls; i++) {
+        if (ci->colls[i].type == cur->cn_Type && ci->colls[i].id == cur->cn_ID) {
+            struct CollectionItem *it = (struct CollectionItem *)Croi_AllocShared(
+                sizeof(struct CollectionItem) + (sz > 0 ? sz : 0));
+            if (!it) {
+                return false;
+            }
+            it->ci_Size = sz;
+            it->ci_Data = (UBYTE *)(it + 1);
+            if (sz > 0 && Croi_Iff_ReadChunkBytes_Impl(&ci->pub, it->ci_Data, sz) != sz) {
+                Croi_Free(it);
+                return false;
+            }
+            it->ci_Next = ci->colls[i].head; // prepend (newest first)
+            ci->colls[i].head = it;
+            return true;
+        }
+    }
+    return false;
+}
+
 LONG Croi_Iff_ParseIFF_Impl(struct IFFHandle *iff, LONG control)
 {
     if (!iff) {
@@ -186,8 +259,14 @@ LONG Croi_Iff_ParseIFF_Impl(struct IFFHandle *iff, LONG control)
         if (e != 0) {
             return e;
         }
+        // Gather a registered prop / collection chunk (consumes it),
+        // unless RAWSTEP suppresses gathering.
+        bool gathered = (control != IFFPARSE_RAWSTEP) ? iff_gather(ci) : false;
         if (control != IFFPARSE_SCAN) {
-            return 0; // STEP / RAWSTEP: one step
+            return 0; // STEP / RAWSTEP: one step (gathered or not)
+        }
+        if (gathered) {
+            continue; // a prop/collection chunk — keep scanning
         }
         // SCAN: stop only when the entered chunk is registered.
         struct ContextNode *cur = &ci->nodes[ci->depth - 1];
@@ -428,4 +507,113 @@ LONG Croi_Iff_PopChunk_Impl(struct IFFHandle *iff)
     ci->depth--;
     ci->pub.iff_Depth = ci->depth;
     return 0;
+}
+
+// ---- Props / collections (L10.4) ------------------------------------
+
+// Register (type,id) so ParseIFF gathers it as a single StoredProperty
+// (FindProp returns the latest copy). Must be called before ParseIFF.
+LONG Croi_Iff_PropChunk_Impl(struct IFFHandle *iff, LONG type, LONG id)
+{
+    if (!iff) {
+        return IFFERR_NOMEM;
+    }
+    struct CaraIff *ci = (struct CaraIff *)iff;
+    for (int i = 0; i < ci->nprops; i++) {
+        if (ci->props[i].type == type && ci->props[i].id == id) {
+            return 0; // already registered
+        }
+    }
+    if (ci->nprops >= CARA_IFF_MAXSTOPS) {
+        return IFFERR_NOMEM;
+    }
+    ci->props[ci->nprops].type = type;
+    ci->props[ci->nprops].id = id;
+    ci->props[ci->nprops].sp = nullptr;
+    ci->nprops++;
+    return 0;
+}
+
+// Register an array of (type,id) LONG pairs as prop chunks.
+LONG Croi_Iff_PropChunks_Impl(struct IFFHandle *iff, LONG *propArray, LONG numPairs)
+{
+    if (!propArray) {
+        return IFFERR_NOMEM;
+    }
+    for (LONG i = 0; i < numPairs; i++) {
+        LONG e = Croi_Iff_PropChunk_Impl(iff, propArray[i * 2], propArray[i * 2 + 1]);
+        if (e != 0) {
+            return e;
+        }
+    }
+    return 0;
+}
+
+// Register (type,id) so ParseIFF accumulates every matching chunk into a
+// CollectionItem list (FindCollection returns the newest-first head).
+LONG Croi_Iff_CollectionChunk_Impl(struct IFFHandle *iff, LONG type, LONG id)
+{
+    if (!iff) {
+        return IFFERR_NOMEM;
+    }
+    struct CaraIff *ci = (struct CaraIff *)iff;
+    for (int i = 0; i < ci->ncolls; i++) {
+        if (ci->colls[i].type == type && ci->colls[i].id == id) {
+            return 0; // already registered
+        }
+    }
+    if (ci->ncolls >= CARA_IFF_MAXSTOPS) {
+        return IFFERR_NOMEM;
+    }
+    ci->colls[ci->ncolls].type = type;
+    ci->colls[ci->ncolls].id = id;
+    ci->colls[ci->ncolls].head = nullptr;
+    ci->ncolls++;
+    return 0;
+}
+
+// Register an array of (type,id) LONG pairs as collection chunks.
+LONG Croi_Iff_CollectionChunks_Impl(struct IFFHandle *iff, LONG *array, LONG numPairs)
+{
+    if (!array) {
+        return IFFERR_NOMEM;
+    }
+    for (LONG i = 0; i < numPairs; i++) {
+        LONG e = Croi_Iff_CollectionChunk_Impl(iff, array[i * 2], array[i * 2 + 1]);
+        if (e != 0) {
+            return e;
+        }
+    }
+    return 0;
+}
+
+// Return the gathered StoredProperty for (type,id), or nullptr if the
+// chunk was never registered or did not appear in the parsed stream.
+struct StoredProperty *Croi_Iff_FindProp_Impl(struct IFFHandle *iff, LONG type, LONG id)
+{
+    if (!iff) {
+        return nullptr;
+    }
+    struct CaraIff *ci = (struct CaraIff *)iff;
+    for (int i = 0; i < ci->nprops; i++) {
+        if (ci->props[i].type == type && ci->props[i].id == id) {
+            return ci->props[i].sp;
+        }
+    }
+    return nullptr;
+}
+
+// Return the head of the gathered CollectionItem list for (type,id).
+struct CollectionItem *Croi_Iff_FindCollection_Impl(struct IFFHandle *iff, LONG type, LONG id)
+{
+    if (!iff) {
+        return nullptr;
+    }
+    struct CaraIff *ci = (struct CaraIff *)iff;
+    for (int i = 0; i < ci->ncolls; i++) {
+        if (ci->colls[i].type == type && ci->colls[i].id == id) {
+            return ci->colls[i].head;
+        }
+    }
+    return nullptr;
 }

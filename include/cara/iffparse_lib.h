@@ -43,6 +43,20 @@ struct CaraIff {
         LONG type, id;
     } exit_stops[CARA_IFF_MAXSTOPS];
     int nexit;
+    // Prop / collection gather registries (L10.4). Registered by
+    // PropChunk/CollectionChunk; filled by ParseIFF as it steps over a
+    // matching chunk; the gathered StoredProperty/CollectionItem live on
+    // the shared heap and are freed at CloseIFF.
+    struct {
+        LONG type, id;
+        struct StoredProperty *sp;
+    } props[CARA_IFF_MAXSTOPS];
+    int nprops;
+    struct {
+        LONG type, id;
+        struct CollectionItem *head;
+    } colls[CARA_IFF_MAXSTOPS];
+    int ncolls;
 };
 
 // ---- Handle lifecycle (L10.1) ---------------------------------------
@@ -66,6 +80,14 @@ LONG Croi_Iff_PushChunk_Impl(struct IFFHandle *iff, LONG type, LONG id, LONG siz
 LONG Croi_Iff_PopChunk_Impl(struct IFFHandle *iff);
 LONG Croi_Iff_WriteChunkBytes_Impl(struct IFFHandle *iff, APTR buf, LONG size);
 LONG Croi_Iff_WriteChunkRecords_Impl(struct IFFHandle *iff, APTR buf, LONG recSize, LONG numRec);
+
+// ---- Props / collections (L10.4) ------------------------------------
+LONG Croi_Iff_PropChunk_Impl(struct IFFHandle *iff, LONG type, LONG id);
+LONG Croi_Iff_PropChunks_Impl(struct IFFHandle *iff, LONG *propArray, LONG numPairs);
+LONG Croi_Iff_CollectionChunk_Impl(struct IFFHandle *iff, LONG type, LONG id);
+LONG Croi_Iff_CollectionChunks_Impl(struct IFFHandle *iff, LONG *array, LONG numPairs);
+struct StoredProperty *Croi_Iff_FindProp_Impl(struct IFFHandle *iff, LONG type, LONG id);
+struct CollectionItem *Croi_Iff_FindCollection_Impl(struct IFFHandle *iff, LONG type, LONG id);
 
 // ---- Reserved-slot library hooks (`local` flavour) ------------------
 struct IFFParseBase;

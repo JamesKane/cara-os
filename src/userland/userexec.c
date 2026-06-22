@@ -672,12 +672,20 @@ int main(void)
                 InitIFFasDOS(iff);
                 iff->iff_Stream = (IPTR)(uptr)rf2;
                 iff_ok = iff_ok && OpenIFF(iff, IFFF_READ) == 0;
+                // L10.4: gather the BMHD prop during the SCAN, stop at BODY.
+                iff_ok = iff_ok && PropChunk(iff, MAKE_ID('I', 'L', 'B', 'M'),
+                                             MAKE_ID('B', 'M', 'H', 'D')) == 0;
                 iff_ok = iff_ok && StopChunk(iff, MAKE_ID('I', 'L', 'B', 'M'),
                                              MAKE_ID('B', 'O', 'D', 'Y')) == 0;
                 iff_ok = iff_ok && ParseIFF(iff, IFFPARSE_SCAN) == 0;
                 struct ContextNode *cn = CurrentChunk(iff);
                 iff_ok = iff_ok && cn != nullptr && cn->cn_ID == MAKE_ID('B', 'O', 'D', 'Y') &&
                          cn->cn_Size == 6;
+                // FindProp returns the BMHD slurped on the way to BODY.
+                struct StoredProperty *sp = FindProp(iff, MAKE_ID('I', 'L', 'B', 'M'),
+                                                     MAKE_ID('B', 'M', 'H', 'D'));
+                iff_ok = iff_ok && sp != nullptr && sp->sp_Size == 4 && sp->sp_Data[0] == 1 &&
+                         sp->sp_Data[3] == 4;
                 char rbody[8] = { 0 };
                 iff_ok = iff_ok && ReadChunkBytes(iff, rbody, 6) == 6;
                 iff_ok = iff_ok && rbody[0] == 'h' && rbody[4] == 'o' && rbody[5] == '!';

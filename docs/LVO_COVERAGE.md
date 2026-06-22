@@ -29,7 +29,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | graphics.library | 154 | 24 | 0 | 126 | 4 | 16% |
 | gadtools.library | 23 | 17 | 0 | 2 | 4 | 89% |
 | asl.library | 10 | 6 | 0 | 0 | 4 | 100% |
-| iffparse.library | 39 | 16 | 0 | 19 | 4 | 45% |
+| iffparse.library | 39 | 22 | 0 | 13 | 4 | 62% |
 | cruth.library | 23 | 9 | 10 | 0 | 4 | 100% |
 
 ## exec.library
@@ -361,9 +361,9 @@ _none — fully declared surface is implemented_
 
 ## iffparse.library
 
-ABI surface declared through LVO -234 (ordinal 38). 35 user-callable slots: **16 impl**, 0 server, **19 stub**; coverage **45%**.
+ABI surface declared through LVO -234 (ordinal 38). 35 user-callable slots: **22 impl**, 0 server, **13 stub**; coverage **62%**.
 
-### Implemented (16)
+### Implemented (22)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
@@ -378,21 +378,26 @@ ABI surface declared through LVO -234 (ordinal 38). 35 user-callable slots: **16
 | 12 | -78 | `WriteChunkRecords` | syscall |
 | 13 | -84 | `PushChunk` | syscall |
 | 14 | -90 | `PopChunk` | syscall |
+| 17 | -108 | `PropChunk` | syscall |
+| 18 | -114 | `PropChunks` | syscall |
+| 19 | -120 | `CollectionChunk` | syscall |
+| 20 | -126 | `CollectionChunks` | syscall |
 | 21 | -132 | `StopChunk` | syscall |
 | 23 | -144 | `StopOnExit` | syscall |
+| 24 | -150 | `FindProp` | syscall |
+| 25 | -156 | `FindCollection` | syscall |
 | 26 | -162 | `CurrentChunk` | syscall |
 | 27 | -168 | `ParentChunk` | syscall |
 | 36 | -222 | `InitIFFasDOS` | syscall |
 
-### Unimplemented stub slots (19)
+### Unimplemented stub slots (13)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
 | ord range | LVO range | count |
 |-----------|-----------|------:|
-| 15..20 | -96..-126 | 6 |
+| 15..16 | -96..-102 | 2 |
 | 22..22 | -138..-138 | 1 |
-| 24..25 | -150..-156 | 2 |
 | 28..35 | -174..-216 | 8 |
 | 37..38 | -228..-234 | 2 |
 

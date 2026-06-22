@@ -38,3 +38,9 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_PushChunk,    SYS_Iff_PushChunk
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_PopChunk,     SYS_Iff_PopChunk
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_WriteChunkBytes,   SYS_Iff_WriteChunkBytes
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_WriteChunkRecords, SYS_Iff_WriteChunkRecords
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_PropChunk,        SYS_Iff_PropChunk
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_PropChunks,       SYS_Iff_PropChunks
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_CollectionChunk,  SYS_Iff_CollectionChunk
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_CollectionChunks, SYS_Iff_CollectionChunks
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_FindProp,         SYS_Iff_FindProp
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_FindCollection,   SYS_Iff_FindCollection

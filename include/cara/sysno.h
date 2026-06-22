@@ -212,6 +212,12 @@ enum {
     SYS_Iff_PopChunk = 158,
     SYS_Iff_WriteChunkBytes = 159,
     SYS_Iff_WriteChunkRecords = 160,
+    SYS_Iff_PropChunk = 161,
+    SYS_Iff_PropChunks = 162,
+    SYS_Iff_CollectionChunk = 163,
+    SYS_Iff_CollectionChunks = 164,
+    SYS_Iff_FindProp = 165,
+    SYS_Iff_FindCollection = 166,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -387,6 +393,12 @@ enum {
 #define SYS_Iff_PopChunk 158
 #define SYS_Iff_WriteChunkBytes 159
 #define SYS_Iff_WriteChunkRecords 160
+#define SYS_Iff_PropChunk 161
+#define SYS_Iff_PropChunks 162
+#define SYS_Iff_CollectionChunk 163
+#define SYS_Iff_CollectionChunks 164
+#define SYS_Iff_FindProp 165
+#define SYS_Iff_FindCollection 166
 #endif
 
 #endif

@@ -524,6 +524,21 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_Iff_WriteChunkRecords:
         return (i64)Croi_Iff_WriteChunkRecords_Impl((struct IFFHandle *)(uptr)a0, (APTR)(uptr)a1,
                                                     (LONG)a2, (LONG)a3);
+    case SYS_Iff_PropChunk:
+        return (i64)Croi_Iff_PropChunk_Impl((struct IFFHandle *)(uptr)a0, (LONG)a1, (LONG)a2);
+    case SYS_Iff_PropChunks:
+        return (i64)Croi_Iff_PropChunks_Impl((struct IFFHandle *)(uptr)a0, (LONG *)(uptr)a1,
+                                             (LONG)a2);
+    case SYS_Iff_CollectionChunk:
+        return (i64)Croi_Iff_CollectionChunk_Impl((struct IFFHandle *)(uptr)a0, (LONG)a1, (LONG)a2);
+    case SYS_Iff_CollectionChunks:
+        return (i64)Croi_Iff_CollectionChunks_Impl((struct IFFHandle *)(uptr)a0, (LONG *)(uptr)a1,
+                                                   (LONG)a2);
+    case SYS_Iff_FindProp:
+        return (i64)(uptr)Croi_Iff_FindProp_Impl((struct IFFHandle *)(uptr)a0, (LONG)a1, (LONG)a2);
+    case SYS_Iff_FindCollection:
+        return (i64)(uptr)Croi_Iff_FindCollection_Impl((struct IFFHandle *)(uptr)a0, (LONG)a1,
+                                                       (LONG)a2);
 
     // ---- exec device IO primitives (L6) ----
     case SYS_OpenDevice:
