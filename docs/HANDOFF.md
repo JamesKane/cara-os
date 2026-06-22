@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+c445139 phase-3/L9.3  asl font + screen-mode requesters — closes L9
 b96d14f phase-3/L9.2  asl file requester (AslRequest) + legacy AllocFileRequest/RequestFile
 a8de180 phase-3/L9.1  asl.library + AllocAslRequest/FreeAslRequest
 a8b33c7 docs          scope L9 asl.library (docs/LEARGAS_ASL.md)
@@ -90,7 +91,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**50 passed / 0 failed** (L9.2 added `asl_filereq`), QEMU
+**51 passed / 0 failed** (L9.3 added `asl_fontmode`), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -844,13 +845,24 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   (block on the window IDCMP port, OK id=1 / Cancel id=0, ignore string
   Returns) and on OK copies the edited buffers into rf_Dir/rf_File.
   Build/Wait split for the pre-post seam. **asl coverage 100% (6 impl).**
-  `KERNEL_TEST(asl_filereq)`. **NEXT: L9.3** — `AslRequest` for
-  `ASL_FontRequest` (a CYCLE over the one Dath face → `fo_Attr`) +
-  `ASL_ScreenModeRequest` (the single display mode). Extend
-  `Croi_Asl_Build`/`Wait` to handle those two types (currently they
-  return FALSE). That closes L9. After L9: L10–14 long tail → T tools →
-  A apps. asl gaps: LISTVIEW directory browse (gated on gadtools
-  LISTVIEW), multi-select/patterns, real font enum / mode database.
+  `KERNEL_TEST(asl_filereq)`.
+- **L9.3 shipped (`c445139`): font + screen-mode requesters — L9 COMPLETE.**
+  `Croi_Asl_Build`/`Wait` now switch on req->type: font → a CYCLE over
+  `g_asl_fonts` ({"topaz.font"}) → `fo_Attr` (ta_Name/ta_YSize 8);
+  screen-mode → a TEXT label → `sm_DisplayID/Width/Height/Depth` from the
+  screen. No new LVOs (the existing AslRequest path). `KERNEL_TEST
+  (asl_fontmode)`. **L9 done** (file/font/screen-mode requesters over the
+  L5 modal core + L8 gadtools; asl coverage 100%, 6 impl).
+- **NEXT: the Phase-3 long tail (L10–14)** — the remaining V36+ libraries/
+  surface (e.g. workbench.library, icon.library, diskfont.library,
+  layers.library, datatypes, commodities, the `*.device`/`*.resource`
+  tail, keymap.library) per `docs/PHASE3.md`. Pick the next epic from
+  PHASE3.md / ROADMAP and scope it. Then **T tools → A apps** (PORTING.md
+  + the editor/paint/file-manager that drive the apps-value priority).
+  Standing deferred substrate gaps that an app may force forward:
+  gadtools LISTVIEW (→ asl dir browse), layers.library (window
+  occlusion/overlap — today windows are non-overlapping), DrawImage
+  (planar→chunky), async device IO, the input handler chain.
   After L8: L9 asl → L10–14 long tail → T tools → A apps. L7 tracked
   gaps: concrete BOOPSI classes (gadgetclass/imageclass/icclass/
   modelclass), `DoGadgetMethodA`, `OM_NOTIFY`, FreeClass reaping,
