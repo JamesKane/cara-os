@@ -19,6 +19,7 @@ add_library(cara_kernel_tests STATIC
     test_graphics.c
     test_intuition.c
     test_gadtools.c
+    test_asl.c
     test_device.c
     test_exec_lib.c
     test_userexec.c

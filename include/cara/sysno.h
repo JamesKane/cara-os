@@ -186,6 +186,11 @@ enum {
     SYS_GT_RefreshWindow = 136,
     SYS_GT_BeginRefresh = 137,
     SYS_GT_EndRefresh = 138,
+
+    // Phase 3 L9 — asl.library requesters (asl_lib.c).
+    SYS_Asl_AllocAslRequest = 139,
+    SYS_Asl_FreeAslRequest = 140,
+    SYS_Asl_FreeFileRequest = 141,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -339,6 +344,9 @@ enum {
 #define SYS_GT_RefreshWindow 136
 #define SYS_GT_BeginRefresh 137
 #define SYS_GT_EndRefresh 138
+#define SYS_Asl_AllocAslRequest 139
+#define SYS_Asl_FreeAslRequest 140
+#define SYS_Asl_FreeFileRequest 141
 #endif
 
 #endif

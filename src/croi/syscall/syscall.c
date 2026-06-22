@@ -11,6 +11,7 @@
 // arm below reads the args it cares about and routes to the matching
 // Croi_*_Impl helper from src/croi/exec_lib/.
 
+#include <cara/asl_lib.h>
 #include <cara/device.h>
 #include <cara/dos_lib.h>
 #include <cara/exec_lib.h>
@@ -463,6 +464,16 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return 0;
     case SYS_GT_EndRefresh:
         Croi_GT_EndRefresh_Impl((struct Window *)(uptr)a0, (LONG)a1);
+        return 0;
+
+    // ---- asl.library requesters (L9) ----
+    case SYS_Asl_AllocAslRequest:
+        return (i64)(uptr)Croi_Asl_AllocAslRequest_Impl((ULONG)a0, (struct TagItem *)(uptr)a1);
+    case SYS_Asl_FreeAslRequest:
+        Croi_Asl_FreeAslRequest_Impl((APTR)(uptr)a0);
+        return 0;
+    case SYS_Asl_FreeFileRequest:
+        Croi_Asl_FreeFileRequest_Impl((struct FileRequester *)(uptr)a0);
         return 0;
 
     // ---- exec device IO primitives (L6) ----

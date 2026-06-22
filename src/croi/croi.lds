@@ -210,6 +210,9 @@ SECTIONS
          * shared RX+U region; gadtools's base + vec live in the SASOS
          * shared heap (entry.c). */
         KEEP(*(.lib_text.gadtools))
+        /* asl.library's `syscall`-flavour trampolines (L9). Same shared
+         * RX+U region; asl's base + vec live in the SASOS shared heap. */
+        KEEP(*(.lib_text.asl))
         . = ALIGN(4K);
         __exec_lib_end = .;
     } > LIB_VIRT AT > RAM_PHYS :lib_exec

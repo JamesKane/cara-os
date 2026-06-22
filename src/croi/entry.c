@@ -44,6 +44,7 @@
 #include <exec/libraries.h>
 #include <graphics/gfxbase.h>
 #include <intuition/intuitionbase.h>
+#include <libraries/asl.h>
 #include <libraries/gadtools.h>
 #include <utility/tagitem.h>
 #include <utility/utilitybase.h>
@@ -105,6 +106,10 @@ extern const usize graphics_lib_vec_count;
 // Generated from tools/lvo-gen/gadtools.conf (L8.1). gadtools.library.
 extern void *gadtools_lib_vec[];
 extern const usize gadtools_lib_vec_count;
+
+// Generated from tools/lvo-gen/asl.conf (L9.1). asl.library.
+extern void *asl_lib_vec[];
+extern const usize asl_lib_vec_count;
 
 // Clar (the Phase 1 Workbench Gleas) embedded in the .user_elf section
 // (src/croi/CMakeLists.txt user_blob.S). Spawned as the foreground task
@@ -730,6 +735,40 @@ static void console_putc(char c)
         struct Library *base = Croi_MakeLibrary(mklib_tags);
         if (!base) {
             LOG_FATAL("entry", "Croi_MakeLibrary(gadtools.library) failed");
+            Croi_Halt();
+        }
+    }
+
+    // ---- Construct asl.library (L9.1).
+    //      Same shared-heap layout. AslBase has no public fields past
+    //      LibNode (priv_size 0). L9.1 ships the reserved hooks +
+    //      AllocAslRequest/FreeAslRequest; the modal AslRequest + the
+    //      file/font requesters arrive with later L9 slices.
+    {
+        usize priv_size = sizeof(struct AslBase) - sizeof(struct Library);
+        usize neg_size = sizeof(void *) * asl_lib_vec_count;
+        usize block_size = neg_size + sizeof(struct Library) + priv_size;
+
+        u8 *block = (u8 *)Croi_AllocShared(block_size);
+        if (!block) {
+            LOG_FATAL("entry", "AllocShared(asl.library, %llu bytes) failed", (u64)block_size);
+            Croi_Halt();
+        }
+        struct Library *abase = (struct Library *)(block + neg_size);
+
+        struct TagItem mklib_tags[] = {
+            { MKL_NAME, (IPTR) "asl.library" },
+            { MKL_BASE, (IPTR)abase },
+            { MKL_VEC_TABLE, (IPTR)asl_lib_vec },
+            { MKL_VEC_COUNT, (IPTR)asl_lib_vec_count },
+            { MKL_VERSION, 36 },
+            { MKL_REVISION, 0 },
+            { MKL_PRIVATE_SIZE, (IPTR)priv_size },
+            { TAG_END, 0 },
+        };
+        struct Library *base = Croi_MakeLibrary(mklib_tags);
+        if (!base) {
+            LOG_FATAL("entry", "Croi_MakeLibrary(asl.library) failed");
             Croi_Halt();
         }
     }

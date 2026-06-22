@@ -168,6 +168,7 @@ if(CARA_TARGET STREQUAL "host")
                 "${CMAKE_SOURCE_DIR}/tools/lvo-gen/dos.conf"
                 "${CMAKE_SOURCE_DIR}/tools/lvo-gen/graphics.conf"
                 "${CMAKE_SOURCE_DIR}/tools/lvo-gen/gadtools.conf"
+                "${CMAKE_SOURCE_DIR}/tools/lvo-gen/asl.conf"
                 "${CMAKE_SOURCE_DIR}/tools/lvo-gen/cruth.conf"
         DEPENDS lvo-gen
         VERBATIM
