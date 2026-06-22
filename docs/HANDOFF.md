@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+8dd9182 phase-3/L10.4 iffparse props/collections — closes L10 (PropChunk/FindProp/CollectionChunk/FindCollection)
 d4d275a phase-3/L10.3 iffparse write side (PushChunk/PopChunk/WriteChunkBytes)
 16d76cc phase-3/L10.2 iffparse read walk (ParseIFF/StopChunk/ReadChunkBytes/CurrentChunk)
 fbb3997 phase-3/L10.1 iffparse.library + handle lifecycle (AllocIFF/Open/Close/Free/InitIFFasDOS)
@@ -883,15 +884,26 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   group type), PopChunk pads + backpatches the true size via Seek (CaraFS
   overwrites at offset) + accounts it against the FORM. `IFFSIZE_UNKNOWN`
   supported. userexec_smoke is now a full iffparse write→read round-trip.
-  iffparse coverage 45% (16 impl). **NEXT: L10.4** (closes L10) — props/
-  collections/context-items: `PropChunk -108`/`PropChunks -114`/`FindProp
-  -150` (gather a chunk into a StoredProperty during SCAN),
-  `CollectionChunk -120`/`CollectionChunks -126`/`FindCollection -156`
-  (CollectionItem list), `StoreItemInContext -210`/`FindLocalItem -198`/
-  `AllocLocalItem -174`/`LocalItemData -180`/`SetLocalItemPurge -186`/
-  `FreeLocalItem -192`/`StoreLocalItem -204` (the local-item system the
-  prop/collection gather is built on). Gather happens in ParseIFF SCAN
-  when stepping over a registered prop/collection chunk. After L10:
+  iffparse coverage 45% (16 impl).
+- **L10.4 shipped (`8dd9182`): props/collections — closes L10.**
+  `PropChunk -108`/`PropChunks -114`/`CollectionChunk -120`/
+  `CollectionChunks -126`/`FindProp -150`/`FindCollection -156`
+  (SYS_Iff_* 161-166). ParseIFF's SCAN loop calls a new `iff_gather()`
+  after each `iff_step`: if the entered chunk's (type,id) was registered
+  with PropChunk it slurps the whole body into a shared-heap
+  StoredProperty (latest copy wins, FindProp returns it); if registered
+  with CollectionChunk it prepends a CollectionItem (newest-first head,
+  FindCollection). Gathered chunks are consumed transparently (SCAN keeps
+  going) unless RAWSTEP suppresses gather. The gather registries live in
+  CaraIff (`props[]`/`nprops`, `colls[]`/`ncolls`, both ≤ CARA_IFF_MAXSTOPS
+  =8) and are reset in OpenIFF + freed in CloseIFF. EntryHandler -96/
+  ExitHandler -102 + the 7 LocalContextItem LVOs (AllocLocalItem -174 …
+  StoreItemInContext -210) stay **padded/stubbed** — no custom stream
+  hooks in v0 and ILBM-class formats use PropChunk/FindProp directly; the
+  local-item system was deemed out-of-scope substrate. userexec IFF
+  round-trip now registers PropChunk(ILBM,BMHD) before SCAN and asserts
+  FindProp returns the 4 BMHD bytes after stopping at BODY. iffparse
+  coverage 62% (22/39). **NEXT: L11** — after L10:
   L11-14 = icon.library (.info ↔ CARAFS cara.icon
   xattr §3.10; file-manager), diskfont, commodities, expansion — scope
   each. Then T tools → A apps. Standing deferred substrate an app may
