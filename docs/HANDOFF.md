@@ -24,6 +24,8 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+fbb3997 phase-3/L10.1 iffparse.library + handle lifecycle (AllocIFF/Open/Close/Free/InitIFFasDOS)
+18a98d2 docs          scope L10 iffparse.library (docs/IFFPARSE.md)
 c445139 phase-3/L9.3  asl font + screen-mode requesters — closes L9
 b96d14f phase-3/L9.2  asl file requester (AslRequest) + legacy AllocFileRequest/RequestFile
 a8de180 phase-3/L9.1  asl.library + AllocAslRequest/FreeAslRequest
@@ -91,7 +93,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**51 passed / 0 failed** (L9.3 added `asl_fontmode`), QEMU
+**52 passed / 0 failed** (L10.1 added `iffparse_lifecycle`), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -853,15 +855,29 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   screen. No new LVOs (the existing AslRequest path). `KERNEL_TEST
   (asl_fontmode)`. **L9 done** (file/font/screen-mode requesters over the
   L5 modal core + L8 gadtools; asl coverage 100%, 6 impl).
-- **NEXT: the Phase-3 long tail (L10–14)** — the remaining V36+ libraries/
-  surface (e.g. workbench.library, icon.library, diskfont.library,
-  layers.library, datatypes, commodities, the `*.device`/`*.resource`
-  tail, keymap.library) per `docs/PHASE3.md`. Pick the next epic from
-  PHASE3.md / ROADMAP and scope it. Then **T tools → A apps** (PORTING.md
-  + the editor/paint/file-manager that drive the apps-value priority).
-  Standing deferred substrate gaps that an app may force forward:
-  gadtools LISTVIEW (→ asl dir browse), layers.library (window
-  occlusion/overlap — today windows are non-overlapping), DrawImage
+- **L10 — iffparse.library: SCOPED (`18a98d2`, `docs/IFFPARSE.md`).** The
+  generic IFF chunk reader/writer (paint's ILBM; clipboard/datatypes
+  build on it). New `src/croi/iffparse`, all syscall, parses kernel-side
+  over a dos FileHandle (v0 `InitIFFasDOS` only — custom stream hooks +
+  clipboard deferred).
+- **L10.1 shipped (`fbb3997`): library + handle lifecycle.** AllocIFF -30/
+  OpenIFF -36/CloseIFF -48/FreeIFF -54/InitIFFasDOS -222 (SYS_Iff_*
+  145-149). `<libraries/iffparse.h>` (IFFHandle/ContextNode/codes/modes/
+  IDs + GoodID/GoodType/IDtoStr inlines); `struct CaraIff` (public
+  IFFHandle @0 + bound stream/mode + context stack). iffparse coverage
+  14% (5 impl). `KERNEL_TEST(iffparse_lifecycle)`. **NEXT: L10.2** —
+  the read walk: `ParseIFF -42` (STEP+SCAN), `StopChunk`/`StopOnExit`,
+  `ReadChunkBytes`/`ReadChunkRecords`, `CurrentChunk`/`ParentChunk` over
+  the dos stream (reads big-endian ID+size chunks, pushes ContextNodes).
+  **Note:** L10.1's lifecycle test uses a fake stream (no I/O); the real
+  IFF round-trip needs a Process context for dos paths, so the L10.2/L10.3
+  parse+write round-trip is a **Gleas test** (a new useriff.c or extend
+  userexec) over a real CaraFS file. Then L10.3 write side, L10.4 props/
+  collections. After L10: L11-14 = icon.library (.info ↔ CARAFS cara.icon
+  xattr §3.10; file-manager), diskfont, commodities, expansion — scope
+  each. Then T tools → A apps. Standing deferred substrate an app may
+  force forward: gadtools LISTVIEW (→ asl dir browse), layers.library
+  (window occlusion — windows non-overlapping today), DrawImage
   (planar→chunky), async device IO, the input handler chain.
   After L8: L9 asl → L10–14 long tail → T tools → A apps. L7 tracked
   gaps: concrete BOOPSI classes (gadgetclass/imageclass/icclass/
