@@ -27,3 +27,10 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_OpenIFF,      SYS_Iff_OpenIFF
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_CloseIFF,     SYS_Iff_CloseIFF
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_FreeIFF,      SYS_Iff_FreeIFF
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_InitIFFasDOS, SYS_Iff_InitIFFasDOS
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_ParseIFF,     SYS_Iff_ParseIFF
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_ReadChunkBytes,   SYS_Iff_ReadChunkBytes
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_ReadChunkRecords, SYS_Iff_ReadChunkRecords
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_StopChunk,    SYS_Iff_StopChunk
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_StopOnExit,   SYS_Iff_StopOnExit
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_CurrentChunk, SYS_Iff_CurrentChunk
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Iff_ParentChunk,  SYS_Iff_ParentChunk

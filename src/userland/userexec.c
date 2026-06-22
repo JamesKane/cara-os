@@ -38,9 +38,11 @@
 #include <graphics/gfxbase.h>
 #include <graphics/rastport.h>
 #include <graphics/text.h>
+#include <libraries/iffparse.h>
 #include <proto/dos.h>
 #include <proto/exec.h>
 #include <proto/graphics.h>
+#include <proto/iffparse.h>
 #include <proto/utility.h>
 #include <utility/hooks.h>
 #include <utility/tagitem.h>
@@ -62,6 +64,7 @@
 #define USEREXEC_EXIT_DOS_FAIL 0xBADD
 #define USEREXEC_EXIT_SRV_FAIL 0xBADE
 #define USEREXEC_EXIT_GFX_FAIL 0xBADF
+#define USEREXEC_EXIT_IFF_FAIL 0xBAE1
 
 // Inline ecall for SYS_LOG_WRITE — used to surface progress markers
 // in the kernel log alongside the existing kernel-side messages so
@@ -170,6 +173,9 @@ struct UtilityBase *UtilityBase;
 // Referenced by the <proto/dos.h> inline stubs (same idiom as
 // UtilityBase / IntuitionBase — this program owns the global).
 struct DosLibrary *DOSBase;
+
+// Referenced by the <proto/iffparse.h> inline stubs (L10).
+struct IFFParseBase *IFFParseBase;
 
 // Referenced by the <proto/graphics.h> inline stubs (same idiom).
 struct GfxBase *GfxBase;
@@ -617,10 +623,66 @@ int main(void)
     dos_ok = dos_ok && in != BNULL && in != out && Read(in, inbuf, sizeof(inbuf)) == 0;
     Delay(1); // ~20 ms; returns void — just prove the path is wired
 
+    // L10: iffparse.library — write a raw IFF FORM ILBM (a BMHD + a BODY
+    // chunk) via dos, reopen it, and parse it back through iffparse:
+    // StopChunk(BODY) + ParseIFF(SCAN) stops at the BODY, ReadChunkBytes
+    // returns its contents. Proves the read walk over a real dos stream.
+    bool iff_ok = false;
+    struct Library *ilib = OpenLibrary((STRPTR) "iffparse.library", 36);
+    if (ilib) {
+        IFFParseBase = (struct IFFParseBase *)ilib;
+        iff_ok = (((struct Library *)IFFParseBase)->lib_Version == 36);
+
+        static const UBYTE iffbytes[] = {
+            'F', 'O', 'R', 'M', 0,   0,   0, 30,             // FORM, size 30
+            'I', 'L', 'B', 'M',                              // form type
+            'B', 'M', 'H', 'D', 0,   0,   0, 4,  1, 2, 3, 4, // BMHD chunk (4 bytes)
+            'B', 'O', 'D', 'Y', 0,   0,   0, 6,              // BODY chunk (6 bytes)
+            'h', 'e', 'l', 'l', 'o', '!',
+        };
+        BPTR wf = Open((STRPTR) "uexec.iff", MODE_NEWFILE);
+        iff_ok = iff_ok && wf != BNULL;
+        if (wf) {
+            iff_ok = iff_ok &&
+                     Write(wf, (APTR)iffbytes, (LONG)sizeof(iffbytes)) == (LONG)sizeof(iffbytes);
+            Close(wf);
+        }
+
+        BPTR rf2 = Open((STRPTR) "uexec.iff", MODE_OLDFILE);
+        iff_ok = iff_ok && rf2 != BNULL;
+        if (rf2) {
+            struct IFFHandle *iff = AllocIFF();
+            iff_ok = iff_ok && iff != nullptr;
+            if (iff) {
+                InitIFFasDOS(iff);
+                iff->iff_Stream = (IPTR)(uptr)rf2;
+                iff_ok = iff_ok && OpenIFF(iff, IFFF_READ) == 0;
+                iff_ok = iff_ok && StopChunk(iff, MAKE_ID('I', 'L', 'B', 'M'),
+                                             MAKE_ID('B', 'O', 'D', 'Y')) == 0;
+                iff_ok = iff_ok && ParseIFF(iff, IFFPARSE_SCAN) == 0;
+                struct ContextNode *cn = CurrentChunk(iff);
+                iff_ok = iff_ok && cn != nullptr && cn->cn_ID == MAKE_ID('B', 'O', 'D', 'Y') &&
+                         cn->cn_Size == 6;
+                char body[8] = { 0 };
+                iff_ok = iff_ok && ReadChunkBytes(iff, body, 6) == 6;
+                iff_ok = iff_ok && body[0] == 'h' && body[4] == 'o' && body[5] == '!';
+                CloseIFF(iff);
+                FreeIFF(iff);
+            }
+            Close(rf2);
+        }
+        (void)DeleteFile((STRPTR) "uexec.iff");
+        CloseLibrary(ilib);
+    }
+
     CloseLibrary(dlib);
     if (!dos_ok) {
         CloseLibrary(lib);
         return (int)USEREXEC_EXIT_DOS_FAIL;
+    }
+    if (!iff_ok) {
+        CloseLibrary(lib);
+        return (int)USEREXEC_EXIT_IFF_FAIL;
     }
 
     // 4j. dos server-flavour call path (L3.2) — drive a full DosPacket

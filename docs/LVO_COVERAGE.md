@@ -29,7 +29,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | graphics.library | 154 | 24 | 0 | 126 | 4 | 16% |
 | gadtools.library | 23 | 17 | 0 | 2 | 4 | 89% |
 | asl.library | 10 | 6 | 0 | 0 | 4 | 100% |
-| iffparse.library | 39 | 5 | 0 | 30 | 4 | 14% |
+| iffparse.library | 39 | 12 | 0 | 23 | 4 | 34% |
 | cruth.library | 23 | 9 | 10 | 0 | 4 | 100% |
 
 ## exec.library
@@ -361,26 +361,36 @@ _none — fully declared surface is implemented_
 
 ## iffparse.library
 
-ABI surface declared through LVO -234 (ordinal 38). 35 user-callable slots: **5 impl**, 0 server, **30 stub**; coverage **14%**.
+ABI surface declared through LVO -234 (ordinal 38). 35 user-callable slots: **12 impl**, 0 server, **23 stub**; coverage **34%**.
 
-### Implemented (5)
+### Implemented (12)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
 | 4 | -30 | `AllocIFF` | syscall |
 | 5 | -36 | `OpenIFF` | syscall |
+| 6 | -42 | `ParseIFF` | syscall |
 | 7 | -48 | `CloseIFF` | syscall |
 | 8 | -54 | `FreeIFF` | syscall |
+| 9 | -60 | `ReadChunkBytes` | syscall |
+| 11 | -72 | `ReadChunkRecords` | syscall |
+| 21 | -132 | `StopChunk` | syscall |
+| 23 | -144 | `StopOnExit` | syscall |
+| 26 | -162 | `CurrentChunk` | syscall |
+| 27 | -168 | `ParentChunk` | syscall |
 | 36 | -222 | `InitIFFasDOS` | syscall |
 
-### Unimplemented stub slots (30)
+### Unimplemented stub slots (23)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
 | ord range | LVO range | count |
 |-----------|-----------|------:|
-| 6..6 | -42..-42 | 1 |
-| 9..35 | -60..-216 | 27 |
+| 10..10 | -66..-66 | 1 |
+| 12..20 | -78..-126 | 9 |
+| 22..22 | -138..-138 | 1 |
+| 24..25 | -150..-156 | 2 |
+| 28..35 | -174..-216 | 8 |
 | 37..38 | -228..-234 | 2 |
 
 ## cruth.library

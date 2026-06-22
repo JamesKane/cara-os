@@ -19,6 +19,7 @@
 struct Library;
 
 #define CARA_IFF_MAXDEPTH 16
+#define CARA_IFF_MAXSTOPS 8
 
 // Kernel-private IFF handle. The public IFFHandle is at offset 0 (the
 // AllocAslRequest pattern) so AllocIFF returns &ci->pub and the impls
@@ -32,6 +33,15 @@ struct CaraIff {
     int depth;            // pushed context nodes (0 = none)
     struct ContextNode nodes[CARA_IFF_MAXDEPTH];
     LONG push_pos[CARA_IFF_MAXDEPTH]; // stream offset of each pushed chunk's size field
+    // ParseIFF SCAN stop registry (L10.2).
+    struct {
+        LONG type, id;
+    } stops[CARA_IFF_MAXSTOPS];
+    int nstops;
+    struct {
+        LONG type, id;
+    } exit_stops[CARA_IFF_MAXSTOPS];
+    int nexit;
 };
 
 // ---- Handle lifecycle (L10.1) ---------------------------------------
@@ -40,6 +50,15 @@ void Croi_Iff_FreeIFF_Impl(struct IFFHandle *iff);
 void Croi_Iff_InitIFFasDOS_Impl(struct IFFHandle *iff);
 LONG Croi_Iff_OpenIFF_Impl(struct IFFHandle *iff, LONG rwMode);
 void Croi_Iff_CloseIFF_Impl(struct IFFHandle *iff);
+
+// ---- The read walk (L10.2) ------------------------------------------
+LONG Croi_Iff_ParseIFF_Impl(struct IFFHandle *iff, LONG control);
+LONG Croi_Iff_StopChunk_Impl(struct IFFHandle *iff, LONG type, LONG id);
+LONG Croi_Iff_StopOnExit_Impl(struct IFFHandle *iff, LONG type, LONG id);
+LONG Croi_Iff_ReadChunkBytes_Impl(struct IFFHandle *iff, APTR buf, LONG size);
+LONG Croi_Iff_ReadChunkRecords_Impl(struct IFFHandle *iff, APTR buf, LONG recSize, LONG numRec);
+struct ContextNode *Croi_Iff_CurrentChunk_Impl(struct IFFHandle *iff);
+struct ContextNode *Croi_Iff_ParentChunk_Impl(struct ContextNode *cn);
 
 // ---- Reserved-slot library hooks (`local` flavour) ------------------
 struct IFFParseBase;

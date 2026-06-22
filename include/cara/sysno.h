@@ -201,6 +201,13 @@ enum {
     SYS_Iff_CloseIFF = 147,
     SYS_Iff_FreeIFF = 148,
     SYS_Iff_InitIFFasDOS = 149,
+    SYS_Iff_ParseIFF = 150,
+    SYS_Iff_ReadChunkBytes = 151,
+    SYS_Iff_ReadChunkRecords = 152,
+    SYS_Iff_StopChunk = 153,
+    SYS_Iff_StopOnExit = 154,
+    SYS_Iff_CurrentChunk = 155,
+    SYS_Iff_ParentChunk = 156,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -365,6 +372,13 @@ enum {
 #define SYS_Iff_CloseIFF 147
 #define SYS_Iff_FreeIFF 148
 #define SYS_Iff_InitIFFasDOS 149
+#define SYS_Iff_ParseIFF 150
+#define SYS_Iff_ReadChunkBytes 151
+#define SYS_Iff_ReadChunkRecords 152
+#define SYS_Iff_StopChunk 153
+#define SYS_Iff_StopOnExit 154
+#define SYS_Iff_CurrentChunk 155
+#define SYS_Iff_ParentChunk 156
 #endif
 
 #endif

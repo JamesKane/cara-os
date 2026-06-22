@@ -8,7 +8,8 @@
 // InitIFFasDOS + iff_Stream; the parse walk (ParseIFF, L10.2) and the
 // write side (L10.3) read/write it via the dos impls.
 
-#include <cara/alloc.h> // Croi_Free
+#include <cara/alloc.h>   // Croi_Free
+#include <cara/dos_lib.h> // Croi_Dos_Read/Seek_Impl
 #include <cara/iffparse_lib.h>
 #include <cara/shared.h> // Croi_AllocShared
 #include <cara/types.h>
@@ -63,6 +64,8 @@ LONG Croi_Iff_OpenIFF_Impl(struct IFFHandle *iff, LONG rwMode)
     }
     ci->mode = (ULONG)(rwMode & IFFF_RWBITS);
     ci->depth = 0;
+    ci->nstops = 0;
+    ci->nexit = 0;
     iff->iff_Depth = 0;
     iff->iff_Flags = (iff->iff_Flags & ~(ULONG)IFFF_RWBITS) | ci->mode;
     return 0;
@@ -79,4 +82,208 @@ void Croi_Iff_CloseIFF_Impl(struct IFFHandle *iff)
     ci->depth = 0;
     ci->stream = (BPTR)0;
     iff->iff_Depth = 0;
+}
+
+// ---- The read walk (L10.2) ------------------------------------------
+
+static int iff_read_be32(struct CaraIff *ci, ULONG *out)
+{
+    UBYTE b[4];
+    if (Croi_Dos_Read_Impl(ci->stream, b, 4) != 4) {
+        return 0;
+    }
+    *out = ((ULONG)b[0] << 24) | ((ULONG)b[1] << 16) | ((ULONG)b[2] << 8) | (ULONG)b[3];
+    return 1;
+}
+
+static bool iff_is_stop(struct CaraIff *ci, LONG type, LONG id)
+{
+    for (int i = 0; i < ci->nstops; i++) {
+        if (ci->stops[i].type == type && ci->stops[i].id == id) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// One parse step: enter the next chunk (push a ContextNode, return 0) or
+// IFFERR_EOF at the end of the top context. On re-entry it first skips
+// the unread remainder + pad of the previously-entered sub-chunk.
+static LONG iff_step(struct CaraIff *ci)
+{
+    if (ci->depth == 0) {
+        // Enter the top FORM/LIST/CAT: header (id + size) + the group type.
+        ULONG fid, fsize, ftype;
+        if (!iff_read_be32(ci, &fid)) {
+            return IFFERR_EOF;
+        }
+        if (fid != ID_FORM && fid != ID_LIST && fid != ID_CAT) {
+            return IFFERR_NOTIFF;
+        }
+        if (!iff_read_be32(ci, &fsize) || !iff_read_be32(ci, &ftype)) {
+            return IFFERR_MANGLED;
+        }
+        struct ContextNode *top = &ci->nodes[0];
+        *top = (struct ContextNode){ 0 };
+        top->cn_ID = (LONG)fid;
+        top->cn_Type = (LONG)ftype;
+        top->cn_Size = (LONG)fsize;
+        top->cn_Scan = 4; // the 4-byte group type counts against the size
+        ci->depth = 1;
+    } else if (ci->depth >= 2) {
+        // Skip the rest of the current sub-chunk + its pad, pop to the form.
+        struct ContextNode *cur = &ci->nodes[ci->depth - 1];
+        LONG remain = cur->cn_Size - cur->cn_Scan;
+        LONG pad = cur->cn_Size & 1;
+        if (remain + pad > 0) {
+            if (Croi_Dos_Seek_Impl(ci->stream, remain + pad, OFFSET_CURRENT) < 0) {
+                return IFFERR_SEEK;
+            }
+        }
+        ci->nodes[0].cn_Scan += 8 + cur->cn_Size + pad; // header + body + pad
+        ci->depth = 1;
+    }
+
+    // At form level: read the next sub-chunk header, or EOF at the end.
+    struct ContextNode *top = &ci->nodes[0];
+    if (top->cn_Scan >= top->cn_Size) {
+        return IFFERR_EOF;
+    }
+    ULONG cid, csize;
+    if (!iff_read_be32(ci, &cid)) {
+        return IFFERR_EOF;
+    }
+    if (!iff_read_be32(ci, &csize)) {
+        return IFFERR_MANGLED;
+    }
+    if (ci->depth >= CARA_IFF_MAXDEPTH) {
+        return IFFERR_NOSCOPE;
+    }
+    struct ContextNode *sub = &ci->nodes[1];
+    *sub = (struct ContextNode){ 0 };
+    sub->cn_ID = (LONG)cid;
+    sub->cn_Type = top->cn_Type;
+    sub->cn_Size = (LONG)csize;
+    sub->cn_Scan = 0;
+    sub->cn_Node.mln_Pred = &top->cn_Node; // ParentChunk link
+    ci->depth = 2;
+    ci->pub.iff_Depth = ci->depth;
+    return 0;
+}
+
+LONG Croi_Iff_ParseIFF_Impl(struct IFFHandle *iff, LONG control)
+{
+    if (!iff) {
+        return IFFERR_NOMEM;
+    }
+    struct CaraIff *ci = (struct CaraIff *)iff;
+    if (!ci->stream) {
+        return IFFERR_NOHOOK;
+    }
+    for (;;) {
+        LONG e = iff_step(ci);
+        if (e != 0) {
+            return e;
+        }
+        if (control != IFFPARSE_SCAN) {
+            return 0; // STEP / RAWSTEP: one step
+        }
+        // SCAN: stop only when the entered chunk is registered.
+        struct ContextNode *cur = &ci->nodes[ci->depth - 1];
+        if (iff_is_stop(ci, cur->cn_Type, cur->cn_ID)) {
+            return 0;
+        }
+        // else: keep stepping (the next iff_step skips this chunk).
+    }
+}
+
+LONG Croi_Iff_StopChunk_Impl(struct IFFHandle *iff, LONG type, LONG id)
+{
+    if (!iff) {
+        return IFFERR_NOMEM;
+    }
+    struct CaraIff *ci = (struct CaraIff *)iff;
+    if (ci->nstops >= CARA_IFF_MAXSTOPS) {
+        return IFFERR_NOMEM;
+    }
+    ci->stops[ci->nstops].type = type;
+    ci->stops[ci->nstops].id = id;
+    ci->nstops++;
+    return 0;
+}
+
+// v0: recorded but inert — the flat parser has no nested-context "exit"
+// event for SCAN to act on (ILBM stops on entry via StopChunk).
+LONG Croi_Iff_StopOnExit_Impl(struct IFFHandle *iff, LONG type, LONG id)
+{
+    if (!iff) {
+        return IFFERR_NOMEM;
+    }
+    struct CaraIff *ci = (struct CaraIff *)iff;
+    if (ci->nexit >= CARA_IFF_MAXSTOPS) {
+        return IFFERR_NOMEM;
+    }
+    ci->exit_stops[ci->nexit].type = type;
+    ci->exit_stops[ci->nexit].id = id;
+    ci->nexit++;
+    return 0;
+}
+
+LONG Croi_Iff_ReadChunkBytes_Impl(struct IFFHandle *iff, APTR buf, LONG size)
+{
+    if (!iff) {
+        return IFFERR_NOMEM;
+    }
+    struct CaraIff *ci = (struct CaraIff *)iff;
+    if (ci->depth < 2) {
+        return IFFERR_NOSCOPE;
+    }
+    struct ContextNode *cur = &ci->nodes[ci->depth - 1];
+    LONG avail = cur->cn_Size - cur->cn_Scan;
+    if (size > avail) {
+        size = avail; // clamp to the current chunk
+    }
+    if (size <= 0) {
+        return 0;
+    }
+    LONG n = Croi_Dos_Read_Impl(ci->stream, buf, size);
+    if (n < 0) {
+        return IFFERR_READ;
+    }
+    cur->cn_Scan += n;
+    return n;
+}
+
+LONG Croi_Iff_ReadChunkRecords_Impl(struct IFFHandle *iff, APTR buf, LONG recSize, LONG numRec)
+{
+    if (recSize <= 0) {
+        return 0;
+    }
+    LONG bytes = Croi_Iff_ReadChunkBytes_Impl(iff, buf, recSize * numRec);
+    if (bytes < 0) {
+        return bytes;
+    }
+    return bytes / recSize;
+}
+
+struct ContextNode *Croi_Iff_CurrentChunk_Impl(struct IFFHandle *iff)
+{
+    if (!iff) {
+        return nullptr;
+    }
+    struct CaraIff *ci = (struct CaraIff *)iff;
+    if (ci->depth == 0) {
+        return nullptr;
+    }
+    return &ci->nodes[ci->depth - 1];
+}
+
+// The parent of a context node follows the cn_Node.mln_Pred link set at
+// push time (cn_Node is at offset 0 of ContextNode); nullptr at the top.
+struct ContextNode *Croi_Iff_ParentChunk_Impl(struct ContextNode *cn)
+{
+    if (!cn) {
+        return nullptr;
+    }
+    return (struct ContextNode *)cn->cn_Node.mln_Pred;
 }
