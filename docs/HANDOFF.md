@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+b96d14f phase-3/L9.2  asl file requester (AslRequest) + legacy AllocFileRequest/RequestFile
 a8de180 phase-3/L9.1  asl.library + AllocAslRequest/FreeAslRequest
 a8b33c7 docs          scope L9 asl.library (docs/LEARGAS_ASL.md)
 c8511f2 phase-3/L8.5  prop gadgets (SLIDER/SCROLLER) + router drag-tracking
@@ -89,7 +90,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**49 passed / 0 failed** (L9.1 added `asl_alloc`), QEMU
+**50 passed / 0 failed** (L9.2 added `asl_filereq`), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -835,13 +836,21 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   -48`/`FreeAslRequest -54`/`FreeFileRequest -36` (SYS_Asl_* 139-141).
   `struct CaraAslReq` = public union at offset 0 + type/config/path bufs;
   AllocAslRequest parses the initial-drawer/file/title/window tags. asl
-  coverage 50% (3 impl). `KERNEL_TEST(asl_alloc)`. **NEXT: L9.2** —
-  `AslRequest -60` for ASL_FileRequest (a string-entry modal: drawer +
-  file STRING gadgets + OK/Cancel over the L5 `Croi_Requester_Build`/
-  `Wait` pre-post seam; on OK copy the fields into rf_Dir/rf_File) +
-  `AllocFileRequest -30`/`RequestFile -42` legacy. Then L9.3 font
-  (CYCLE→fo_Attr) + screen-mode. Test via the requester pre-post GADGETUP
-  seam. After L9: L10–14 long tail → T tools → A apps.
+  coverage 50% (3 impl). `KERNEL_TEST(asl_alloc)`.
+- **L9.2 shipped (`b96d14f`): file requester.** `AslRequest -60` (file) +
+  legacy `AllocFileRequest -30`/`RequestFile -42` (SYS_Asl_* 142-144).
+  `Croi_Asl_Build` opens a centred modal window + two gadtools STRING
+  gadgets (drawer/file) + OK/Cancel; `Croi_Asl_Wait` runs the modal loop
+  (block on the window IDCMP port, OK id=1 / Cancel id=0, ignore string
+  Returns) and on OK copies the edited buffers into rf_Dir/rf_File.
+  Build/Wait split for the pre-post seam. **asl coverage 100% (6 impl).**
+  `KERNEL_TEST(asl_filereq)`. **NEXT: L9.3** — `AslRequest` for
+  `ASL_FontRequest` (a CYCLE over the one Dath face → `fo_Attr`) +
+  `ASL_ScreenModeRequest` (the single display mode). Extend
+  `Croi_Asl_Build`/`Wait` to handle those two types (currently they
+  return FALSE). That closes L9. After L9: L10–14 long tail → T tools →
+  A apps. asl gaps: LISTVIEW directory browse (gated on gadtools
+  LISTVIEW), multi-select/patterns, real font enum / mode database.
   After L8: L9 asl → L10–14 long tail → T tools → A apps. L7 tracked
   gaps: concrete BOOPSI classes (gadgetclass/imageclass/icclass/
   modelclass), `DoGadgetMethodA`, `OM_NOTIFY`, FreeClass reaping,
