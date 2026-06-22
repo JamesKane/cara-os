@@ -502,6 +502,15 @@ void Leargas_Gadget_Render(struct Window *w, struct Gadget *g);
 // Leargas_Window_Render after the window chrome so gadgets sit on top.
 void Leargas_Window_RenderGadgets(struct Window *w);
 
+// ---- Proportional gadgets (L8.5) ------------------------------------------
+// A GTYP_PROPGADGET renders as a container + a knob from its PropInfo
+// (Leargas_Gadget_Render dispatches here). Leargas_Prop_HandleDrag
+// recomputes the knob pot from a window-relative pointer (wx,wy) during a
+// drag and returns true if it changed; the router calls it on a
+// button-held mouse move over a selected prop gadget.
+void Leargas_Prop_Render(struct Window *w, struct Gadget *g);
+[[nodiscard]] bool Leargas_Prop_HandleDrag(struct Gadget *g, i32 wx, i32 wy);
+
 // The gadget currently holding input focus (the last one pressed), or
 // nullptr. LH routes keystrokes to the active gadget when it is a string
 // Inntin. SetActiveGadget(nullptr) clears focus.

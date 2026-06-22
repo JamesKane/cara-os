@@ -14,6 +14,7 @@
 #include <cara/leargas.h>
 #include <cara/test.h>
 #include <cara/types.h>
+#include <devices/inputevent.h>
 #include <intuition/intuition.h>
 #include <intuition/screens.h>
 #include <libraries/gadtools.h>
@@ -305,6 +306,108 @@ KERNEL_TEST(gadtools_imsg_menu)
     TEST_ASSERT(ctx, Croi_GT_LayoutMenusA_Impl(menu, vi, nullptr) && menu->Width > 0,
                 "LayoutMenusA assigns geometry");
     Croi_GT_FreeMenus_Impl(menu);
+
+    Croi_CloseWindow_Impl(win);
+    Croi_GT_FreeGadgets_Impl(glist);
+    Croi_GT_FreeVisualInfo_Impl(vi);
+    Leargas_CloseScreen(scr);
+    Leargas_SetDisplayFramebuffer(nullptr);
+}
+
+// L8.5 — proportional gadgets (SLIDER) + router drag-tracking.
+KERNEL_TEST(gadtools_prop)
+{
+    Leargas_SetGadgetRouter(Leargas_IDCMP_PostGadgetUp);
+
+    struct DathFramebuffer fb;
+    TEST_ASSERT(ctx, Dath_AllocBitmap(&fb, 200, 120, DATH_FMT_RGBA8888) == CARA_EOK, "fb alloc");
+    Leargas_SetDisplayFramebuffer(&fb);
+    struct Screen *scr = Leargas_OpenScreen(&fb, "P", Dath_RGB(0x10, 0x10, 0x20));
+    TEST_ASSERT(ctx, scr != nullptr, "OpenScreen");
+    struct CaraVisualInfo *vi = (struct CaraVisualInfo *)Croi_GT_GetVisualInfoA_Impl(scr, nullptr);
+    TEST_ASSERT(ctx, vi != nullptr, "GetVisualInfoA");
+
+    char wtitle[] = "Win";
+    struct NewWindow nw = { .LeftEdge = 10,
+                            .TopEdge = 10,
+                            .Width = 150,
+                            .Height = 90,
+                            .Flags = WFLG_DRAGBAR | WFLG_ACTIVATE,
+                            .IDCMPFlags = IDCMP_GADGETUP,
+                            .Title = (UBYTE *)wtitle,
+                            .Screen = scr };
+    struct Window *win = Leargas_OpenWindow(&nw);
+    TEST_ASSERT(ctx, win != nullptr && win->UserPort != nullptr, "OpenWindow w/ GADGETUP");
+
+    // A SLIDER, level 0 in [0,100], at window-relative (10,30) size 100x12.
+    struct Gadget *glist = nullptr;
+    struct Gadget *prev = Croi_GT_CreateContext_Impl(&glist);
+    struct NewGadget ng = { .ng_LeftEdge = 10,
+                            .ng_TopEdge = 30,
+                            .ng_Width = 100,
+                            .ng_Height = 12,
+                            .ng_VisualInfo = vi,
+                            .ng_GadgetID = 9 };
+    struct TagItem sl_tags[] = {
+        { GTSL_Min, 0 }, { GTSL_Max, 100 }, { GTSL_Level, 0 }, { TAG_END, 0 }
+    };
+    struct Gadget *gsl = Croi_GT_CreateGadgetA_Impl(SLIDER_KIND, prev, &ng, sl_tags);
+    TEST_ASSERT(ctx, gsl != nullptr && (gsl->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET,
+                "SLIDER is a prop gadget");
+    Leargas_AddGadget(win, gsl);
+
+    // Level 0 → pot 0 → GetGadgetAttrs reads 0.
+    LONG lvl = -1;
+    struct TagItem get_lvl[] = { { GTSL_Level, (IPTR)(uptr)&lvl }, { TAG_END, 0 } };
+    TEST_ASSERT(ctx, Croi_GT_GetGadgetAttrsA_Impl(gsl, nullptr, nullptr, get_lvl) == 1 && lvl == 0,
+                "initial level 0");
+
+    // Direct drag to the gadget midpoint → pot ~half → level ~50.
+    TEST_ASSERT(ctx, Leargas_Prop_HandleDrag(gsl, 10 + 50, 36), "HandleDrag mid changed pot");
+    Croi_GT_GetGadgetAttrsA_Impl(gsl, nullptr, nullptr, get_lvl);
+    TEST_ASSERT(ctx, lvl >= 45 && lvl <= 55, "mid drag → level ~50");
+
+    // SetGadgetAttrs(level) round-trips back through the pot.
+    struct TagItem set_lvl[] = { { GTSL_Level, 80 }, { TAG_END, 0 } };
+    Croi_GT_SetGadgetAttrsA_Impl(gsl, nullptr, nullptr, set_lvl);
+    Croi_GT_GetGadgetAttrsA_Impl(gsl, nullptr, nullptr, get_lvl);
+    TEST_ASSERT(ctx, lvl >= 78 && lvl <= 82, "SetGadgetAttrs level 80");
+
+    // ---- Full router drag: click left of the knob, drag right, release. ----
+    struct DathFramebuffer save;
+    TEST_ASSERT(ctx,
+                Dath_AllocBitmap(&save, leargas_pointer_arrow.width, leargas_pointer_arrow.height,
+                                 fb.format) == CARA_EOK,
+                "pointer save alloc");
+    // Start the pointer over the gadget's left end.
+    i32 px = win->LeftEdge + gsl->LeftEdge + 2;
+    i32 py = win->TopEdge + gsl->TopEdge + 6;
+    struct LeargasPointer p;
+    TEST_ASSERT(ctx,
+                Leargas_Pointer_Init(&p, &fb, &save, &leargas_pointer_arrow,
+                                     Dath_RGB(0xFF, 0xFF, 0xFF), Dath_RGB(0, 0, 0), px,
+                                     py) == CARA_EOK,
+                "pointer init");
+    Leargas_SetActiveWindow(win);
+
+    struct LeargasInputEvent ev = { .ie_class = IECLASS_RAWMOUSE };
+    ev.ie_code = IECODE_LBUTTON; // press over the left of the slider
+    TEST_ASSERT(ctx, Leargas_Input_Post(&ev), "post LBUTTON down");
+    ev.ie_code = IECODE_NOBUTTON; // drag right ~90px
+    ev.ie_dx = 90;
+    TEST_ASSERT(ctx, Leargas_Input_Post(&ev), "post drag right");
+    ev.ie_code = IECODE_LBUTTON | IECODE_UP_PREFIX; // release
+    ev.ie_dx = 0;
+    TEST_ASSERT(ctx, Leargas_Input_Post(&ev), "post LBUTTON up");
+    (void)Leargas_Input_Drain(&p);
+
+    // The drag pushed the knob to the right → a high level, and release
+    // posted IDCMP_GADGETUP for the slider.
+    Croi_GT_GetGadgetAttrsA_Impl(gsl, nullptr, nullptr, get_lvl);
+    TEST_ASSERT(ctx, lvl >= 85, "drag-right raised the level");
+    struct IntuiMessage *im = Croi_GT_GetIMsg_Impl(win->UserPort);
+    TEST_ASSERT(ctx, im != nullptr && im->Class == IDCMP_GADGETUP, "release posted GADGETUP");
+    Croi_GT_ReplyIMsg_Impl(im);
 
     Croi_CloseWindow_Impl(win);
     Croi_GT_FreeGadgets_Impl(glist);

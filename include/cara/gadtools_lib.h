@@ -36,7 +36,14 @@ struct GadToolsBase;
 #define CARA_GT_STRBUF 64
 
 struct GtGadgetExt {
-    struct StringInfo sinfo;      // offset 0 — STRING/INTEGER (Leargas reads it)
+    // Offset 0: the per-kind SpecialInfo the Leargas renderer reads off
+    // g->SpecialInfo. STRING/INTEGER are GTYP_STRGADGET (→ StringInfo);
+    // SLIDER/SCROLLER are GTYP_PROPGADGET (→ PropInfo). A gadget is
+    // exactly one kind, so a union is correct.
+    union {
+        struct StringInfo sinfo;
+        struct PropInfo pinfo;
+    } si;
     struct IntuiText label;       // GadgetText points here
     UWORD kind;                   // *_KIND
     LONG number;                  // NUMBER value / INTEGER parsed result
@@ -44,6 +51,8 @@ struct GtGadgetExt {
     const char **labels;          // CYCLE/MX label array (app-owned, NULL-term)
     UWORD active;                 // CYCLE/MX active index
     UWORD nlabels;                // CYCLE/MX label count
+    LONG sl_min, sl_max;          // SLIDER level range
+    LONG sc_total, sc_visible;    // SCROLLER total / visible
     char strbuf[CARA_GT_STRBUF];  // STRING/INTEGER edit buffer
     char undobuf[CARA_GT_STRBUF]; // StringInfo undo scratch
 };

@@ -134,6 +134,11 @@ void Leargas_Gadget_Render(struct Window *w, struct Gadget *g)
         Leargas_StringGadget_Render(w, g);
         return;
     }
+    // L8.5 — proportional gadgets render as a container + a draggable knob.
+    if ((g->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET) {
+        Leargas_Prop_Render(w, g);
+        return;
+    }
 
     struct LeargasScreen *ls = Leargas_Screen_FromPub(w->WScreen);
     if (!ls || !ls->fb) {

@@ -406,6 +406,34 @@ struct StringInfo {
     struct KeyMap *AltKeyMap; // alternate keymap; null = default (Phase 3)
 };
 
+// ---- struct PropInfo (V36+) — proportional-gadget SpecialInfo (L8.5) -------
+//
+// A GTYP_PROPGADGET's SpecialInfo points here. HorizPot/VertPot are the
+// knob position (0..MAXPOT); HorizBody/VertBody the knob size as a
+// fraction of MAXBODY. Leargas renders the container + knob and updates
+// the pot as the knob is dragged (router drag-tracking). gadtools'
+// SLIDER/SCROLLER kinds are built on this.
+
+struct PropInfo {
+    UWORD Flags;               // AUTOKNOB / FREEHORIZ / FREEVERT / …
+    UWORD HorizPot, VertPot;   // knob position, 0..MAXPOT
+    UWORD HorizBody, VertBody; // knob size, fraction of MAXBODY
+    UWORD CWidth, CHeight;     // container pixel dims (Leargas-filled)
+    UWORD HPotRes, VPotRes;    // pot increment per step (Leargas-private)
+    UWORD LeftBorder, TopBorder;
+};
+
+#define AUTOKNOB 0x0001
+#define FREEHORIZ 0x0002
+#define FREEVERT 0x0004
+#define PROPBORDERLESS 0x0008
+#define PROPNEWLOOK 0x0010
+#define KNOBHIT 0x0100
+#define KNOBHMIN 6 // minimum horizontal knob pixels
+#define KNOBVMIN 4 // minimum vertical knob pixels
+#define MAXBODY 0xFFFF
+#define MAXPOT 0xFFFF
+
 // ---- struct Menu / MenuItem (V36+) — menu strips (L5.3) --------------------
 //
 // SetMenuStrip(window, menu) attaches a Menu list; each Menu owns a

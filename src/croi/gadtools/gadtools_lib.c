@@ -155,6 +155,29 @@ static UWORD gt_count_labels(const char **labels)
     return n;
 }
 
+// SLIDER level (min..max) <-> prop pot (0..MAXPOT).
+static UWORD gt_level_to_pot(LONG level, LONG min, LONG max)
+{
+    if (max <= min) {
+        return 0;
+    }
+    if (level < min) {
+        level = min;
+    }
+    if (level > max) {
+        level = max;
+    }
+    return (UWORD)(((u32)(level - min) * MAXPOT) / (u32)(max - min));
+}
+
+static LONG gt_pot_to_level(UWORD pot, LONG min, LONG max)
+{
+    if (max <= min) {
+        return min;
+    }
+    return min + (LONG)(((u32)pot * (u32)(max - min)) / MAXPOT);
+}
+
 // FreeGadgets(glist): walk the NextGadget chain freeing each gadget and
 // its SpecialInfo. Always returns nullptr (the V36 idiom: callers null
 // their glist). Safe on nullptr.
@@ -278,16 +301,56 @@ struct Gadget *Croi_GT_CreateGadgetA_Impl(ULONG kind, struct Gadget *prevGad, st
             gt_strcopy(ext->strbuf, (const char *)(uptr)Croi_GetTagData(tags, GTST_String, 0),
                        CARA_GT_STRBUF);
         }
-        ext->sinfo.Buffer = (UBYTE *)ext->strbuf;
-        ext->sinfo.UndoBuffer = (UBYTE *)ext->undobuf;
-        ext->sinfo.MaxChars = (WORD)(maxc + 1); // includes the NUL (V36)
+        ext->si.sinfo.Buffer = (UBYTE *)ext->strbuf;
+        ext->si.sinfo.UndoBuffer = (UBYTE *)ext->undobuf;
+        ext->si.sinfo.MaxChars = (WORD)(maxc + 1); // includes the NUL (V36)
         int len = 0;
         while (ext->strbuf[len]) {
             len++;
         }
-        ext->sinfo.NumChars = (WORD)len;
-        ext->sinfo.BufferPos = (WORD)len;
+        ext->si.sinfo.NumChars = (WORD)len;
+        ext->si.sinfo.BufferPos = (WORD)len;
         labeltext = nullptr; // the field shows the buffer, not GadgetText
+        break;
+    }
+    case SLIDER_KIND: {
+        // A horizontal prop gadget; GTSL_Level in [Min,Max] → HorizPot.
+        g->GadgetType = GTYP_PROPGADGET;
+        g->Activation = GACT_RELVERIFY;
+        ext->sl_min = (LONG)Croi_GetTagData(tags, GTSL_Min, 0);
+        ext->sl_max = (LONG)Croi_GetTagData(tags, GTSL_Max, 15);
+        if (ext->sl_max <= ext->sl_min) {
+            ext->sl_max = ext->sl_min + 1;
+        }
+        LONG level = (LONG)Croi_GetTagData(tags, GTSL_Level, ext->sl_min);
+        struct PropInfo *pi = &ext->si.pinfo;
+        pi->Flags = AUTOKNOB | FREEHORIZ;
+        pi->VertBody = MAXBODY;
+        pi->HorizBody = (UWORD)(MAXBODY / (u32)(ext->sl_max - ext->sl_min + 1));
+        pi->HorizPot = gt_level_to_pot(level, ext->sl_min, ext->sl_max);
+        labeltext = nullptr;
+        break;
+    }
+    case SCROLLER_KIND: {
+        // GTSC_Top/Total/Visible → HorizPot + HorizBody.
+        g->GadgetType = GTYP_PROPGADGET;
+        g->Activation = GACT_RELVERIFY;
+        ext->sc_total = (LONG)Croi_GetTagData(tags, GTSC_Total, 1);
+        ext->sc_visible = (LONG)Croi_GetTagData(tags, GTSC_Visible, 1);
+        if (ext->sc_total < 1) {
+            ext->sc_total = 1;
+        }
+        if (ext->sc_visible < 1) {
+            ext->sc_visible = 1;
+        }
+        LONG top = (LONG)Croi_GetTagData(tags, GTSC_Top, 0);
+        LONG range = ext->sc_total - ext->sc_visible;
+        struct PropInfo *pi = &ext->si.pinfo;
+        pi->Flags = AUTOKNOB | FREEHORIZ;
+        pi->VertBody = MAXBODY;
+        pi->HorizBody = (UWORD)(((u32)ext->sc_visible * MAXBODY) / (u32)ext->sc_total);
+        pi->HorizPot = (range > 0) ? (UWORD)(((u32)top * MAXPOT) / (u32)range) : 0;
+        labeltext = nullptr;
         break;
     }
     default:
@@ -351,8 +414,8 @@ void Croi_GT_SetGadgetAttrsA_Impl(struct Gadget *gad, struct Window *win, struct
     case STRING_KIND: {
         const char *s = (const char *)(uptr)Croi_GetTagData(tags, GTST_String, 0);
         if (s) {
-            ext->sinfo.NumChars = (WORD)gt_strcopy(ext->strbuf, s, CARA_GT_STRBUF);
-            ext->sinfo.BufferPos = ext->sinfo.NumChars;
+            ext->si.sinfo.NumChars = (WORD)gt_strcopy(ext->strbuf, s, CARA_GT_STRBUF);
+            ext->si.sinfo.BufferPos = ext->si.sinfo.NumChars;
         }
         break;
     }
@@ -364,8 +427,22 @@ void Croi_GT_SetGadgetAttrsA_Impl(struct Gadget *gad, struct Window *win, struct
         while (ext->strbuf[len]) {
             len++;
         }
-        ext->sinfo.NumChars = (WORD)len;
-        ext->sinfo.BufferPos = (WORD)len;
+        ext->si.sinfo.NumChars = (WORD)len;
+        ext->si.sinfo.BufferPos = (WORD)len;
+        break;
+    }
+    case SLIDER_KIND: {
+        LONG lvl = (LONG)Croi_GetTagData(
+            tags, GTSL_Level,
+            (IPTR)gt_pot_to_level(ext->si.pinfo.HorizPot, ext->sl_min, ext->sl_max));
+        ext->si.pinfo.HorizPot = gt_level_to_pot(lvl, ext->sl_min, ext->sl_max);
+        break;
+    }
+    case SCROLLER_KIND: {
+        LONG range = ext->sc_total - ext->sc_visible;
+        LONG curtop = (range > 0) ? (LONG)(((u32)ext->si.pinfo.HorizPot * (u32)range) / MAXPOT) : 0;
+        LONG top = (LONG)Croi_GetTagData(tags, GTSC_Top, (IPTR)curtop);
+        ext->si.pinfo.HorizPot = (range > 0) ? (UWORD)(((u32)top * MAXPOT) / (u32)range) : 0;
         break;
     }
     default:
@@ -461,7 +538,7 @@ ULONG Croi_GT_GetGadgetAttrsA_Impl(struct Gadget *gad, struct Window *win, struc
     case STRING_KIND: {
         IPTR p = Croi_GetTagData(tags, GTST_String, 0);
         if (p) {
-            *(STRPTR *)(uptr)p = (STRPTR)ext->sinfo.Buffer;
+            *(STRPTR *)(uptr)p = (STRPTR)ext->si.sinfo.Buffer;
             n++;
         }
         break;
@@ -470,6 +547,24 @@ ULONG Croi_GT_GetGadgetAttrsA_Impl(struct Gadget *gad, struct Window *win, struc
         IPTR p = Croi_GetTagData(tags, GTIN_Number, 0);
         if (p) {
             *(LONG *)(uptr)p = gt_parse_int(ext->strbuf);
+            n++;
+        }
+        break;
+    }
+    case SLIDER_KIND: {
+        IPTR p = Croi_GetTagData(tags, GTSL_Level, 0);
+        if (p) {
+            *(LONG *)(uptr)p = gt_pot_to_level(ext->si.pinfo.HorizPot, ext->sl_min, ext->sl_max);
+            n++;
+        }
+        break;
+    }
+    case SCROLLER_KIND: {
+        IPTR p = Croi_GetTagData(tags, GTSC_Top, 0);
+        if (p) {
+            LONG range = ext->sc_total - ext->sc_visible;
+            *(LONG *)(uptr)p =
+                (range > 0) ? (LONG)(((u32)ext->si.pinfo.HorizPot * (u32)range) / MAXPOT) : 0;
             n++;
         }
         break;

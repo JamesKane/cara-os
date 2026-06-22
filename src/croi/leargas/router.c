@@ -139,6 +139,10 @@ u32 Leargas_Input_Drain(struct LeargasPointer *p)
                     if (g) {
                         g->Flags |= GFLG_SELECTED;
                         Leargas_SetActiveGadget(g);
+                        // L8.5 — a prop gadget jumps its knob to the click.
+                        if ((g->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET) {
+                            (void)Leargas_Prop_HandleDrag(g, wx, wy);
+                        }
                         Leargas_Gadget_Render(hit, g);
                     } else if (g_mousebtn_router) {
                         // LI — a click not consumed by a gadget or the
@@ -171,8 +175,12 @@ u32 Leargas_Input_Drain(struct LeargasPointer *p)
                 // IDCMP_GADGETUP when released over itself (the V36+
                 // button-release contract; a string Inntin instead posts
                 // GADGETUP on Return, handled in string_gadget.c).
-                if (aw && (g->GadgetType & GTYP_GTYPEMASK) == GTYP_BOOLGADGET &&
-                    (g->Activation & GACT_RELVERIFY)) {
+                UWORD gkind = (UWORD)(g->GadgetType & GTYP_GTYPEMASK);
+                if (aw && gkind == GTYP_PROPGADGET) {
+                    // L8.5 — a prop gadget commits its value on release
+                    // (the knob's pot is read back by the client).
+                    (void)Leargas_Gadget_RouteUp(aw, g);
+                } else if (aw && gkind == GTYP_BOOLGADGET && (g->Activation & GACT_RELVERIFY)) {
                     i32 wx = nx - (i32)aw->LeftEdge;
                     i32 wy = ny - (i32)aw->TopEdge;
                     if (Leargas_Gadget_HitTest(aw, wx, wy) == g) {
@@ -196,6 +204,27 @@ u32 Leargas_Input_Drain(struct LeargasPointer *p)
             Leargas_Pointer_Show(p);
             if (was_menu && g_menupick_router) {
                 (void)g_menupick_router(mw, code);
+            }
+        }
+
+        // L8.5 — drag a held prop gadget's knob. Runs for any RAWMOUSE
+        // event whose active gadget is a still-selected prop gadget: the
+        // down-stroke jumped it (above) so the pot is unchanged → no-op;
+        // motion events (button held) move the knob; the up-stroke cleared
+        // GFLG_SELECTED so it's skipped. Code-agnostic re: the motion
+        // event's ie_code.
+        {
+            struct Gadget *ag = Leargas_ActiveGadget();
+            struct Window *aw = Leargas_ActiveWindow();
+            if (ag && aw && (ag->Flags & GFLG_SELECTED) &&
+                (ag->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET) {
+                i32 wx = nx - (i32)aw->LeftEdge;
+                i32 wy = ny - (i32)aw->TopEdge;
+                if (Leargas_Prop_HandleDrag(ag, wx, wy)) {
+                    Leargas_Pointer_Hide(p);
+                    Leargas_Gadget_Render(aw, ag);
+                    Leargas_Pointer_Show(p);
+                }
             }
         }
 
