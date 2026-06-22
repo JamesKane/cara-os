@@ -28,7 +28,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | dos.library | 33 | 19 | 0 | 10 | 4 | 65% |
 | graphics.library | 154 | 24 | 0 | 126 | 4 | 16% |
 | gadtools.library | 23 | 17 | 0 | 2 | 4 | 89% |
-| asl.library | 10 | 3 | 0 | 3 | 4 | 50% |
+| asl.library | 10 | 6 | 0 | 0 | 4 | 100% |
 | cruth.library | 23 | 9 | 10 | 0 | 4 | 100% |
 
 ## exec.library
@@ -339,25 +339,24 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 ## asl.library
 
-ABI surface declared through LVO -60 (ordinal 9). 6 user-callable slots: **3 impl**, 0 server, **3 stub**; coverage **50%**.
+ABI surface declared through LVO -60 (ordinal 9). 6 user-callable slots: **6 impl**, 0 server, **0 stub**; coverage **100%**.
 
-### Implemented (3)
+### Implemented (6)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
+| 4 | -30 | `AllocFileRequest` | syscall |
 | 5 | -36 | `FreeFileRequest` | syscall |
+| 6 | -42 | `RequestFile` | syscall |
 | 7 | -48 | `AllocAslRequest` | syscall |
 | 8 | -54 | `FreeAslRequest` | syscall |
+| 9 | -60 | `AslRequest` | syscall |
 
-### Unimplemented stub slots (3)
+### Unimplemented stub slots (0)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
-| ord range | LVO range | count |
-|-----------|-----------|------:|
-| 4..4 | -30..-30 | 1 |
-| 6..6 | -42..-42 | 1 |
-| 9..9 | -60..-60 | 1 |
+_none — fully declared surface is implemented_
 
 ## cruth.library
 

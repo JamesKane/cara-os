@@ -21,6 +21,9 @@
 .section .lib_text.asl, "ax"
 .balign 4
 
-CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Asl_AllocAslRequest, SYS_Asl_AllocAslRequest
-CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Asl_FreeAslRequest,  SYS_Asl_FreeAslRequest
-CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Asl_FreeFileRequest, SYS_Asl_FreeFileRequest
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Asl_AllocAslRequest,  SYS_Asl_AllocAslRequest
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Asl_FreeAslRequest,   SYS_Asl_FreeAslRequest
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Asl_FreeFileRequest,  SYS_Asl_FreeFileRequest
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Asl_AslRequest,       SYS_Asl_AslRequest
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Asl_AllocFileRequest, SYS_Asl_AllocFileRequest
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Asl_RequestFile,      SYS_Asl_RequestFile

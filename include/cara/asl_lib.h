@@ -28,6 +28,8 @@ struct Window;
 // the opaque APTR and FreeAslRequest / AslRequest recover the CaraAslReq
 // by casting that pointer back. `type` (after the union) selects which
 // public view is live; the config + owned path buffers follow.
+struct Gadget;
+
 struct CaraAslReq {
     union {
         struct FileRequester file;
@@ -39,12 +41,32 @@ struct CaraAslReq {
     struct Window *parent;
     char dirbuf[CARA_ASL_DIRMAX];
     char filebuf[CARA_ASL_FILEMAX];
+
+    // Modal-window state (L9.2), valid between Croi_Asl_Build and the end
+    // of Croi_Asl_Wait.
+    struct Window *win;      // the open modal requester window
+    struct Gadget *glist;    // gadtools context list head (FreeGadgets)
+    APTR vi;                 // gadtools VisualInfo (FreeVisualInfo)
+    struct Gadget *g_drawer; // STRING gadget for the drawer
+    struct Gadget *g_file;   // STRING gadget for the filename
+    struct Gadget *g_ok;     // OK button (GadgetID 1)
 };
 
 // ---- Requester lifecycle (L9.1) -------------------------------------
 APTR Croi_Asl_AllocAslRequest_Impl(ULONG reqType, struct TagItem *tags);
 void Croi_Asl_FreeAslRequest_Impl(APTR requester);
 void Croi_Asl_FreeFileRequest_Impl(struct FileRequester *fileReq); // legacy alias
+
+// ---- Modal request (L9.2) -------------------------------------------
+// AslRequest = Build (open the modal window + gadgets) + Wait (run the
+// loop, copy results, tear down). Split so a KERNEL_TEST can pre-post an
+// OK/Cancel GADGETUP between them (the L5 requester seam).
+BOOL Croi_Asl_AslRequest_Impl(APTR requester, struct TagItem *tags);
+struct Window *Croi_Asl_Build(struct CaraAslReq *req, struct TagItem *tags);
+BOOL Croi_Asl_Wait(struct CaraAslReq *req);
+// Legacy V36 wrappers.
+APTR Croi_Asl_AllocFileRequest_Impl(void);
+BOOL Croi_Asl_RequestFile_Impl(struct FileRequester *fileReq);
 
 // ---- Reserved-slot library hooks (`local` flavour) ------------------
 struct AslBase;

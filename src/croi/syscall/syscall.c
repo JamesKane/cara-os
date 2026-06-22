@@ -475,6 +475,12 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_Asl_FreeFileRequest:
         Croi_Asl_FreeFileRequest_Impl((struct FileRequester *)(uptr)a0);
         return 0;
+    case SYS_Asl_AslRequest:
+        return (i64)Croi_Asl_AslRequest_Impl((APTR)(uptr)a0, (struct TagItem *)(uptr)a1);
+    case SYS_Asl_AllocFileRequest:
+        return (i64)(uptr)Croi_Asl_AllocFileRequest_Impl();
+    case SYS_Asl_RequestFile:
+        return (i64)Croi_Asl_RequestFile_Impl((struct FileRequester *)(uptr)a0);
 
     // ---- exec device IO primitives (L6) ----
     case SYS_OpenDevice:

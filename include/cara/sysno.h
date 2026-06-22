@@ -191,6 +191,9 @@ enum {
     SYS_Asl_AllocAslRequest = 139,
     SYS_Asl_FreeAslRequest = 140,
     SYS_Asl_FreeFileRequest = 141,
+    SYS_Asl_AslRequest = 142,
+    SYS_Asl_AllocFileRequest = 143,
+    SYS_Asl_RequestFile = 144,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -347,6 +350,9 @@ enum {
 #define SYS_Asl_AllocAslRequest 139
 #define SYS_Asl_FreeAslRequest 140
 #define SYS_Asl_FreeFileRequest 141
+#define SYS_Asl_AslRequest 142
+#define SYS_Asl_AllocFileRequest 143
+#define SYS_Asl_RequestFile 144
 #endif
 
 #endif
