@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+16d76cc phase-3/L10.2 iffparse read walk (ParseIFF/StopChunk/ReadChunkBytes/CurrentChunk)
 fbb3997 phase-3/L10.1 iffparse.library + handle lifecycle (AllocIFF/Open/Close/Free/InitIFFasDOS)
 18a98d2 docs          scope L10 iffparse.library (docs/IFFPARSE.md)
 c445139 phase-3/L9.3  asl font + screen-mode requesters — closes L9
@@ -93,7 +94,8 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**52 passed / 0 failed** (L10.1 added `iffparse_lifecycle`), QEMU
+**52 passed / 0 failed** (L10.1 `iffparse_lifecycle`; L10.2 extended
+`userexec_smoke` with the IFF read round-trip), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -865,15 +867,23 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   145-149). `<libraries/iffparse.h>` (IFFHandle/ContextNode/codes/modes/
   IDs + GoodID/GoodType/IDtoStr inlines); `struct CaraIff` (public
   IFFHandle @0 + bound stream/mode + context stack). iffparse coverage
-  14% (5 impl). `KERNEL_TEST(iffparse_lifecycle)`. **NEXT: L10.2** —
-  the read walk: `ParseIFF -42` (STEP+SCAN), `StopChunk`/`StopOnExit`,
-  `ReadChunkBytes`/`ReadChunkRecords`, `CurrentChunk`/`ParentChunk` over
-  the dos stream (reads big-endian ID+size chunks, pushes ContextNodes).
-  **Note:** L10.1's lifecycle test uses a fake stream (no I/O); the real
-  IFF round-trip needs a Process context for dos paths, so the L10.2/L10.3
-  parse+write round-trip is a **Gleas test** (a new useriff.c or extend
-  userexec) over a real CaraFS file. Then L10.3 write side, L10.4 props/
-  collections. After L10: L11-14 = icon.library (.info ↔ CARAFS cara.icon
+  14% (5 impl). `KERNEL_TEST(iffparse_lifecycle)`.
+- **L10.2 shipped (`16d76cc`): the read walk.** `ParseIFF -42` (STEP/SCAN/
+  RAWSTEP), `ReadChunkBytes -60`/`ReadChunkRecords -72`, `StopChunk -132`/
+  `StopOnExit -144`, `CurrentChunk -162`/`ParentChunk -168` (SYS_Iff_*
+  150-156). Walks big-endian chunks over the dos stream; SCAN stops at a
+  StopChunk'd chunk; ReadChunkBytes clamps to the chunk. iffparse coverage
+  34% (12 impl). Tested by extending **userexec_smoke** (a Process — a
+  KERNEL_TEST can't open dos files): write a raw IFF FORM ILBM via dos,
+  reopen, ParseIFF(SCAN) to BODY, ReadChunkBytes "hello!". **NEXT: L10.3**
+  — the write side: `WriteChunkBytes -66`/`WriteChunkRecords -78`,
+  `PushChunk -84`/`PopChunk -90` (write the chunk header with size
+  IFFSIZE_UNKNOWN, backpatch at PopChunk via `Croi_Dos_Seek` + rewrite;
+  OpenIFF(write) primes; pad odd chunks). Extend userexec to write the
+  FORM with iffparse + read it back (full round-trip). Then L10.4 props/
+  collections/context-items (`PropChunk`/`FindProp`/`CollectionChunk`/
+  `FindCollection`/`StoreItemInContext`/`FindLocalItem`). After L10:
+  L11-14 = icon.library (.info ↔ CARAFS cara.icon
   xattr §3.10; file-manager), diskfont, commodities, expansion — scope
   each. Then T tools → A apps. Standing deferred substrate an app may
   force forward: gadtools LISTVIEW (→ asl dir browse), layers.library
