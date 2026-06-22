@@ -27,7 +27,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | utility.library | 30 | 13 | 0 | 13 | 4 | 50% |
 | dos.library | 33 | 19 | 0 | 10 | 4 | 65% |
 | graphics.library | 154 | 24 | 0 | 126 | 4 | 16% |
-| gadtools.library | 23 | 8 | 0 | 11 | 4 | 42% |
+| gadtools.library | 23 | 17 | 0 | 2 | 4 | 89% |
 | cruth.library | 23 | 9 | 10 | 0 | 4 | 100% |
 
 ## exec.library
@@ -304,28 +304,37 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 ## gadtools.library
 
-ABI surface declared through LVO -138 (ordinal 22). 19 user-callable slots: **8 impl**, 0 server, **11 stub**; coverage **42%**.
+ABI surface declared through LVO -138 (ordinal 22). 19 user-callable slots: **17 impl**, 0 server, **2 stub**; coverage **89%**.
 
-### Implemented (8)
+### Implemented (17)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
 | 4 | -30 | `CreateGadgetA` | syscall |
 | 5 | -36 | `FreeGadgets` | syscall |
 | 6 | -42 | `GT_SetGadgetAttrsA` | syscall |
+| 7 | -48 | `CreateMenusA` | syscall |
+| 8 | -54 | `FreeMenus` | syscall |
+| 9 | -60 | `LayoutMenuItemsA` | syscall |
+| 10 | -66 | `LayoutMenusA` | syscall |
+| 11 | -72 | `GT_GetIMsg` | syscall |
+| 12 | -78 | `GT_ReplyIMsg` | syscall |
+| 13 | -84 | `GT_RefreshWindow` | syscall |
+| 14 | -90 | `GT_BeginRefresh` | syscall |
+| 15 | -96 | `GT_EndRefresh` | syscall |
 | 18 | -114 | `CreateContext` | syscall |
 | 19 | -120 | `DrawBevelBoxA` | syscall |
 | 20 | -126 | `GetVisualInfoA` | syscall |
 | 21 | -132 | `FreeVisualInfo` | syscall |
 | 22 | -138 | `GT_GetGadgetAttrsA` | syscall |
 
-### Unimplemented stub slots (11)
+### Unimplemented stub slots (2)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
 | ord range | LVO range | count |
 |-----------|-----------|------:|
-| 7..17 | -48..-108 | 11 |
+| 16..17 | -102..-108 | 2 |
 
 ## cruth.library
 

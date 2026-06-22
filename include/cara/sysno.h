@@ -177,6 +177,15 @@ enum {
     SYS_GT_SetGadgetAttrsA = 127,
     SYS_GT_DrawBevelBoxA = 128,
     SYS_GT_GetGadgetAttrsA = 129,
+    SYS_GT_CreateMenusA = 130,
+    SYS_GT_FreeMenus = 131,
+    SYS_GT_LayoutMenuItemsA = 132,
+    SYS_GT_LayoutMenusA = 133,
+    SYS_GT_GetIMsg = 134,
+    SYS_GT_ReplyIMsg = 135,
+    SYS_GT_RefreshWindow = 136,
+    SYS_GT_BeginRefresh = 137,
+    SYS_GT_EndRefresh = 138,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -321,6 +330,15 @@ enum {
 #define SYS_GT_SetGadgetAttrsA 127
 #define SYS_GT_DrawBevelBoxA 128
 #define SYS_GT_GetGadgetAttrsA 129
+#define SYS_GT_CreateMenusA 130
+#define SYS_GT_FreeMenus 131
+#define SYS_GT_LayoutMenuItemsA 132
+#define SYS_GT_LayoutMenusA 133
+#define SYS_GT_GetIMsg 134
+#define SYS_GT_ReplyIMsg 135
+#define SYS_GT_RefreshWindow 136
+#define SYS_GT_BeginRefresh 137
+#define SYS_GT_EndRefresh 138
 #endif
 
 #endif

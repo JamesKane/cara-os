@@ -10,13 +10,16 @@
 #include <cara/alloc.h> // Croi_Free
 #include <cara/gadtools_lib.h>
 #include <cara/graphics_lib.h> // Croi_Gfx_* (DrawBevelBoxA)
-#include <cara/leargas.h>      // Leargas_Gadget_Render
+#include <cara/leargas.h>      // Leargas_Gadget_Render, Leargas_Menu_Layout, IDCMP
+#include <cara/msgport.h>      // Croi_GetMsg (GT_GetIMsg)
+#include <cara/ring.h>         // struct RingSlot
 #include <cara/shared.h>       // Croi_AllocShared
 #include <cara/tagitem.h>      // Croi_GetTagData
 #include <cara/types.h>
+#include <exec/ports.h>
 #include <exec/types.h>
 #include <graphics/rastport.h>
-#include <intuition/intuition.h> // struct Gadget, GTYP_*, GACT_*, GFLG_*
+#include <intuition/intuition.h> // struct Gadget, GTYP_*, GACT_*, GFLG_*, Menu
 #include <intuition/screens.h>
 #include <libraries/gadtools.h>
 
@@ -475,4 +478,226 @@ ULONG Croi_GT_GetGadgetAttrsA_Impl(struct Gadget *gad, struct Window *win, struc
         break;
     }
     return n;
+}
+
+// ---- IDCMP wrap (L8.4) ----------------------------------------------
+
+// GT_GetIMsg(port): pop the next IntuiMessage from the window UserPort
+// (the Leargas IDCMP ring), then do the gadtools-internal update for the
+// referenced gadget — CYCLE/MX advance, CHECKBOX toggle — rewriting Code
+// to the new state and re-rendering. Returns nullptr if no message.
+struct IntuiMessage *Croi_GT_GetIMsg_Impl(struct MsgPort *port)
+{
+    if (!port) {
+        return nullptr;
+    }
+    struct RingSlot slot;
+    if (!Croi_GetMsg((struct CroiMsgPort *)port, &slot)) {
+        return nullptr;
+    }
+    struct IntuiMessage *im = (struct IntuiMessage *)slot.payload;
+    if (im && im->Class == IDCMP_GADGETUP && im->IAddress) {
+        struct Gadget *g = (struct Gadget *)im->IAddress;
+        // Only gadtools bool gadgets carry a GtGadgetExt on SpecialInfo
+        // (string gadgets are GTYP_STRGADGET; the context is GTYP_GADGET0002).
+        if (g->SpecialInfo && (g->GadgetType & GTYP_GTYPEMASK) == GTYP_BOOLGADGET) {
+            struct GtGadgetExt *ext = (struct GtGadgetExt *)g->SpecialInfo;
+            bool changed = false;
+            switch (ext->kind) {
+            case CYCLE_KIND:
+            case MX_KIND:
+                if (ext->nlabels) {
+                    ext->active = (UWORD)((ext->active + 1) % ext->nlabels);
+                    ext->label.IText = (UBYTE *)(uptr)ext->labels[ext->active];
+                }
+                im->Code = ext->active;
+                changed = true;
+                break;
+            case CHECKBOX_KIND:
+                g->Flags ^= (UWORD)GFLG_SELECTED;
+                im->Code = (g->Flags & GFLG_SELECTED) ? 1 : 0;
+                changed = true;
+                break;
+            default:
+                break;
+            }
+            if (changed && im->IDCMPWindow) {
+                Leargas_Gadget_Render(im->IDCMPWindow, g);
+            }
+        }
+    }
+    return im;
+}
+
+void Croi_GT_ReplyIMsg_Impl(struct IntuiMessage *imsg)
+{
+    if (imsg) {
+        Leargas_IDCMP_DisposeMsg(imsg);
+    }
+}
+
+void Croi_GT_RefreshWindow_Impl(struct Window *win, struct Requester *req)
+{
+    (void)req;
+    if (win) {
+        Leargas_Window_RenderGadgets(win);
+    }
+}
+
+void Croi_GT_BeginRefresh_Impl(struct Window *win)
+{
+    (void)win; // no Layers / damage regions in v0
+}
+
+void Croi_GT_EndRefresh_Impl(struct Window *win, LONG complete)
+{
+    (void)complete;
+    if (win) {
+        Leargas_Window_RenderGadgets(win);
+    }
+}
+
+// ---- Menu builder (L8.4) --------------------------------------------
+
+// Allocate a MenuItem + its embedded IntuiText label as one shared-heap
+// block (so FreeMenus does one free per item). `label` may be the
+// NM_BARLABEL separator sentinel → a text-less, disabled item.
+static struct MenuItem *gt_make_item(STRPTR label)
+{
+    u8 *blk = (u8 *)Croi_AllocShared(sizeof(struct MenuItem) + sizeof(struct IntuiText));
+    if (!blk) {
+        return nullptr;
+    }
+    struct MenuItem *mi = (struct MenuItem *)blk;
+    struct IntuiText *it = (struct IntuiText *)(blk + sizeof(struct MenuItem));
+    *mi = (struct MenuItem){ 0 };
+    *it = (struct IntuiText){ 0 };
+    bool isbar = (label == NM_BARLABEL);
+    it->FrontPen = 0;
+    it->BackPen = 1;
+    it->LeftEdge = 2;
+    it->TopEdge = 1;
+    it->IText = isbar ? nullptr : (UBYTE *)(uptr)label;
+    mi->ItemFill = it;
+    mi->Flags = (UWORD)(ITEMTEXT | HIGHCOMP | (isbar ? 0 : ITEMENABLED));
+    return mi;
+}
+
+// CreateMenusA(newmenu[], tags): walk the flat NewMenu array into an
+// L5.3 Menu/MenuItem chain (shared heap). Returns the first Menu, or what
+// was built so far on alloc failure (the caller FreeMenus to clean up).
+struct Menu *Croi_GT_CreateMenusA_Impl(struct NewMenu *newmenu, struct TagItem *tags)
+{
+    (void)tags;
+    if (!newmenu) {
+        return nullptr;
+    }
+    struct Menu *first = nullptr, *curmenu = nullptr;
+    struct MenuItem *curitem = nullptr, *cursub = nullptr;
+    for (struct NewMenu *nm = newmenu; nm->nm_Type != NM_END; nm++) {
+        switch (nm->nm_Type) {
+        case NM_TITLE: {
+            struct Menu *m = (struct Menu *)Croi_AllocShared(sizeof(struct Menu));
+            if (!m) {
+                return first;
+            }
+            *m = (struct Menu){ 0 };
+            m->MenuName = (BYTE *)(uptr)nm->nm_Label;
+            m->Flags = MENUENABLED;
+            if (!first) {
+                first = m;
+            }
+            if (curmenu) {
+                curmenu->NextMenu = m;
+            }
+            curmenu = m;
+            curitem = nullptr;
+            cursub = nullptr;
+            break;
+        }
+        case NM_ITEM: {
+            if (!curmenu) {
+                break;
+            }
+            struct MenuItem *mi = gt_make_item(nm->nm_Label);
+            if (!mi) {
+                return first;
+            }
+            if (!curmenu->FirstItem) {
+                curmenu->FirstItem = mi;
+            } else {
+                curitem->NextItem = mi;
+            }
+            curitem = mi;
+            cursub = nullptr;
+            break;
+        }
+        case NM_SUB: {
+            if (!curitem) {
+                break;
+            }
+            struct MenuItem *mi = gt_make_item(nm->nm_Label);
+            if (!mi) {
+                return first;
+            }
+            if (!curitem->SubItem) {
+                curitem->SubItem = mi;
+            } else {
+                cursub->NextItem = mi;
+            }
+            cursub = mi;
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    return first;
+}
+
+// LayoutMenusA(menu, vi, tags): assign bar/dropdown geometry over the
+// VisualInfo's screen (the L5.3 layouter does the whole strip).
+BOOL Croi_GT_LayoutMenusA_Impl(struct Menu *menu, APTR vi, struct TagItem *tags)
+{
+    (void)tags;
+    struct CaraVisualInfo *cvi = (struct CaraVisualInfo *)vi;
+    if (!menu || !cvi || !cvi->screen) {
+        return FALSE;
+    }
+    Leargas_Menu_Layout(menu, cvi->screen);
+    return TRUE;
+}
+
+// LayoutMenuItemsA: v0 — a single menu's items are laid out by
+// LayoutMenusA (the whole-strip layouter), so this is a success no-op.
+BOOL Croi_GT_LayoutMenuItemsA_Impl(struct MenuItem *firstitem, APTR vi, struct TagItem *tags)
+{
+    (void)firstitem;
+    (void)vi;
+    (void)tags;
+    return TRUE;
+}
+
+// FreeMenus(menu): free the whole Menu/MenuItem/subitem chain. Each item
+// block includes its IntuiText (one alloc), so one free per item.
+void Croi_GT_FreeMenus_Impl(struct Menu *menu)
+{
+    struct Menu *m = menu;
+    while (m) {
+        struct Menu *nextm = m->NextMenu;
+        struct MenuItem *it = m->FirstItem;
+        while (it) {
+            struct MenuItem *nexti = it->NextItem;
+            struct MenuItem *su = it->SubItem;
+            while (su) {
+                struct MenuItem *nexts = su->NextItem;
+                Croi_Free(su);
+                su = nexts;
+            }
+            Croi_Free(it);
+            it = nexti;
+        }
+        Croi_Free(m);
+        m = nextm;
+    }
 }

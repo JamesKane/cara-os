@@ -10,6 +10,7 @@
 
 #include <cara/dath.h>
 #include <cara/gadtools_lib.h>
+#include <cara/intuition_lib.h>
 #include <cara/leargas.h>
 #include <cara/test.h>
 #include <cara/types.h>
@@ -225,4 +226,89 @@ KERNEL_TEST(gadtools_kinds)
     TEST_ASSERT(ctx, Croi_GT_FreeGadgets_Impl(glist) == nullptr, "FreeGadgets");
     Croi_GT_FreeVisualInfo_Impl(vi);
     Leargas_CloseScreen(scr);
+}
+
+// L8.4 — GT_GetIMsg gadget update + the menu builder.
+KERNEL_TEST(gadtools_imsg_menu)
+{
+    static u32 pixels[80 * 60];
+    struct DathFramebuffer fb;
+    TEST_ASSERT(ctx,
+                Dath_Framebuffer_Init(&fb, pixels, 80, 60, 80 * 4, DATH_FMT_RGBA8888) == CARA_EOK,
+                "fb init");
+    Leargas_SetDisplayFramebuffer(&fb);
+    struct Screen *scr = Leargas_OpenScreen(&fb, "wb", 0);
+    TEST_ASSERT(ctx, scr != nullptr, "OpenScreen");
+    struct CaraVisualInfo *vi = (struct CaraVisualInfo *)Croi_GT_GetVisualInfoA_Impl(scr, nullptr);
+    TEST_ASSERT(ctx, vi != nullptr, "GetVisualInfoA");
+
+    // A window with a UserPort listening for GADGETUP.
+    struct TagItem wt[] = { { WA_Left, 4 },
+                            { WA_Top, 4 },
+                            { WA_Width, 60 },
+                            { WA_Height, 40 },
+                            { WA_IDCMP, IDCMP_GADGETUP },
+                            { WA_Activate, 1 },
+                            { TAG_DONE, 0 } };
+    struct Window *win = Croi_OpenWindowTagList_Impl(nullptr, wt);
+    TEST_ASSERT(ctx, win != nullptr && win->UserPort != nullptr, "window w/ GADGETUP port");
+
+    struct Gadget *glist = nullptr;
+    struct Gadget *prev = Croi_GT_CreateContext_Impl(&glist);
+
+    // CYCLE at index 0; a GADGETUP advances it to 1 and rewrites Code.
+    static const char *cyc[] = { "A", "B", "C", nullptr };
+    struct NewGadget ng = { .ng_LeftEdge = 4,
+                            .ng_TopEdge = 4,
+                            .ng_Width = 50,
+                            .ng_Height = 12,
+                            .ng_VisualInfo = vi,
+                            .ng_GadgetID = 7 };
+    struct TagItem cy_tags[] = { { GTCY_Labels, (IPTR)(uptr)cyc },
+                                 { GTCY_Active, 0 },
+                                 { TAG_END, 0 } };
+    struct Gadget *gcy = Croi_GT_CreateGadgetA_Impl(CYCLE_KIND, prev, &ng, cy_tags);
+    struct GtGadgetExt *cye = (struct GtGadgetExt *)gcy->SpecialInfo;
+    Leargas_AddGadget(win, gcy);
+
+    TEST_ASSERT(ctx, Leargas_IDCMP_PostGadgetUp(win, gcy), "post CYCLE GADGETUP");
+    struct IntuiMessage *im = Croi_GT_GetIMsg_Impl(win->UserPort);
+    TEST_ASSERT(ctx, im != nullptr && im->Class == IDCMP_GADGETUP, "GT_GetIMsg returns msg");
+    TEST_ASSERT(ctx, cye->active == 1 && im->Code == 1, "CYCLE advanced by GT_GetIMsg");
+    Croi_GT_ReplyIMsg_Impl(im);
+    TEST_ASSERT(ctx, Croi_GT_GetIMsg_Impl(win->UserPort) == nullptr, "GT_GetIMsg empty");
+
+    // CHECKBOX toggles on GADGETUP.
+    struct Gadget *gcb = Croi_GT_CreateGadgetA_Impl(CHECKBOX_KIND, gcy, &ng, nullptr);
+    Leargas_AddGadget(win, gcb);
+    TEST_ASSERT(ctx, !(gcb->Flags & GFLG_SELECTED), "checkbox starts clear");
+    TEST_ASSERT(ctx, Leargas_IDCMP_PostGadgetUp(win, gcb), "post CHECKBOX GADGETUP");
+    im = Croi_GT_GetIMsg_Impl(win->UserPort);
+    TEST_ASSERT(ctx, im && (gcb->Flags & GFLG_SELECTED) && im->Code == 1, "CHECKBOX toggled");
+    Croi_GT_ReplyIMsg_Impl(im);
+
+    Croi_GT_RefreshWindow_Impl(win, nullptr); // no-crash re-render
+
+    // Menu builder: a NewMenu[] → Menu/MenuItem chain, then layout.
+    struct NewMenu nm[] = {
+        { NM_TITLE, (STRPTR) "Project", nullptr, 0, 0, nullptr },
+        { NM_ITEM, (STRPTR) "Open", nullptr, 0, 0, nullptr },
+        { NM_ITEM, (STRPTR) "Quit", nullptr, 0, 0, nullptr },
+        { NM_END, nullptr, nullptr, 0, 0, nullptr },
+    };
+    struct Menu *menu = Croi_GT_CreateMenusA_Impl(nm, nullptr);
+    TEST_ASSERT(ctx, menu != nullptr && menu->MenuName && menu->MenuName[0] == 'P', "CreateMenusA");
+    struct MenuItem *i0 = menu->FirstItem;
+    TEST_ASSERT(ctx, i0 && i0->NextItem && !i0->NextItem->NextItem, "two items");
+    struct IntuiText *it0 = (struct IntuiText *)i0->ItemFill;
+    TEST_ASSERT(ctx, it0 && it0->IText && it0->IText[0] == 'O', "item label");
+    TEST_ASSERT(ctx, Croi_GT_LayoutMenusA_Impl(menu, vi, nullptr) && menu->Width > 0,
+                "LayoutMenusA assigns geometry");
+    Croi_GT_FreeMenus_Impl(menu);
+
+    Croi_CloseWindow_Impl(win);
+    Croi_GT_FreeGadgets_Impl(glist);
+    Croi_GT_FreeVisualInfo_Impl(vi);
+    Leargas_CloseScreen(scr);
+    Leargas_SetDisplayFramebuffer(nullptr);
 }

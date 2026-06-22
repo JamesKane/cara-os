@@ -78,6 +78,27 @@ void Croi_GT_DrawBevelBoxA_Impl(struct RastPort *rp, WORD left, WORD top, WORD w
 ULONG Croi_GT_GetGadgetAttrsA_Impl(struct Gadget *gad, struct Window *win, struct Requester *req,
                                    struct TagItem *tags);
 
+// ---- IDCMP wrap + menu builder (L8.4) -------------------------------
+struct MsgPort;
+struct IntuiMessage;
+struct Menu;
+struct MenuItem;
+struct NewMenu;
+// GT_GetIMsg pops the next IntuiMessage from the window's UserPort and
+// performs the gadtools-internal update for the referenced gadget (CYCLE
+// advance / CHECKBOX toggle / MX select). GT_ReplyIMsg disposes it.
+struct IntuiMessage *Croi_GT_GetIMsg_Impl(struct MsgPort *port);
+void Croi_GT_ReplyIMsg_Impl(struct IntuiMessage *imsg);
+void Croi_GT_RefreshWindow_Impl(struct Window *win, struct Requester *req);
+void Croi_GT_BeginRefresh_Impl(struct Window *win);
+void Croi_GT_EndRefresh_Impl(struct Window *win, LONG complete);
+// Menu builder: NewMenu[] → L5.3 Menu/MenuItem chain; LayoutMenusA
+// assigns geometry (Leargas_Menu_Layout); FreeMenus frees.
+struct Menu *Croi_GT_CreateMenusA_Impl(struct NewMenu *newmenu, struct TagItem *tags);
+BOOL Croi_GT_LayoutMenusA_Impl(struct Menu *menu, APTR vi, struct TagItem *tags);
+BOOL Croi_GT_LayoutMenuItemsA_Impl(struct MenuItem *firstitem, APTR vi, struct TagItem *tags);
+void Croi_GT_FreeMenus_Impl(struct Menu *menu);
+
 // ---- Reserved-slot library hooks (`local` flavour) ------------------
 // Vec slots 0..3. As with the other bases, OpenLibrary/CloseLibrary are
 // served by exec's SYS_OpenLibrary path; these are trivial but the vec

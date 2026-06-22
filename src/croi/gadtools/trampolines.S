@@ -33,3 +33,12 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_CreateGadgetA,    SYS_GT_CreateGadget
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_SetGadgetAttrsA,  SYS_GT_SetGadgetAttrsA
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_DrawBevelBoxA,    SYS_GT_DrawBevelBoxA
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_GetGadgetAttrsA,  SYS_GT_GetGadgetAttrsA
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_CreateMenusA,     SYS_GT_CreateMenusA
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_FreeMenus,        SYS_GT_FreeMenus
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_LayoutMenuItemsA, SYS_GT_LayoutMenuItemsA
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_LayoutMenusA,     SYS_GT_LayoutMenusA
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_GetIMsg,          SYS_GT_GetIMsg
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_ReplyIMsg,        SYS_GT_ReplyIMsg
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_RefreshWindow,    SYS_GT_RefreshWindow
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_BeginRefresh,     SYS_GT_BeginRefresh
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_GT_EndRefresh,       SYS_GT_EndRefresh

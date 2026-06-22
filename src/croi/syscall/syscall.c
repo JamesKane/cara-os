@@ -438,6 +438,32 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)Croi_GT_GetGadgetAttrsA_Impl(
             (struct Gadget *)(uptr)a0, (struct Window *)(uptr)a1, (struct Requester *)(uptr)a2,
             (struct TagItem *)(uptr)a3);
+    case SYS_GT_CreateMenusA:
+        return (i64)(uptr)Croi_GT_CreateMenusA_Impl((struct NewMenu *)(uptr)a0,
+                                                    (struct TagItem *)(uptr)a1);
+    case SYS_GT_FreeMenus:
+        Croi_GT_FreeMenus_Impl((struct Menu *)(uptr)a0);
+        return 0;
+    case SYS_GT_LayoutMenuItemsA:
+        return (i64)Croi_GT_LayoutMenuItemsA_Impl((struct MenuItem *)(uptr)a0, (APTR)(uptr)a1,
+                                                  (struct TagItem *)(uptr)a2);
+    case SYS_GT_LayoutMenusA:
+        return (i64)Croi_GT_LayoutMenusA_Impl((struct Menu *)(uptr)a0, (APTR)(uptr)a1,
+                                              (struct TagItem *)(uptr)a2);
+    case SYS_GT_GetIMsg:
+        return (i64)(uptr)Croi_GT_GetIMsg_Impl((struct MsgPort *)(uptr)a0);
+    case SYS_GT_ReplyIMsg:
+        Croi_GT_ReplyIMsg_Impl((struct IntuiMessage *)(uptr)a0);
+        return 0;
+    case SYS_GT_RefreshWindow:
+        Croi_GT_RefreshWindow_Impl((struct Window *)(uptr)a0, (struct Requester *)(uptr)a1);
+        return 0;
+    case SYS_GT_BeginRefresh:
+        Croi_GT_BeginRefresh_Impl((struct Window *)(uptr)a0);
+        return 0;
+    case SYS_GT_EndRefresh:
+        Croi_GT_EndRefresh_Impl((struct Window *)(uptr)a0, (LONG)a1);
+        return 0;
 
     // ---- exec device IO primitives (L6) ----
     case SYS_OpenDevice:
