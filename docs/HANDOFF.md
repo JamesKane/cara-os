@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+3282201 phase-3/L8.3  gadtools choice/edit kinds + DrawBevelBoxA + GT_GetGadgetAttrsA
 fa70150 phase-3/L8.2  gadtools CreateGadgetA + easy kinds + GT_SetGadgetAttrsA
 5b83be4 phase-3/L8.1  gadtools.library + render context (VisualInfo/CreateContext)
 5bbf845 docs          scope L8 gadtools (docs/LEARGAS_GADTOOLS.md)
@@ -84,7 +85,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**45 passed / 0 failed** (L8.2 added `gadtools_creategadget`), QEMU
+**46 passed / 0 failed** (L8.3 added `gadtools_kinds`), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -777,12 +778,26 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   Rendering reuses the generic Leargas button look (bordered box +
   label); kind-specific visuals (checkmark, recessed bevel) come with
   `DrawBevelBoxA` in L8.3. gadtools coverage 33% (6 impl).
-  `KERNEL_TEST(gadtools_creategadget)`. **NEXT: L8.3** — `DrawBevelBoxA
-  -120` + CYCLE/MX/STRING/INTEGER kinds (STRING/INTEGER need
-  SpecialInfo == a StringInfo for the Leargas string renderer — the
-  GtGadgetExt-vs-StringInfo split flagged in gadtools_lib.h) +
-  `GT_GetGadgetAttrsA -138`. Then L8.4 GT_GetIMsg + menu builder, L8.5
-  prop kinds (drag-tracking) or defer.
+  `KERNEL_TEST(gadtools_creategadget)`.
+- **L8.3 shipped (`3282201`): choice/edit kinds + bevel + attr read.**
+  CYCLE/MX/STRING/INTEGER kinds, `DrawBevelBoxA -120`, `GT_GetGadgetAttrsA
+  -138` (SYS_GT_* 128-129). GtGadgetExt restructured with `struct
+  StringInfo` FIRST (offset 0) so STRING/INTEGER set GTYP_STRGADGET and
+  `SpecialInfo == &ext->sinfo == ext` — the Leargas string editor reads
+  it as a StringInfo, gadtools reads the same ptr as GtGadgetExt (one
+  alloc/free). CYCLE/MX store the label array + active index, show
+  labels[active] (click-advance is GT_GetIMsg L8.4; MX = single-field
+  radio v0). DrawBevelBoxA draws shine/shadow edges via the graphics
+  Move/Draw/SetAPen impls. GT_GetGadgetAttrsA reads attrs back into
+  caller storage. gadtools coverage 42% (8 impl).
+  `KERNEL_TEST(gadtools_kinds)`. **NEXT: L8.4** — `GT_GetIMsg -72`/
+  `GT_ReplyIMsg -78`/`GT_RefreshWindow -84`/`GT_BeginRefresh -90`/
+  `GT_EndRefresh -96` (GT_GetIMsg does the gadtools-internal update:
+  CYCLE advance / CHECKBOX toggle / STRING commit on the IDCMP message,
+  then returns it) + the menu builder `CreateMenusA -48`/`LayoutMenusA
+  -66`/`LayoutMenuItemsA -60`/`FreeMenus -54` over the L5.3 menu chain
+  (struct NewMenu walk → struct Menu/MenuItem). Then L8.5 prop kinds
+  (SLIDER/SCROLLER/LISTVIEW) + router drag-tracking, or defer past v0.
   After L8: L9 asl → L10–14 long tail → T tools → A apps. L7 tracked
   gaps: concrete BOOPSI classes (gadgetclass/imageclass/icclass/
   modelclass), `DoGadgetMethodA`, `OM_NOTIFY`, FreeClass reaping,
