@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+c8511f2 phase-3/L8.5  prop gadgets (SLIDER/SCROLLER) + router drag-tracking
 7298c24 phase-3/L8.4  gadtools GT_GetIMsg + menu builder
 3282201 phase-3/L8.3  gadtools choice/edit kinds + DrawBevelBoxA + GT_GetGadgetAttrsA
 fa70150 phase-3/L8.2  gadtools CreateGadgetA + easy kinds + GT_SetGadgetAttrsA
@@ -86,7 +87,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**47 passed / 0 failed** (L8.4 added `gadtools_imsg_menu`), QEMU
+**48 passed / 0 failed** (L8.5 added `gadtools_prop`), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -803,14 +804,25 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   Menu/MenuItem chain (item block carries its IntuiText); LayoutMenusA →
   Leargas_Menu_Layout off the VisualInfo screen. gadtools coverage 89%
   (17 impl; only GT_FilterIMsg/GT_PostFilterIMsg stubbed).
-  `KERNEL_TEST(gadtools_imsg_menu)`. **NEXT: L8.5** — prop kinds
-  (SLIDER/SCROLLER/LISTVIEW/PALETTE) needing **router drag-tracking** the
-  Leargas input router lacks (router.c: SELECTUP/drag deferred — track
-  button-held mouse-move → prop pot → IDCMP_MOUSEMOVE/GADGETUP). The
-  hardest substrate work; ship as L8.5 or **defer past the L8 v0
-  done-bar** (which is already met: button/checkbox/cycle/mx/string/
-  integer/text/number + menus all work). After L8: **L9 asl** (file/font
-  requesters on gadtools) → L10–14 long tail → T tools → A apps.
+  `KERNEL_TEST(gadtools_imsg_menu)`.
+- **L8.5 shipped (`c8511f2`): prop gadgets + router drag-tracking.** New
+  `struct PropInfo` (intuition.h) + `src/croi/leargas/prop_gadget.c`
+  (`Leargas_Prop_Render` container+knob, `Leargas_Prop_HandleDrag`
+  pointer→pot); `Leargas_Gadget_Render` dispatches GTYP_PROPGADGET.
+  **router.c drag-tracking** (the substrate piece): prop down-stroke jumps
+  the knob to the click, button-held motion re-pots+re-renders, up-stroke
+  posts GADGETUP. gadtools `SLIDER_KIND`/`SCROLLER_KIND` build a
+  GTYP_PROPGADGET (GtGadgetExt's offset-0 SpecialInfo is now a
+  `union{StringInfo;PropInfo}`); GTSL_/GTSC_ map to HorizPot/HorizBody.
+  No new LVOs (kinds). `KERNEL_TEST(gadtools_prop)` incl. a full
+  click-drag-release through `Leargas_Input_Drain`. **L8 gadtools
+  COMPLETE** (only LISTVIEW/PALETTE deferred — LISTVIEW=scroller+rows,
+  PALETTE=colour grid). **NEXT: L9 — asl.library** (the file/font/screen-
+  mode requesters, built on gadtools). Needs a scoping doc first
+  (`docs/?_ASL.md` — no Irish brand; likely `src/croi/asl`, all syscall
+  over Leargas + the gadtools kinds). Then L10–14 long tail → T tools →
+  A apps. L8 deferred: LISTVIEW/PALETTE kinds, GT_FilterIMsg/PostFilterIMsg,
+  per-gadget fonts, IDCMP_MOUSEMOVE during drag (v0 commits on release).
   After L8: L9 asl → L10–14 long tail → T tools → A apps. L7 tracked
   gaps: concrete BOOPSI classes (gadgetclass/imageclass/icclass/
   modelclass), `DoGadgetMethodA`, `OM_NOTIFY`, FreeClass reaping,
