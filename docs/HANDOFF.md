@@ -24,6 +24,8 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+a8de180 phase-3/L9.1  asl.library + AllocAslRequest/FreeAslRequest
+a8b33c7 docs          scope L9 asl.library (docs/LEARGAS_ASL.md)
 c8511f2 phase-3/L8.5  prop gadgets (SLIDER/SCROLLER) + router drag-tracking
 7298c24 phase-3/L8.4  gadtools GT_GetIMsg + menu builder
 3282201 phase-3/L8.3  gadtools choice/edit kinds + DrawBevelBoxA + GT_GetGadgetAttrsA
@@ -87,7 +89,7 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**48 passed / 0 failed** (L8.5 added `gadtools_prop`), QEMU
+**49 passed / 0 failed** (L9.1 added `asl_alloc`), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -823,6 +825,23 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   over Leargas + the gadtools kinds). Then L10–14 long tail → T tools →
   A apps. L8 deferred: LISTVIEW/PALETTE kinds, GT_FilterIMsg/PostFilterIMsg,
   per-gadget fonts, IDCMP_MOUSEMOVE during drag (v0 commits on release).
+- **L9 — asl.library: SCOPED (`a8b33c7`, `docs/LEARGAS_ASL.md`).** A thin
+  composition over the L5 modal requester core + L8 gadtools kinds; new
+  `src/croi/asl`, all syscall. v0 file requester is **string-entry** (no
+  browse list — that needs the deferred gadtools LISTVIEW).
+- **L9.1 shipped (`a8de180`): library + alloc/free.** asl.library built at
+  boot; `<libraries/asl.h>` (FileRequester/FontRequester/
+  ScreenModeRequester, ASL_*/ASLFR_*/ASLFO_*/ASLSM_*). `AllocAslRequest
+  -48`/`FreeAslRequest -54`/`FreeFileRequest -36` (SYS_Asl_* 139-141).
+  `struct CaraAslReq` = public union at offset 0 + type/config/path bufs;
+  AllocAslRequest parses the initial-drawer/file/title/window tags. asl
+  coverage 50% (3 impl). `KERNEL_TEST(asl_alloc)`. **NEXT: L9.2** —
+  `AslRequest -60` for ASL_FileRequest (a string-entry modal: drawer +
+  file STRING gadgets + OK/Cancel over the L5 `Croi_Requester_Build`/
+  `Wait` pre-post seam; on OK copy the fields into rf_Dir/rf_File) +
+  `AllocFileRequest -30`/`RequestFile -42` legacy. Then L9.3 font
+  (CYCLE→fo_Attr) + screen-mode. Test via the requester pre-post GADGETUP
+  seam. After L9: L10–14 long tail → T tools → A apps.
   After L8: L9 asl → L10–14 long tail → T tools → A apps. L7 tracked
   gaps: concrete BOOPSI classes (gadgetclass/imageclass/icclass/
   modelclass), `DoGadgetMethodA`, `OM_NOTIFY`, FreeClass reaping,
