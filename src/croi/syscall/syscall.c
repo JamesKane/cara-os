@@ -17,6 +17,7 @@
 #include <cara/exec_lib.h>
 #include <cara/gadtools_lib.h>
 #include <cara/graphics_lib.h>
+#include <cara/iffparse_lib.h>
 #include <cara/intuition_lib.h>
 #include <cara/log.h>
 #include <cara/sched.h>
@@ -481,6 +482,21 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)(uptr)Croi_Asl_AllocFileRequest_Impl();
     case SYS_Asl_RequestFile:
         return (i64)Croi_Asl_RequestFile_Impl((struct FileRequester *)(uptr)a0);
+
+    // ---- iffparse.library handle lifecycle (L10) ----
+    case SYS_Iff_AllocIFF:
+        return (i64)(uptr)Croi_Iff_AllocIFF_Impl();
+    case SYS_Iff_OpenIFF:
+        return (i64)Croi_Iff_OpenIFF_Impl((struct IFFHandle *)(uptr)a0, (LONG)a1);
+    case SYS_Iff_CloseIFF:
+        Croi_Iff_CloseIFF_Impl((struct IFFHandle *)(uptr)a0);
+        return 0;
+    case SYS_Iff_FreeIFF:
+        Croi_Iff_FreeIFF_Impl((struct IFFHandle *)(uptr)a0);
+        return 0;
+    case SYS_Iff_InitIFFasDOS:
+        Croi_Iff_InitIFFasDOS_Impl((struct IFFHandle *)(uptr)a0);
+        return 0;
 
     // ---- exec device IO primitives (L6) ----
     case SYS_OpenDevice:

@@ -29,6 +29,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | graphics.library | 154 | 24 | 0 | 126 | 4 | 16% |
 | gadtools.library | 23 | 17 | 0 | 2 | 4 | 89% |
 | asl.library | 10 | 6 | 0 | 0 | 4 | 100% |
+| iffparse.library | 39 | 5 | 0 | 30 | 4 | 14% |
 | cruth.library | 23 | 9 | 10 | 0 | 4 | 100% |
 
 ## exec.library
@@ -357,6 +358,30 @@ ABI surface declared through LVO -60 (ordinal 9). 6 user-callable slots: **6 imp
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
 _none — fully declared surface is implemented_
+
+## iffparse.library
+
+ABI surface declared through LVO -234 (ordinal 38). 35 user-callable slots: **5 impl**, 0 server, **30 stub**; coverage **14%**.
+
+### Implemented (5)
+
+| ord | LVO | name | flavour |
+|----:|----:|------|---------|
+| 4 | -30 | `AllocIFF` | syscall |
+| 5 | -36 | `OpenIFF` | syscall |
+| 7 | -48 | `CloseIFF` | syscall |
+| 8 | -54 | `FreeIFF` | syscall |
+| 36 | -222 | `InitIFFasDOS` | syscall |
+
+### Unimplemented stub slots (30)
+
+Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
+
+| ord range | LVO range | count |
+|-----------|-----------|------:|
+| 6..6 | -42..-42 | 1 |
+| 9..35 | -60..-216 | 27 |
+| 37..38 | -228..-234 | 2 |
 
 ## cruth.library
 

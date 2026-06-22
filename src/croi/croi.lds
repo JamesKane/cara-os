@@ -213,6 +213,10 @@ SECTIONS
         /* asl.library's `syscall`-flavour trampolines (L9). Same shared
          * RX+U region; asl's base + vec live in the SASOS shared heap. */
         KEEP(*(.lib_text.asl))
+        /* iffparse.library's `syscall`-flavour trampolines (L10). Same
+         * shared RX+U region; iffparse's base + vec live in the SASOS
+         * shared heap. */
+        KEEP(*(.lib_text.iffparse))
         . = ALIGN(4K);
         __exec_lib_end = .;
     } > LIB_VIRT AT > RAM_PHYS :lib_exec

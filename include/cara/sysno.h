@@ -194,6 +194,13 @@ enum {
     SYS_Asl_AslRequest = 142,
     SYS_Asl_AllocFileRequest = 143,
     SYS_Asl_RequestFile = 144,
+
+    // Phase 3 L10 — iffparse.library handle lifecycle (iffparse_lib.c).
+    SYS_Iff_AllocIFF = 145,
+    SYS_Iff_OpenIFF = 146,
+    SYS_Iff_CloseIFF = 147,
+    SYS_Iff_FreeIFF = 148,
+    SYS_Iff_InitIFFasDOS = 149,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -353,6 +360,11 @@ enum {
 #define SYS_Asl_AslRequest 142
 #define SYS_Asl_AllocFileRequest 143
 #define SYS_Asl_RequestFile 144
+#define SYS_Iff_AllocIFF 145
+#define SYS_Iff_OpenIFF 146
+#define SYS_Iff_CloseIFF 147
+#define SYS_Iff_FreeIFF 148
+#define SYS_Iff_InitIFFasDOS 149
 #endif
 
 #endif
