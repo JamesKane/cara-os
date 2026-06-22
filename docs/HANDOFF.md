@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+d4d275a phase-3/L10.3 iffparse write side (PushChunk/PopChunk/WriteChunkBytes)
 16d76cc phase-3/L10.2 iffparse read walk (ParseIFF/StopChunk/ReadChunkBytes/CurrentChunk)
 fbb3997 phase-3/L10.1 iffparse.library + handle lifecycle (AllocIFF/Open/Close/Free/InitIFFasDOS)
 18a98d2 docs          scope L10 iffparse.library (docs/IFFPARSE.md)
@@ -94,8 +95,8 @@ a286aa0 phase-2/F1    CaraFS bdev + cache + mkfs/fsck v0
 ```
 
 Status: everything green — host ctest **27/27**, in-kernel tests
-**52 passed / 0 failed** (L10.1 `iffparse_lifecycle`; L10.2 extended
-`userexec_smoke` with the IFF read round-trip), QEMU
+**52 passed / 0 failed** (L10.1 `iffparse_lifecycle`; L10.2/L10.3
+extended `userexec_smoke` with the IFF write→read round-trip), QEMU
 boot smoke ok (two boots: partition +
 format + startup-sequence + Clar drawer file persists; plus the P0
 `v36hello_smoke`), `format-check` clean. (Host suite ~20–25 s.)
@@ -875,14 +876,22 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   StopChunk'd chunk; ReadChunkBytes clamps to the chunk. iffparse coverage
   34% (12 impl). Tested by extending **userexec_smoke** (a Process — a
   KERNEL_TEST can't open dos files): write a raw IFF FORM ILBM via dos,
-  reopen, ParseIFF(SCAN) to BODY, ReadChunkBytes "hello!". **NEXT: L10.3**
-  — the write side: `WriteChunkBytes -66`/`WriteChunkRecords -78`,
-  `PushChunk -84`/`PopChunk -90` (write the chunk header with size
-  IFFSIZE_UNKNOWN, backpatch at PopChunk via `Croi_Dos_Seek` + rewrite;
-  OpenIFF(write) primes; pad odd chunks). Extend userexec to write the
-  FORM with iffparse + read it back (full round-trip). Then L10.4 props/
-  collections/context-items (`PropChunk`/`FindProp`/`CollectionChunk`/
-  `FindCollection`/`StoreItemInContext`/`FindLocalItem`). After L10:
+  reopen, ParseIFF(SCAN) to BODY, ReadChunkBytes "hello!".
+- **L10.3 shipped (`d4d275a`): the write side.** `PushChunk -84`/
+  `PopChunk -90`, `WriteChunkBytes -66`/`WriteChunkRecords -78`
+  (SYS_Iff_* 157-160). PushChunk writes the header (size placeholder +
+  group type), PopChunk pads + backpatches the true size via Seek (CaraFS
+  overwrites at offset) + accounts it against the FORM. `IFFSIZE_UNKNOWN`
+  supported. userexec_smoke is now a full iffparse write→read round-trip.
+  iffparse coverage 45% (16 impl). **NEXT: L10.4** (closes L10) — props/
+  collections/context-items: `PropChunk -108`/`PropChunks -114`/`FindProp
+  -150` (gather a chunk into a StoredProperty during SCAN),
+  `CollectionChunk -120`/`CollectionChunks -126`/`FindCollection -156`
+  (CollectionItem list), `StoreItemInContext -210`/`FindLocalItem -198`/
+  `AllocLocalItem -174`/`LocalItemData -180`/`SetLocalItemPurge -186`/
+  `FreeLocalItem -192`/`StoreLocalItem -204` (the local-item system the
+  prop/collection gather is built on). Gather happens in ParseIFF SCAN
+  when stepping over a registered prop/collection chunk. After L10:
   L11-14 = icon.library (.info ↔ CARAFS cara.icon
   xattr §3.10; file-manager), diskfont, commodities, expansion — scope
   each. Then T tools → A apps. Standing deferred substrate an app may
