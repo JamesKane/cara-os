@@ -12,6 +12,7 @@
 // Croi_*_Impl helper from src/croi/exec_lib/.
 
 #include <cara/asl_lib.h>
+#include <cara/commodities_lib.h>
 #include <cara/device.h>
 #include <cara/diskfont_lib.h>
 #include <cara/dos_lib.h>
@@ -568,6 +569,42 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)(uptr)Croi_Diskfont_NewFontContents_Impl((BPTR)(uptr)a0, (STRPTR)(uptr)a1);
     case SYS_Diskfont_DisposeFontContents:
         Croi_Diskfont_DisposeFontContents_Impl((struct FontContentsHeader *)(uptr)a0);
+        return 0;
+
+    // ---- commodities.library CxObj object model (L13) ----
+    case SYS_Cx_CreateCxObj:
+        return (i64)(uptr)Croi_Cx_CreateCxObj_Impl((ULONG)a0, (IPTR)a1, (IPTR)a2);
+    case SYS_Cx_CxBroker:
+        return (i64)(uptr)Croi_Cx_CxBroker_Impl((struct NewBroker *)(uptr)a0, (LONG *)(uptr)a1);
+    case SYS_Cx_ActivateCxObj:
+        return (i64)Croi_Cx_ActivateCxObj_Impl((struct CxObj *)(uptr)a0, (LONG)a1);
+    case SYS_Cx_DeleteCxObj:
+        Croi_Cx_DeleteCxObj_Impl((struct CxObj *)(uptr)a0);
+        return 0;
+    case SYS_Cx_DeleteCxObjAll:
+        Croi_Cx_DeleteCxObjAll_Impl((struct CxObj *)(uptr)a0);
+        return 0;
+    case SYS_Cx_CxObjType:
+        return (i64)Croi_Cx_CxObjType_Impl((struct CxObj *)(uptr)a0);
+    case SYS_Cx_CxObjError:
+        return (i64)Croi_Cx_CxObjError_Impl((struct CxObj *)(uptr)a0);
+    case SYS_Cx_ClearCxObjError:
+        Croi_Cx_ClearCxObjError_Impl((struct CxObj *)(uptr)a0);
+        return 0;
+    case SYS_Cx_SetCxObjPri:
+        return (i64)Croi_Cx_SetCxObjPri_Impl((struct CxObj *)(uptr)a0, (LONG)a1);
+    case SYS_Cx_AttachCxObj:
+        Croi_Cx_AttachCxObj_Impl((struct CxObj *)(uptr)a0, (struct CxObj *)(uptr)a1);
+        return 0;
+    case SYS_Cx_EnqueueCxObj:
+        Croi_Cx_EnqueueCxObj_Impl((struct CxObj *)(uptr)a0, (struct CxObj *)(uptr)a1);
+        return 0;
+    case SYS_Cx_InsertCxObj:
+        Croi_Cx_InsertCxObj_Impl((struct CxObj *)(uptr)a0, (struct CxObj *)(uptr)a1,
+                                 (struct CxObj *)(uptr)a2);
+        return 0;
+    case SYS_Cx_RemoveCxObj:
+        Croi_Cx_RemoveCxObj_Impl((struct CxObj *)(uptr)a0);
         return 0;
 
     // ---- exec device IO primitives (L6) ----

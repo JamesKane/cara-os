@@ -229,6 +229,19 @@ enum {
     SYS_Diskfont_AvailFonts = 175,
     SYS_Diskfont_NewFontContents = 176,
     SYS_Diskfont_DisposeFontContents = 177,
+    SYS_Cx_CreateCxObj = 178,
+    SYS_Cx_CxBroker = 179,
+    SYS_Cx_ActivateCxObj = 180,
+    SYS_Cx_DeleteCxObj = 181,
+    SYS_Cx_DeleteCxObjAll = 182,
+    SYS_Cx_CxObjType = 183,
+    SYS_Cx_CxObjError = 184,
+    SYS_Cx_ClearCxObjError = 185,
+    SYS_Cx_SetCxObjPri = 186,
+    SYS_Cx_AttachCxObj = 187,
+    SYS_Cx_EnqueueCxObj = 188,
+    SYS_Cx_InsertCxObj = 189,
+    SYS_Cx_RemoveCxObj = 190,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -421,6 +434,19 @@ enum {
 #define SYS_Diskfont_AvailFonts 175
 #define SYS_Diskfont_NewFontContents 176
 #define SYS_Diskfont_DisposeFontContents 177
+#define SYS_Cx_CreateCxObj 178
+#define SYS_Cx_CxBroker 179
+#define SYS_Cx_ActivateCxObj 180
+#define SYS_Cx_DeleteCxObj 181
+#define SYS_Cx_DeleteCxObjAll 182
+#define SYS_Cx_CxObjType 183
+#define SYS_Cx_CxObjError 184
+#define SYS_Cx_ClearCxObjError 185
+#define SYS_Cx_SetCxObjPri 186
+#define SYS_Cx_AttachCxObj 187
+#define SYS_Cx_EnqueueCxObj 188
+#define SYS_Cx_InsertCxObj 189
+#define SYS_Cx_RemoveCxObj 190
 #endif
 
 #endif

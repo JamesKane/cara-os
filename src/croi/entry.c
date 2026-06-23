@@ -45,6 +45,7 @@
 #include <graphics/gfxbase.h>
 #include <intuition/intuitionbase.h>
 #include <libraries/asl.h>
+#include <libraries/commodities.h>
 #include <libraries/diskfont.h>
 #include <libraries/gadtools.h>
 #include <libraries/iffparse.h>
@@ -125,6 +126,10 @@ extern const usize icon_lib_vec_count;
 // Generated from tools/lvo-gen/diskfont.conf (L12.2). diskfont.library.
 extern void *diskfont_lib_vec[];
 extern const usize diskfont_lib_vec_count;
+
+// Generated from tools/lvo-gen/commodities.conf (L13.1). commodities.library.
+extern void *commodities_lib_vec[];
+extern const usize commodities_lib_vec_count;
 
 // Clar (the Phase 1 Workbench Gleas) embedded in the .user_elf section
 // (src/croi/CMakeLists.txt user_blob.S). Spawned as the foreground task
@@ -887,6 +892,41 @@ static void console_putc(char c)
         struct Library *base = Croi_MakeLibrary(mklib_tags);
         if (!base) {
             LOG_FATAL("entry", "Croi_MakeLibrary(diskfont.library) failed");
+            Croi_Halt();
+        }
+    }
+
+    // ---- Construct commodities.library (L13.1).
+    //      Same shared-heap layout. CxBase has no public fields past
+    //      LibNode (priv_size 0). L13.1 ships the reserved hooks + the CxObj
+    //      object model (the broker tree); ParseIX + the CxMsg accessors +
+    //      live input dispatch arrive with later slices.
+    {
+        usize priv_size = sizeof(struct CxBase) - sizeof(struct Library);
+        usize neg_size = sizeof(void *) * commodities_lib_vec_count;
+        usize block_size = neg_size + sizeof(struct Library) + priv_size;
+
+        u8 *block = (u8 *)Croi_AllocShared(block_size);
+        if (!block) {
+            LOG_FATAL("entry", "AllocShared(commodities.library, %llu bytes) failed",
+                      (u64)block_size);
+            Croi_Halt();
+        }
+        struct Library *cbase = (struct Library *)(block + neg_size);
+
+        struct TagItem mklib_tags[] = {
+            { MKL_NAME, (IPTR) "commodities.library" },
+            { MKL_BASE, (IPTR)cbase },
+            { MKL_VEC_TABLE, (IPTR)commodities_lib_vec },
+            { MKL_VEC_COUNT, (IPTR)commodities_lib_vec_count },
+            { MKL_VERSION, 36 },
+            { MKL_REVISION, 0 },
+            { MKL_PRIVATE_SIZE, (IPTR)priv_size },
+            { TAG_END, 0 },
+        };
+        struct Library *base = Croi_MakeLibrary(mklib_tags);
+        if (!base) {
+            LOG_FATAL("entry", "Croi_MakeLibrary(commodities.library) failed");
             Croi_Halt();
         }
     }

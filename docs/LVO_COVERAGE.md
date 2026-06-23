@@ -32,6 +32,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | iffparse.library | 39 | 22 | 0 | 13 | 4 | 62% |
 | icon.library | 23 | 10 | 0 | 9 | 4 | 52% |
 | diskfont.library | 9 | 4 | 0 | 1 | 4 | 80% |
+| commodities.library | 22 | 13 | 0 | 5 | 4 | 72% |
 | cruth.library | 23 | 9 | 10 | 0 | 4 | 100% |
 
 ## exec.library
@@ -452,6 +453,36 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 | ord range | LVO range | count |
 |-----------|-----------|------:|
 | 8..8 | -54..-54 | 1 |
+
+## commodities.library
+
+ABI surface declared through LVO -132 (ordinal 21). 18 user-callable slots: **13 impl**, 0 server, **5 stub**; coverage **72%**.
+
+### Implemented (13)
+
+| ord | LVO | name | flavour |
+|----:|----:|------|---------|
+| 4 | -30 | `CreateCxObj` | syscall |
+| 5 | -36 | `CxBroker` | syscall |
+| 6 | -42 | `ActivateCxObj` | syscall |
+| 7 | -48 | `DeleteCxObj` | syscall |
+| 8 | -54 | `DeleteCxObjAll` | syscall |
+| 9 | -60 | `CxObjType` | syscall |
+| 10 | -66 | `CxObjError` | syscall |
+| 11 | -72 | `ClearCxObjError` | syscall |
+| 12 | -78 | `SetCxObjPri` | syscall |
+| 13 | -84 | `AttachCxObj` | syscall |
+| 14 | -90 | `EnqueueCxObj` | syscall |
+| 15 | -96 | `InsertCxObj` | syscall |
+| 16 | -102 | `RemoveCxObj` | syscall |
+
+### Unimplemented stub slots (5)
+
+Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
+
+| ord range | LVO range | count |
+|-----------|-----------|------:|
+| 17..21 | -108..-132 | 5 |
 
 ## cruth.library
 

@@ -172,6 +172,7 @@ if(CARA_TARGET STREQUAL "host")
                 "${CMAKE_SOURCE_DIR}/tools/lvo-gen/iffparse.conf"
                 "${CMAKE_SOURCE_DIR}/tools/lvo-gen/icon.conf"
                 "${CMAKE_SOURCE_DIR}/tools/lvo-gen/diskfont.conf"
+                "${CMAKE_SOURCE_DIR}/tools/lvo-gen/commodities.conf"
                 "${CMAKE_SOURCE_DIR}/tools/lvo-gen/cruth.conf"
         DEPENDS lvo-gen
         VERBATIM
