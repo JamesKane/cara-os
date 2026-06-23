@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+80f476c phase-3/L11.3 icon.library tool-type/revision helpers — closes L11 (FindToolType/MatchToolValue/BumpRevision)
 314d0d9 phase-3/L11.2 icon.library write side + defaults (PutDiskObject/DeleteDiskObject/GetDiskObjectNew/Get+PutDefDiskObject)
 8dabe86 phase-3/L11.1 icon.library foundation + CaraFS xattr layer + GetDiskObject
 38a97b4 docs          scope L11 icon.library (docs/ICON.md)
@@ -943,14 +944,22 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   too. Tested by a full `userexec` Gleas round-trip (Put→Get→assert
   fields→Delete→GetDiskObjectNew default→Put/GetDefDiskObject drawer;
   exit `0xBAE2`); persistence covered by the two-boot smoke. icon coverage
-  36% (7/19). **NEXT: L11.3** (closes L11) — the pure-string `local`
-  helpers: `FindToolType -90` (scan `do_ToolTypes` for a "KEY[=VAL]"),
-  `MatchToolValue -96` (match a value against a `a|b|c` list),
-  `BumpRevision -102` (build a "copy_N_of_name"). `local` flavour → a
-  `.lib_text.icon` RX-page TU (RX rules: force-inline helpers,
-  self-contained, no out-of-section calls); tested from the Gleas over a
-  static `char *[]`. After L11: L12-14 = diskfont, commodities, expansion.
-  Old L10.4 note kept below.
+  36% (7/19).
+- **L11.3 shipped (`80f476c`): tool-type/revision helpers — closes L11.**
+  `FindToolType -90`/`MatchToolValue -96`/`BumpRevision -102`, `local`
+  flavour: pure string ops in the `.lib_text.icon` RX page, JALR'd from
+  U-mode with no trampoline (no sysno/syscall arm). `src/croi/icon/
+  icon_strings.c` follows the RX-page discipline — self-contained, helpers
+  always-inlined, no string literals (chars emitted directly so nothing
+  lands in `.rodata` ~1 GiB away), `-fno-jump-tables` on the TU. userexec
+  exercises all three. icon coverage 52% (10/19) — the full DiskObject +
+  tool-type API is done; the legacy freelist LVOs (GetWBObject/GetIcon/
+  AddFreeList/…) stay permanently stubbed (no modern caller). **L11 is
+  CLOSED. NEXT: L12** — `scope L12`. L12-14 = diskfont.library,
+  commodities.library, expansion.library (FDT-backed AutoConfig analogue);
+  each ABI-complete, impl what an app exercises, scope doc first. Then T
+  tools → A apps (`docs/PORTING.md` + editor/paint/file-manager — the
+  file-manager now has its icon backing). Old L10.4 note kept below.
 
   (Superseded note) After L10:
   L11-14 = icon.library (.info ↔ CARAFS cara.icon
