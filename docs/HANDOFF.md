@@ -24,6 +24,8 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+ffb6b0a phase-3/L12.1 Dath text renders from a generic TextFont strike (topaz reframed; foundation for disk fonts)
+3d03087 docs          scope L12 diskfont.library (docs/DISKFONT.md)
 80f476c phase-3/L11.3 icon.library tool-type/revision helpers — closes L11 (FindToolType/MatchToolValue/BumpRevision)
 314d0d9 phase-3/L11.2 icon.library write side + defaults (PutDiskObject/DeleteDiskObject/GetDiskObjectNew/Get+PutDefDiskObject)
 8dabe86 phase-3/L11.1 icon.library foundation + CaraFS xattr layer + GetDiskObject
@@ -955,11 +957,40 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   exercises all three. icon coverage 52% (10/19) — the full DiskObject +
   tool-type API is done; the legacy freelist LVOs (GetWBObject/GetIcon/
   AddFreeList/…) stay permanently stubbed (no modern caller). **L11 is
-  CLOSED. NEXT: L12** — `scope L12`. L12-14 = diskfont.library,
-  commodities.library, expansion.library (FDT-backed AutoConfig analogue);
-  each ABI-complete, impl what an app exercises, scope doc first. Then T
-  tools → A apps (`docs/PORTING.md` + editor/paint/file-manager — the
-  file-manager now has its icon backing). Old L10.4 note kept below.
+  CLOSED.**
+- **L12 — diskfont.library: SCOPED (`3d03087`, `docs/DISKFONT.md`).** Two
+  halves meeting at `struct TextFont`: a loader (new `src/croi/diskfont`)
+  + a Dath rendering change. Decisions: a CaraOS-native **Cara font file**
+  (flat serialised classic bitmap strike — no 68k hunk); render from a
+  generic `TextFont` strike (topaz reframed); fonts under `FONTS:` read via
+  dos; syscall flavour; outline/colour/scaled fonts + a unified
+  OpenFont/OpenDiskFont font list deferred.
+- **L12.1 shipped (`ffb6b0a`): Dath renders from a generic strike.**
+  graphics.library `Text`/`TextLength` (`src/croi/dath/graphics_lib.c`) now
+  render/measure from the bound `rp->Font` strike — `tf_CharData`
+  (horizontal strike, `tf_Modulo` bytes/row), `tf_CharLoc` =
+  `(bitOffset<<16)|bitWidth`, default-glyph fallback, advance by
+  `tf_CharSpace` (proportional) else `tf_XSize` — not the hardwired
+  `dath_font_8x8`. The built-in topaz is reframed as a strike
+  (`gfx_build_system_strike` packs the row-major-per-glyph 8x8 into a
+  horizontal strip; `tf_CharData`/`tf_CharLoc` point at kernel statics,
+  read S-mode, apps never deref). A pure refactor —
+  `KERNEL_TEST(graphics_text_strike)` renders 'A' and compares every pixel
+  to the source glyph. No new LVOs. **NEXT: L12.2** — diskfont.library
+  itself: the `src/croi/diskfont` `syscall` library (`diskfont.conf`/
+  `DiskfontBase`/`include/libraries/diskfont.h` ABI), the Cara font codec
+  (`§2.2` build/parse, host-unit-testable), and `OpenDiskFont -30` (derive
+  `FONTS:<name>/<ysize>`, read via the dos bridge, parse → `TextFont` with
+  `FPF_DISKFONT`; teach `CloseFont` to free a disk font). Test: a Gleas
+  writes a distinct Cara font to `FONTS:`, `OpenDiskFont`s it,
+  `SetFont`+`Text`, asserts the loaded glyphs render (not topaz). Then
+  **L12.3** — `AvailFonts`/`NewFontContents`/`DisposeFontContents` + asl
+  font-requester wiring (`NewScaledDiskFont` stub). L12 offsets to lock
+  against `diskfont_lib.fd`: OpenDiskFont -30, AvailFonts -36,
+  NewFontContents -42, DisposeFontContents -48, NewScaledDiskFont -54.
+  After L12: L13-14 = commodities, expansion. Then T tools → A apps
+  (`docs/PORTING.md` + editor/paint/file-manager). Old L10.4 note kept
+  below.
 
   (Superseded note) After L10:
   L11-14 = icon.library (.info ↔ CARAFS cara.icon
