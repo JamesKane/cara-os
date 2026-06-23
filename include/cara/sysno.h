@@ -250,6 +250,11 @@ enum {
     SYS_Cx_CxMsgType = 196,
     SYS_Cx_CxMsgData = 197,
     SYS_Cx_CxMsgID = 198,
+    SYS_Exp_AddConfigDev = 199,
+    SYS_Exp_AllocConfigDev = 200,
+    SYS_Exp_FindConfigDev = 201,
+    SYS_Exp_FreeConfigDev = 202,
+    SYS_Exp_RemConfigDev = 203,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -463,6 +468,11 @@ enum {
 #define SYS_Cx_CxMsgType 196
 #define SYS_Cx_CxMsgData 197
 #define SYS_Cx_CxMsgID 198
+#define SYS_Exp_AddConfigDev 199
+#define SYS_Exp_AllocConfigDev 200
+#define SYS_Exp_FindConfigDev 201
+#define SYS_Exp_FreeConfigDev 202
+#define SYS_Exp_RemConfigDev 203
 #endif
 
 #endif

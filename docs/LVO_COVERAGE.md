@@ -33,6 +33,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | icon.library | 23 | 10 | 0 | 9 | 4 | 52% |
 | diskfont.library | 9 | 4 | 0 | 1 | 4 | 80% |
 | commodities.library | 30 | 21 | 0 | 5 | 4 | 80% |
+| expansion.library | 25 | 5 | 0 | 16 | 4 | 23% |
 | cruth.library | 23 | 9 | 10 | 0 | 4 | 100% |
 
 ## exec.library
@@ -492,6 +493,32 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 |-----------|-----------|------:|
 | 21..24 | -132..-150 | 4 |
 | 26..26 | -162..-162 | 1 |
+
+## expansion.library
+
+ABI surface declared through LVO -150 (ordinal 24). 21 user-callable slots: **5 impl**, 0 server, **16 stub**; coverage **23%**.
+
+### Implemented (5)
+
+| ord | LVO | name | flavour |
+|----:|----:|------|---------|
+| 4 | -30 | `AddConfigDev` | syscall |
+| 7 | -48 | `AllocConfigDev` | syscall |
+| 11 | -72 | `FindConfigDev` | syscall |
+| 13 | -84 | `FreeConfigDev` | syscall |
+| 21 | -132 | `RemConfigDev` | syscall |
+
+### Unimplemented stub slots (16)
+
+Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
+
+| ord range | LVO range | count |
+|-----------|-----------|------:|
+| 5..6 | -36..-42 | 2 |
+| 8..10 | -54..-66 | 3 |
+| 12..12 | -78..-78 | 1 |
+| 14..20 | -90..-126 | 7 |
+| 22..24 | -138..-150 | 3 |
 
 ## cruth.library
 

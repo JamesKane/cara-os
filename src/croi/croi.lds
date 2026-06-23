@@ -229,6 +229,10 @@ SECTIONS
          * shared RX+U region; commodities's base + vec live in the SASOS
          * shared heap. */
         KEEP(*(.lib_text.commodities))
+        /* expansion.library's `syscall`-flavour trampolines (L14). Same
+         * shared RX+U region; expansion's base + vec live in the SASOS
+         * shared heap. */
+        KEEP(*(.lib_text.expansion))
         . = ALIGN(4K);
         __exec_lib_end = .;
     } > LIB_VIRT AT > RAM_PHYS :lib_exec

@@ -46,6 +46,7 @@
 #include <intuition/intuitionbase.h>
 #include <libraries/asl.h>
 #include <libraries/commodities.h>
+#include <libraries/configvars.h>
 #include <libraries/diskfont.h>
 #include <libraries/gadtools.h>
 #include <libraries/iffparse.h>
@@ -130,6 +131,10 @@ extern const usize diskfont_lib_vec_count;
 // Generated from tools/lvo-gen/commodities.conf (L13.1). commodities.library.
 extern void *commodities_lib_vec[];
 extern const usize commodities_lib_vec_count;
+
+// Generated from tools/lvo-gen/expansion.conf (L14.1). expansion.library.
+extern void *expansion_lib_vec[];
+extern const usize expansion_lib_vec_count;
 
 // Clar (the Phase 1 Workbench Gleas) embedded in the .user_elf section
 // (src/croi/CMakeLists.txt user_blob.S). Spawned as the foreground task
@@ -927,6 +932,41 @@ static void console_putc(char c)
         struct Library *base = Croi_MakeLibrary(mklib_tags);
         if (!base) {
             LOG_FATAL("entry", "Croi_MakeLibrary(commodities.library) failed");
+            Croi_Halt();
+        }
+    }
+
+    // ---- Construct expansion.library (L14.1).
+    //      Same shared-heap layout. ExpansionBase has no public fields past
+    //      LibNode (priv_size 0). L14.1 ships the reserved hooks + the
+    //      ConfigDev list ops; the list is the FDT/PCI boot inventory
+    //      presented as ConfigDevs (built lazily on first FindConfigDev).
+    {
+        usize priv_size = sizeof(struct ExpansionBase) - sizeof(struct Library);
+        usize neg_size = sizeof(void *) * expansion_lib_vec_count;
+        usize block_size = neg_size + sizeof(struct Library) + priv_size;
+
+        u8 *block = (u8 *)Croi_AllocShared(block_size);
+        if (!block) {
+            LOG_FATAL("entry", "AllocShared(expansion.library, %llu bytes) failed",
+                      (u64)block_size);
+            Croi_Halt();
+        }
+        struct Library *ebase = (struct Library *)(block + neg_size);
+
+        struct TagItem mklib_tags[] = {
+            { MKL_NAME, (IPTR) "expansion.library" },
+            { MKL_BASE, (IPTR)ebase },
+            { MKL_VEC_TABLE, (IPTR)expansion_lib_vec },
+            { MKL_VEC_COUNT, (IPTR)expansion_lib_vec_count },
+            { MKL_VERSION, 36 },
+            { MKL_REVISION, 0 },
+            { MKL_PRIVATE_SIZE, (IPTR)priv_size },
+            { TAG_END, 0 },
+        };
+        struct Library *base = Croi_MakeLibrary(mklib_tags);
+        if (!base) {
+            LOG_FATAL("entry", "Croi_MakeLibrary(expansion.library) failed");
             Croi_Halt();
         }
     }

@@ -17,6 +17,7 @@
 #include <cara/diskfont_lib.h>
 #include <cara/dos_lib.h>
 #include <cara/exec_lib.h>
+#include <cara/expansion_lib.h>
 #include <cara/gadtools_lib.h>
 #include <cara/graphics_lib.h>
 #include <cara/icon_lib.h>
@@ -626,6 +627,22 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)(uptr)Croi_Cx_CxMsgData_Impl((struct CxMsg *)(uptr)a0);
     case SYS_Cx_CxMsgID:
         return (i64)Croi_Cx_CxMsgID_Impl((struct CxMsg *)(uptr)a0);
+
+    // ---- expansion.library ConfigDev list (L14) ----
+    case SYS_Exp_AddConfigDev:
+        Croi_Exp_AddConfigDev_Impl((struct ConfigDev *)(uptr)a0);
+        return 0;
+    case SYS_Exp_AllocConfigDev:
+        return (i64)(uptr)Croi_Exp_AllocConfigDev_Impl();
+    case SYS_Exp_FindConfigDev:
+        return (i64)(uptr)Croi_Exp_FindConfigDev_Impl((struct ConfigDev *)(uptr)a0, (LONG)a1,
+                                                      (LONG)a2);
+    case SYS_Exp_FreeConfigDev:
+        Croi_Exp_FreeConfigDev_Impl((struct ConfigDev *)(uptr)a0);
+        return 0;
+    case SYS_Exp_RemConfigDev:
+        Croi_Exp_RemConfigDev_Impl((struct ConfigDev *)(uptr)a0);
+        return 0;
 
     // ---- exec device IO primitives (L6) ----
     case SYS_OpenDevice:
