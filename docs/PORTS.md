@@ -127,7 +127,13 @@ current surface is part of T.1.
 
 ## 3. Slice plan
 
-### T.1 — the userland libc + SDK harness
+> **Status:** T.1 ✅ (`c6ae1f2`, the libc) and T.2 ✅ (`bc87a9c`, Dhrystone
+> 1.1 builds + runs unedited). But T.2 exposed a deeper gap — see §6: apps
+> are still *embedded* and spawned by a test, not *launched*. T.3 is now the
+> AmigaDOS launch path (Shell + LoadSeg + RunCommand + argv + console
+> input); the first GUI app moves to T.4.
+
+### T.1 — the userland libc + SDK harness ✅
 
 - A `libcara_c` (BSD-2) under `src/userland`: `string.h`/`ctype.h`/
   `stdlib.h` (malloc over AllocVec) / `stdio.h` (printf/sprintf/vsnprintf +
@@ -142,16 +148,46 @@ current surface is part of T.1.
   ring/FDT tests); a `KERNEL_TEST`/Gleas that `printf`s via dos Output and
   `malloc`s a buffer. No third-party app yet.
 
-### T.2 — first real app: a console (dos-only) tool
+### T.2 — first real app: a console (dos-only) tool ✅
 
-- Recon + select the smallest license-clean real Amiga C CLI tool (exercises
-  dos + the new libc only — no GUI), vendor it under `ports/`, build it
-  **unmodified**, run it under QEMU reading/writing a CaraFS file.
-- **Done:** the tool runs to completion with correct output; every API/libc
-  gap it hits is filled (in the libc or the relevant library), tracked.
-  This proves the toolchain + libc + dos path end-to-end on *foreign* code.
+- Vendored **Dhrystone 1.1** (`ports/dhrystone/`, verbatim) — built
+  unmodified with `cara_port_flags` + `cara_user_libc`, runs under QEMU and
+  prints its result. Forced: `cara_port_flags` (gnu89 port toolchain),
+  `<sys/times.h>`/`times()` over `SYS_CurrentTime`, the `ports/` pattern.
+- **Caveat it surfaced (→ T.3):** the program is *embedded* (`.incbin`) and
+  *spawned by a `KERNEL_TEST`* — that is a test-harness shortcut, **not how
+  a real OS launches a program.** A real launch is: a Shell reads a command
+  line from a console, `LoadSeg`s the binary from the CaraFS volume, and
+  `RunCommand`s it as a Process with its argument string → `argv`. None of
+  that exists yet (§6). The embed path stays valid for headless self-tests;
+  the Shell is the real, interactive path.
 
-### T.3 — first real GUI app
+### T.3 — the AmigaDOS launch path: Shell + LoadSeg + RunCommand + argv (§6)
+
+The missing layer T.2 revealed. Sliced:
+
+- **T.3.1 — console input.** Keyboard → a reading Process's `Input()`
+  stream (today dos stdin is hardwired to EOF; HID reaches Leargas but no
+  console-input handler exists). A `CON:`-style line discipline (echo,
+  backspace, Enter) so `Read(Input(), …)` / `FGetC` return typed bytes.
+  Test: a Gleas reads a line and echoes it (keystrokes injected into the
+  input ring by a `KERNEL_TEST`, or via QEMU stdin).
+- **T.3.2 — LoadSeg + RunCommand + argv.** `LoadSeg`/`UnLoadSeg` (read an
+  ELF file off CaraFS via dos, hand it to `Croi_LoadElf`); `RunCommand`/
+  `CreateNewProc`/`SystemTagList` (spawn a loaded segment as a child
+  Process with a command tail, standard streams, current dir, `pr_CLI`);
+  `libcara` `_start` builds `argc`/`argv` from the command tail. Test: a
+  Gleas `LoadSeg`s + `RunCommand`s `dhrystone` *from a CaraFS file* (not the
+  embed) with an argument string and checks it ran — the real launch path,
+  minus the interactive shell.
+- **T.3.3 — the Shell + boot-to-shell (the milestone).** A userland `Shell`
+  Gleas: open a console, loop { prompt; read a line; parse; builtin
+  (`cd`/`dir`/`echo`) or `LoadSeg`+`RunCommand`; }. `entry.c` boots it as
+  the foreground CLI with a console window. **Done-bar:** boot CaraOS, get a
+  `>` prompt, type `dhrystone`, and watch the real benchmark run — a program
+  launched the way a real OS launches programs.
+
+### T.4 — first real GUI app
 
 - Recon + select a small license-clean intuition/gadtools app (a clock /
   calculator-class program — opens a window, gadtools gadgets, draws,
@@ -204,3 +240,43 @@ Every slice ends on the standing gate: host `ctest` green, in-kernel runner
 - **Licensing** — verify each app's license permits vendoring; otherwise
   fetch-at-build. Keep third-party source clearly separated under `ports/`
   with upstream license intact.
+
+---
+
+## 6. The missing launch layer (what T.3 builds)
+
+T.2 ran a real program, but the way it ran is a tell: the ELF is `.incbin`'d
+into the kernel image and a `KERNEL_TEST` calls `Croi_SpawnUserTaskFromElf`
+on the embedded blob. That is fine for an automated, headless self-test —
+but it is **not how an operating system launches a program**, and it
+quietly skips the layer that makes CaraOS feel like a system you can use.
+
+On AmigaOS, `dhrystone` runs because the **Shell** does this:
+
+1. it owns a **console** (`CON:` / a console window) that is its `Input()`
+   and `Output()`;
+2. it prints a prompt and **reads a command line** from that console;
+3. it parses the line into a command + a **command tail** (the argument
+   string);
+4. it resolves + **`LoadSeg`s** the executable **off the volume** into
+   memory (the dos loader / relocation);
+5. it **`RunCommand`s** the segment as a child **Process** — installing the
+   command tail (which the program's startup turns into `argc`/`argv`),
+   the standard streams, the current directory, and `pr_CLI`;
+6. it waits, reaps the child, and loops.
+
+CaraOS today has **none** of steps 1–6. Concretely: dos `Input()` is
+hardwired to immediate EOF (no console input — keyboard reaches Leargas but
+no console handler feeds a reading Process); `LoadSeg`/`UnLoadSeg`,
+`RunCommand`/`CreateNewProc`/`SystemTagList`, and `Execute` are all
+unimplemented; and `libcara`'s `_start` calls `main(void)` — there is no
+command tail → `argv`. So a program can only be *spawned by the kernel from
+an embedded blob*, never *launched by a user from a console*.
+
+This is the layer that L3 (dos) deliberately deferred — the process-launch
+half of AmigaDOS — and it is exactly what "run a real app" needs to be real.
+T.3 builds it (console input → `LoadSeg`-from-CaraFS → `RunCommand` + `argv`
+→ a `Shell`), so the milestone becomes: **boot CaraOS, get a prompt, type
+`dhrystone`, watch it run.** The embed path remains for headless tests; the
+Shell is the real, interactive path a user (and a ported app's own
+`System()`/`Execute()` calls) takes.
