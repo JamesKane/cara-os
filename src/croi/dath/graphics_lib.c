@@ -259,14 +259,55 @@ LONG Croi_Gfx_Blt_Impl(const struct GfxBltArgs *a)
 }
 
 // The single v0 system font — a TextFont describing dath_font_8x8, lazily
-// allocated in the shared heap (U-mode-readable). graphics.library has
-// one face in v0, so OpenFont returns this regardless of the TextAttr and
-// the rasteriser always renders from dath_font_8x8 (§5).
+// allocated in the shared heap (U-mode-readable). graphics.library has one
+// ROM face in v0, so OpenFont returns this regardless of the TextAttr. As
+// of L12.1 the font carries a real strike (tf_CharData/tf_Modulo/
+// tf_CharLoc) so the rasteriser renders any TextFont — ROM or disk-loaded
+// — through one path (docs/DISKFONT.md §2.3).
 static struct TextFont *g_system_font = nullptr;
+
+// The built-in 8x8 reframed as a classic horizontal strike: all glyphs
+// side by side, one byte per 8-pixel-wide glyph column, tf_Modulo bytes
+// per row. dath_font_8x8 is row-major-per-glyph (height bytes each), so
+// strike[r*modulo + g] is glyph g's row r. The last column (index
+// nGlyphs) is the blank default glyph for out-of-range codes. Built once;
+// the renderer reads these from S-mode, apps never touch tf_CharData.
+#define GFX_SYS_MAXGLYPH 96
+static u8 g_sysfont_strike[(GFX_SYS_MAXGLYPH + 1) * 8];
+static u32 g_sysfont_charloc[GFX_SYS_MAXGLYPH + 1];
+static bool g_sysfont_built = false;
+
+static bool gfx_build_system_strike(void)
+{
+    if (g_sysfont_built) {
+        return true;
+    }
+    u32 first = dath_font_8x8.first_glyph;
+    u32 last = dath_font_8x8.last_glyph;
+    if (dath_font_8x8.width != 8 || dath_font_8x8.height != 8 || last < first ||
+        (last - first + 1) > GFX_SYS_MAXGLYPH) {
+        return false; // strike packing assumes an 8x8 source within range
+    }
+    u32 ng = last - first + 1;
+    u32 modulo = ng + 1; // +1 blank default-glyph column
+    const u8 *src = dath_font_8x8.bitmap;
+    for (u32 g = 0; g < ng; g++) {
+        for (u32 r = 0; r < 8; r++) {
+            g_sysfont_strike[r * modulo + g] = src[g * 8 + r];
+        }
+        g_sysfont_charloc[g] = ((g * 8u) << 16) | 8u;
+    }
+    g_sysfont_charloc[ng] = ((ng * 8u) << 16) | 8u; // blank default
+    g_sysfont_built = true;
+    return true;
+}
 
 static struct TextFont *gfx_system_font(void)
 {
     if (!g_system_font) {
+        if (!gfx_build_system_strike()) {
+            return nullptr;
+        }
         struct TextFont *tf = (struct TextFont *)Croi_AllocShared(sizeof(*tf));
         if (!tf) {
             return nullptr;
@@ -278,11 +319,58 @@ static struct TextFont *gfx_system_font(void)
         tf->tf_LoChar = (UBYTE)dath_font_8x8.first_glyph;
         tf->tf_HiChar = (UBYTE)dath_font_8x8.last_glyph;
         tf->tf_Style = FS_NORMAL;
-        tf->tf_Flags = FPF_ROMFONT;
+        tf->tf_Flags = FPF_ROMFONT; // monospace (no FPF_PROPORTIONAL)
         tf->tf_Accessors = 1;
+        tf->tf_CharData = g_sysfont_strike;
+        tf->tf_Modulo = (UWORD)((dath_font_8x8.last_glyph - dath_font_8x8.first_glyph + 1) + 1);
+        tf->tf_CharLoc = g_sysfont_charloc;
+        tf->tf_CharSpace = nullptr; // monospace → advance by tf_XSize
+        tf->tf_CharKern = nullptr;
         g_system_font = tf;
     }
     return g_system_font;
+}
+
+// Render one glyph from a TextFont strike at (x, y); returns the advance.
+// Reads tf_CharData (horizontal strike, tf_Modulo bytes/row) indexed by
+// tf_CharLoc[glyph] = (bitOffset<<16)|bitWidth. Out-of-range codes use the
+// default glyph (slot nGlyphs). Advance is tf_CharSpace[glyph] for a
+// proportional font, else tf_XSize.
+static i32 gfx_draw_glyph(const struct DathFramebuffer *fb, const struct TextFont *tf, u32 code,
+                          i32 x, i32 y, DathColor fg, DathColor bg)
+{
+    u32 lo = tf->tf_LoChar, hi = tf->tf_HiChar;
+    u32 ng = (hi >= lo) ? (hi - lo + 1) : 0;
+    u32 idx = (code >= lo && code <= hi) ? (code - lo) : ng; // ng = default slot
+    const u8 *strike = (const u8 *)tf->tf_CharData;
+    const u32 *charloc = (const u32 *)tf->tf_CharLoc;
+    u32 modulo = tf->tf_Modulo;
+    u32 ysize = tf->tf_YSize;
+
+    u32 bitoff, width;
+    if (charloc) {
+        u32 loc = charloc[idx];
+        bitoff = loc >> 16;
+        width = loc & 0xFFFFu;
+    } else {
+        bitoff = idx * tf->tf_XSize;
+        width = tf->tf_XSize;
+    }
+    if (strike && modulo) {
+        for (u32 yy = 0; yy < ysize; yy++) {
+            const u8 *row = strike + (usize)yy * modulo;
+            for (u32 xx = 0; xx < width; xx++) {
+                u32 b = bitoff + xx;
+                bool set = (row[b >> 3] >> (7u - (b & 7u))) & 1u;
+                Dath_Pixel(fb, x + (i32)xx, y + (i32)yy, set ? fg : bg);
+            }
+        }
+    }
+    const UWORD *space = (const UWORD *)tf->tf_CharSpace;
+    if ((tf->tf_Flags & FPF_PROPORTIONAL) && space) {
+        return (i32)space[idx];
+    }
+    return (i32)tf->tf_XSize;
 }
 
 // OpenFont(textAttr) — v0 returns the single system font regardless of
@@ -311,22 +399,40 @@ void Croi_Gfx_SetFont_Impl(struct RastPort *rp, struct TextFont *textFont)
     rp->TxBaseline = textFont->tf_Baseline;
 }
 
-// TextLength(rp, string, count) — pixel width of `count` chars. Monospace
-// v0: count * the system font's width (rp->Font is the same single face).
+// TextLength(rp, string, count) — pixel width of `count` chars in the
+// bound font (rp->Font, or the system font). Monospace: count * tf_XSize;
+// proportional: the sum of per-glyph tf_CharSpace.
 LONG Croi_Gfx_TextLength_Impl(struct RastPort *rp, STRPTR string, ULONG count)
 {
-    (void)rp;
-    (void)string;
-    return (LONG)(count * dath_font_8x8.width);
+    struct TextFont *tf = (rp && rp->Font) ? rp->Font : gfx_system_font();
+    if (!tf) {
+        return 0;
+    }
+    const UWORD *space = (const UWORD *)tf->tf_CharSpace;
+    if ((tf->tf_Flags & FPF_PROPORTIONAL) && space && string) {
+        u32 lo = tf->tf_LoChar, hi = tf->tf_HiChar, ng = (hi >= lo) ? (hi - lo + 1) : 0;
+        LONG w = 0;
+        for (ULONG i = 0; i < count; i++) {
+            u32 c = (u32)(UBYTE)string[i];
+            u32 idx = (c >= lo && c <= hi) ? (c - lo) : ng;
+            w += (LONG)space[idx];
+        }
+        return w;
+    }
+    return (LONG)(count * tf->tf_XSize);
 }
 
-// Text(rp, string, count) — render `count` chars from the graphics cursor
-// in FgPen over BgPen (Dath_DrawChar), advancing the cursor. v0 treats
+// Text(rp, string, count) — render `count` chars of the bound font from
+// the graphics cursor in FgPen over BgPen, advancing the cursor. v0 treats
 // cp_y as the glyph TOP (not the AmigaDOS baseline) so cp_y=0 is visible
 // and it matches Leargas chrome rendering (§5).
 void Croi_Gfx_Text_Impl(struct RastPort *rp, STRPTR string, ULONG count)
 {
     if (!rp || !rp->BitMap || !string) {
+        return;
+    }
+    struct TextFont *tf = rp->Font ? rp->Font : gfx_system_font();
+    if (!tf) {
         return;
     }
     struct DathFramebuffer *fb = surf_of(rp->BitMap);
@@ -338,8 +444,7 @@ void Croi_Gfx_Text_Impl(struct RastPort *rp, STRPTR string, ULONG count)
     i32 x = rp->cp_x;
     i32 y = rp->cp_y;
     for (ULONG i = 0; i < count; i++) {
-        Dath_DrawChar(fb, &dath_font_8x8, x, y, (char)string[i], fg, bg);
-        x += (i32)dath_font_8x8.width;
+        x += gfx_draw_glyph(fb, tf, (u32)(UBYTE)string[i], x, y, fg, bg);
     }
     rp->cp_x = (WORD)x;
 }
