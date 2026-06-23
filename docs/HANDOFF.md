@@ -24,6 +24,8 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+c6ae1f2 phase-T/T.1   userland libc (cara_user_libc) — string/stdlib/stdio/ctype; the substrate for real ports
+3c75a0e docs          scope Phase T — port a real Amiga application (docs/PORTS.md)
 f4f0bcc phase-3/L14.1 expansion.library — FDT-backed AutoConfig ConfigDev list — closes L14 (L1-L14 surface in)
 e9a31a1 docs          scope L14 expansion.library (docs/EXPANSION.md)
 24031c9 phase-3/L13.2 commodities ParseIX + filter config + CxMsg accessors — closes L13
@@ -1069,16 +1071,37 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   list (one per PCI func), checks the func[0]→ConfigDev mapping, and a
   synthetic Alloc/Add/Find/Rem/Free round-trip.
 - **L10–L14 long tail COMPLETE; the whole L1–L14 V36+ library surface is in
-  place.** **NEXT: T tools → A apps** — `docs/PORTING.md` + the three
-  yardstick apps (editor, paint, file-manager), which now have their full
-  library backing (icon for the file-manager, iffparse+diskfont for paint,
-  gadtools/asl/intuition/graphics/dos for all). Scope the T/A phase next
-  (likely a `docs/` plan doc first, mirroring `docs/PHASE3.md`). **Deferred
-  (tracked) substrate an app may force forward:** the input-handler chain
-  (commodities' live half + intuition-as-handler), layers.library (window
-  occlusion), DrawImage (planar→chunky), async device IO, gadtools
-  LISTVIEW/PALETTE (→ asl dir browse), the asl font-requester→AvailFonts
-  wiring, iffparse custom stream hooks/clipboard. Old L10.4 note kept below.
+  place.**
+- **Phase T — port a real Amiga app: SCOPED (`3c75a0e`, `docs/PORTS.md`).**
+  Reframed (user directive): T is **not** writing our own editor/paint/
+  file-manager — it is **building a real third-party AmigaOS C application
+  from source, unedited, and running it under QEMU** (the true ABI-promise
+  validation). Recon: the gating work is substrate — (1) no userland libc,
+  (2) no out-of-tree SDK (vendor in-tree under `ports/` first), (3) ELF
+  load/spawn already exists. Ported source is third-party (own license
+  under `ports/`, not in the kernel image). App wells: AROS examples/tests
+  + PD Aminet.
+- **T.1 shipped (`c6ae1f2`): the userland libc `cara_user_libc`.**
+  `src/userland/libc/` (BSD-2): `string`/`ctype` (pure), `stdlib`
+  (`malloc`/`free`/`calloc`/`realloc` over exec AllocVec + strtol/atoi/abs/
+  qsort/rand/exit), a printf core (`fmt.c`), and `stdio` (s(n)printf +
+  line-buffered console printf over SYS_LOG_WRITE; stdout/stderr
+  sentinels). `PUBLIC` include dir supplies `<string.h>`/etc. under
+  -nostdlibinc. `libctest` (a real U-mode Gleas using the libc as a port
+  will) + `KERNEL_TEST(libctest_smoke)` assert it. PORTING.md refreshed
+  (§5 to the real surface — graphics drawing works; new §6 = libc + ports/
+  recipe). Deferred: disk FILE-over-dos, float printf, setjmp. **NEXT:
+  T.2** — pick + vendor the first real **console** (dos-only) Amiga C tool
+  under `ports/`, build it unmodified, run it under QEMU (a quick AROS-
+  examples / Aminet recon to select it); fill the libc/LVO gaps it forces
+  (likely FILE-over-dos for file reads). Then **T.3** — first real **GUI**
+  app (clock/calculator class) = the phase milestone.
+- **Deferred (tracked) substrate an app may force forward:** the input-
+  handler chain (commodities' live half + intuition-as-handler),
+  layers.library (window occlusion), DrawImage (planar→chunky), async
+  device IO, gadtools LISTVIEW/PALETTE (→ asl dir browse), the asl
+  font-requester→AvailFonts wiring, iffparse custom stream hooks/clipboard.
+  Old L10.4 note kept below.
 
   (Superseded note) After L10:
   L11-14 = icon.library (.info ↔ CARAFS cara.icon
