@@ -24,6 +24,8 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+8dabe86 phase-3/L11.1 icon.library foundation + CaraFS xattr layer + GetDiskObject
+38a97b4 docs          scope L11 icon.library (docs/ICON.md)
 8dd9182 phase-3/L10.4 iffparse props/collections — closes L10 (PropChunk/FindProp/CollectionChunk/FindCollection)
 d4d275a phase-3/L10.3 iffparse write side (PushChunk/PopChunk/WriteChunkBytes)
 16d76cc phase-3/L10.2 iffparse read walk (ParseIFF/StopChunk/ReadChunkBytes/CurrentChunk)
@@ -903,7 +905,42 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   local-item system was deemed out-of-scope substrate. userexec IFF
   round-trip now registers PropChunk(ILBM,BMHD) before SCAN and asserts
   FindProp returns the 4 BMHD bytes after stopping at BODY. iffparse
-  coverage 62% (22/39). **NEXT: L11** — after L10:
+  coverage 62% (22/39).
+- **L11 — icon.library: SCOPED (`38a97b4`, `docs/ICON.md`).** Two stacked
+  pieces — a CaraFS xattr layer + the library — because icon metadata
+  lives in an object's `cara.icon` xattr (CARAFS §3.10), not `.info`
+  sidecars. Decisions: new code over the F4-frozen format (the
+  `CARAFS_ITEM_XATTR` kind + `carafs_item_*` TLV helpers were already
+  reserved); compact versioned `CaraIconBlob` (no binary `.info`, imagery
+  deferred — file-manager draws a default glyph per `do_Type`);
+  `FindToolType`/`MatchToolValue`/`BumpRevision` `local` flavour; the
+  `XATTR_OVERFLOW` chain + legacy freelist API stubbed.
+- **L11.1 shipped (`8dabe86`): xattr substrate + library + read path.**
+  `Carafs_XattrGet/Set/Remove(m, cnode, name, …)` (`src/logaic/carafs/
+  xattr.c`): one `CARAFS_ITEM_XATTR` item holds a packed record list
+  `{u8 name_len; u8 flags; u16 val_len; name; val}`; Set closes the gap of
+  any prior record in place then `carafs_item_resize`s and appends; inline
+  only (`CARA_EOVERFLOW` past the cnode item budget). icon.library is the
+  iffparse recipe: base+vec in the shared heap, `.lib_text.icon` RX
+  trampolines, MakeLibrary in `entry.c`, whole-archived. `GetDiskObject`
+  (`SYS_Icon` 167) Locks the path → reads the xattr → parses the
+  `CaraIconBlob` into one shared-heap `struct DiskObject` (+ optional
+  `DrawerData` + `ToolTypes` vector + strings); `FreeDiskObject` (168)
+  frees it. New ABI headers `workbench/workbench.h` (DiskObject/DrawerData/
+  `WB*`) + `workbench/icon.h` (IconBase). icon coverage 10% (2/19). The
+  blob codec (`Croi_Icon_BlobBuild`/parse) + `Croi_Icon_ReadCnode(m,cnode)`
+  are exposed for the test. **NEXT: L11.2** — the write side + defaults:
+  `PutDiskObject -78`/`PutDefDiskObject -138`/`DeleteDiskObject -120`
+  (serialise back / remove the xattr), `GetDefDiskObject -132` (synthesise
+  a default DiskObject per `WB*` type), `GetDiskObjectNew -114` (Get else
+  GetDef). Test: a Gleas round-trip (PutDiskObject → reboot → GetDiskObject
+  same fields) — needs a Process for the by-name path Lock, so it can't be
+  a KERNEL_TEST (the L10 constraint); the two-boot smoke covers
+  persistence. Then **L11.3** — `FindToolType -90`/`MatchToolValue -96`/
+  `BumpRevision -102` (`local` flavour, RX page). After L11:
+  L12-14 = diskfont, commodities, expansion. Old L10.4 note kept below.
+
+  (Superseded note) After L10:
   L11-14 = icon.library (.info ↔ CARAFS cara.icon
   xattr §3.10; file-manager), diskfont, commodities, expansion — scope
   each. Then T tools → A apps. Standing deferred substrate an app may
