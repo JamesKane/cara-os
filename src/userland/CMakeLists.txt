@@ -25,6 +25,7 @@ add_library(cara_user_libc STATIC
     libc/stdlib.c
     libc/fmt.c
     libc/stdio.c
+    libc/times.c
 )
 target_include_directories(cara_user_libc PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libc/include")
 target_link_libraries(cara_user_libc PRIVATE cara_kernel_flags cara_headers)

@@ -27,6 +27,25 @@ if(CARA_TARGET STREQUAL "riscv64")
         -fstrict-aliasing
     )
     target_compile_definitions(cara_kernel_flags INTERFACE CARA_FREESTANDING=1)
+
+    # Flags for THIRD-PARTY ported applications (Phase T, docs/PORTS.md).
+    # Same freestanding target/ABI as the kernel, but era-appropriate and
+    # permissive: -std=gnu89 (K&R / pre-C99 source), warnings off (we don't
+    # own the source). CaraOS's own code stays strict c23 + -Werror; ported
+    # source builds with this so it compiles UNEDITED.
+    add_library(cara_port_flags INTERFACE)
+    target_compile_options(cara_port_flags INTERFACE
+        -ffreestanding
+        -nostdlibinc
+        -fno-stack-protector
+        -fno-builtin
+        -mno-relax
+        -mcmodel=medany
+        -march=${CARA_RV64_KERNEL_ARCH}
+        -mabi=${CARA_RV64_KERNEL_ABI}
+        -std=gnu89
+        -w
+    )
 endif()
 
 # Always-on: shared modules that compile in both worlds.
@@ -83,6 +102,9 @@ if(CARA_TARGET STREQUAL "riscv64")
     add_subdirectory(croi/nvme)
     add_subdirectory(croi/syscall)
     add_subdirectory(userland)
+    # Third-party ported apps (Phase T). Out-of-tree source under ports/,
+    # added before croi so the embedded ELFs (user_blob.S) exist.
+    add_subdirectory("${CMAKE_SOURCE_DIR}/ports/dhrystone" "${CMAKE_BINARY_DIR}/ports/dhrystone")
     add_subdirectory(croi/tests)
     add_subdirectory(croi)
     # add_subdirectory(splanc)   # arrives in real-hardware slice

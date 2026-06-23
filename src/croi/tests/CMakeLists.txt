@@ -31,6 +31,7 @@ add_library(cara_kernel_tests STATIC
     test_userintuition.c
     test_v36hello.c
     test_libctest.c
+    test_dhrystone.c
     test_clar.c
     test_pci.c
     test_xhci.c
