@@ -24,6 +24,8 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+cdc7f51 docs          PORTS.md — T.3 reframed as the AmigaDOS launch path (Shell/LoadSeg/argv)
+bc87a9c phase-T/T.2   first real port — Dhrystone 1.1 builds + runs unedited (ports/dhrystone)
 c6ae1f2 phase-T/T.1   userland libc (cara_user_libc) — string/stdlib/stdio/ctype; the substrate for real ports
 3c75a0e docs          scope Phase T — port a real Amiga application (docs/PORTS.md)
 f4f0bcc phase-3/L14.1 expansion.library — FDT-backed AutoConfig ConfigDev list — closes L14 (L1-L14 surface in)
@@ -1087,15 +1089,28 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   qsort/rand/exit), a printf core (`fmt.c`), and `stdio` (s(n)printf +
   line-buffered console printf over SYS_LOG_WRITE; stdout/stderr
   sentinels). `PUBLIC` include dir supplies `<string.h>`/etc. under
-  -nostdlibinc. `libctest` (a real U-mode Gleas using the libc as a port
-  will) + `KERNEL_TEST(libctest_smoke)` assert it. PORTING.md refreshed
-  (§5 to the real surface — graphics drawing works; new §6 = libc + ports/
-  recipe). Deferred: disk FILE-over-dos, float printf, setjmp. **NEXT:
-  T.2** — pick + vendor the first real **console** (dos-only) Amiga C tool
-  under `ports/`, build it unmodified, run it under QEMU (a quick AROS-
-  examples / Aminet recon to select it); fill the libc/LVO gaps it forces
-  (likely FILE-over-dos for file reads). Then **T.3** — first real **GUI**
-  app (clock/calculator class) = the phase milestone.
+  -nostdlibinc. `libctest` + `KERNEL_TEST(libctest_smoke)`. PORTING.md
+  refreshed. Deferred: disk FILE-over-dos, float printf, setjmp.
+- **T.2 shipped (`bc87a9c`): first real port — Dhrystone 1.1 runs unedited.**
+  `ports/dhrystone/dhrystone.c` (Weicker/Richardson 1984, fetched verbatim,
+  PROVENANCE.md; third-party, exempt from BSD-2 SPDX, not in the kernel
+  image) builds with **`cara_port_flags`** (a new permissive `-std=gnu89`
+  port toolchain — CaraOS code stays strict c23 -Werror) + `cara_user_libc`
+  + new `<sys/types.h>`/`<sys/times.h>` (`times()` over `SYS_CurrentTime` at
+  HZ=100 cs). `ports/<name>/` vendored-app pattern (added before croi so the
+  `.incbin`'d ELF exists). Runs under QEMU + prints "Dhrystone(1.1) … 1000000
+  dhrystones/second", exit 0; `KERNEL_TEST(dhrystone_smoke)`.
+- **Architectural gap T.2 exposed (user-flagged):** apps are still *embedded*
+  (`.incbin`) + spawned by a `KERNEL_TEST` — a test shortcut, **not how an
+  OS launches a program.** CaraOS has no console input (dos stdin = EOF), no
+  `LoadSeg`/`RunCommand`/`CreateProc`/`Execute`, no command-tail→`argv`
+  (`_start` calls `main(void)`) — the process-launch half of AmigaDOS, which
+  L3 deferred (`docs/PORTS.md §6`). **NEXT: T.3 — build that launch path,
+  sliced:** T.3.1 console input (CON: line discipline → `Input()`), T.3.2
+  `LoadSeg`-from-CaraFS + `RunCommand`/`CreateNewProc` + `argv`, T.3.3 the
+  **Shell** + boot-to-shell — milestone: boot → `>` prompt → type
+  `dhrystone` → it runs (launched, not embedded). The embed path stays for
+  headless tests. Then **T.4** — first real GUI app.
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
