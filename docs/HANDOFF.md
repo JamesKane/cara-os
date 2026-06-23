@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+895da18 phase-3/L12.2 diskfont.library + OpenDiskFont + the Cara font codec (FONTS: dos path → TextFont)
 ffb6b0a phase-3/L12.1 Dath text renders from a generic TextFont strike (topaz reframed; foundation for disk fonts)
 3d03087 docs          scope L12 diskfont.library (docs/DISKFONT.md)
 80f476c phase-3/L11.3 icon.library tool-type/revision helpers — closes L11 (FindToolType/MatchToolValue/BumpRevision)
@@ -976,21 +977,30 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   horizontal strip; `tf_CharData`/`tf_CharLoc` point at kernel statics,
   read S-mode, apps never deref). A pure refactor —
   `KERNEL_TEST(graphics_text_strike)` renders 'A' and compares every pixel
-  to the source glyph. No new LVOs. **NEXT: L12.2** — diskfont.library
-  itself: the `src/croi/diskfont` `syscall` library (`diskfont.conf`/
-  `DiskfontBase`/`include/libraries/diskfont.h` ABI), the Cara font codec
-  (`§2.2` build/parse, host-unit-testable), and `OpenDiskFont -30` (derive
-  `FONTS:<name>/<ysize>`, read via the dos bridge, parse → `TextFont` with
-  `FPF_DISKFONT`; teach `CloseFont` to free a disk font). Test: a Gleas
-  writes a distinct Cara font to `FONTS:`, `OpenDiskFont`s it,
-  `SetFont`+`Text`, asserts the loaded glyphs render (not topaz). Then
-  **L12.3** — `AvailFonts`/`NewFontContents`/`DisposeFontContents` + asl
-  font-requester wiring (`NewScaledDiskFont` stub). L12 offsets to lock
-  against `diskfont_lib.fd`: OpenDiskFont -30, AvailFonts -36,
-  NewFontContents -42, DisposeFontContents -48, NewScaledDiskFont -54.
-  After L12: L13-14 = commodities, expansion. Then T tools → A apps
-  (`docs/PORTING.md` + editor/paint/file-manager). Old L10.4 note kept
-  below.
+  to the source glyph. No new LVOs.
+- **L12.2 shipped (`895da18`): diskfont.library + OpenDiskFont.** A
+  base-ful `syscall` library (`src/croi/diskfont`, the icon recipe).
+  `OpenDiskFont -30` (`SYS_Diskfont` 174) derives `FONTS:<name>/<ysize>`
+  from the TextAttr (strips `.font`; `FONTS:` → volume root in v0), reads
+  via the dos bridge, and parses a **Cara font file** (flat serialised
+  classic strike, `cara/diskfont_lib.h §2.2`) into one shared-heap
+  `TextFont` (TextFont + strike + charLoc[+space/kern]) marked
+  `FPF_DISKFONT`; Dath (L12.1) renders it. `graphics.library CloseFont`
+  now frees a disk font. `Croi_Diskfont_ParseFont` is the dos-free parse
+  seam. New ABI header `libraries/diskfont.h` (FontContents/
+  FontContentsHeader/AvailFonts/AvailFontsHeader/DiskFontHeader + FCH_ID/
+  AFF_*/MAXFONTPATH + DiskfontBase). diskfont coverage 20% (1/5). Tested by
+  `KERNEL_TEST(diskfont_render)` (parse + render a hand-built box glyph,
+  pixel-compare, no dos) + a userexec Gleas (write to `FONTS:test/8` →
+  OpenDiskFont → verify metrics + FPF_DISKFONT + strike first byte; exit
+  `0xBAE3`). **NEXT: L12.3** (closes L12) — `AvailFonts -36` (walk `FONTS:`
+  with dos Examine/ExNext, emit AvailFonts records for the ROM face + each
+  disk `.font`), `NewFontContents -42`/`DisposeFontContents -48` (parse a
+  `FONTS:<name>.font` index), wire the asl font requester (L9) to
+  AvailFonts; `NewScaledDiskFont -54` stays a stub. (Offsets still to lock
+  against `diskfont_lib.fd`.) After L12: L13-14 = commodities, expansion.
+  Then T tools → A apps (`docs/PORTING.md` + editor/paint/file-manager).
+  Old L10.4 note kept below.
 
   (Superseded note) After L10:
   L11-14 = icon.library (.info ↔ CARAFS cara.icon
