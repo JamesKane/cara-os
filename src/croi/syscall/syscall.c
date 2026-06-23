@@ -562,6 +562,13 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     // ---- diskfont.library (L12) ----
     case SYS_Diskfont_OpenDiskFont:
         return (i64)(uptr)Croi_Diskfont_OpenDiskFont_Impl((struct TextAttr *)(uptr)a0);
+    case SYS_Diskfont_AvailFonts:
+        return (i64)Croi_Diskfont_AvailFonts_Impl((STRPTR)(uptr)a0, (ULONG)a1, (ULONG)a2);
+    case SYS_Diskfont_NewFontContents:
+        return (i64)(uptr)Croi_Diskfont_NewFontContents_Impl((BPTR)(uptr)a0, (STRPTR)(uptr)a1);
+    case SYS_Diskfont_DisposeFontContents:
+        Croi_Diskfont_DisposeFontContents_Impl((struct FontContentsHeader *)(uptr)a0);
+        return 0;
 
     // ---- exec device IO primitives (L6) ----
     case SYS_OpenDevice:

@@ -47,4 +47,15 @@ struct TextFont *Croi_Diskfont_OpenDiskFont_Impl(struct TextAttr *textAttr);
 // drives it directly on a hand-built blob.
 struct TextFont *Croi_Diskfont_ParseFont(const u8 *blob, u32 len);
 
+// ---- LVO impls (L12.3) ----------------------------------------------
+// AvailFonts enumerates the ROM face (AFF_MEMORY) + the disk fonts under
+// :Fonts (AFF_DISK), packing an AvailFontsHeader + AvailFonts records (with
+// ta_Name strings) into the caller's buffer; returns 0 if it fit, else the
+// extra bytes needed. NewFontContents builds a FontContentsHeader from a
+// font's size files; DisposeFontContents frees it. Enumeration walks
+// CaraFS directly (g_carafs), so it needs no Process.
+LONG Croi_Diskfont_AvailFonts_Impl(STRPTR buffer, ULONG bufBytes, ULONG flags);
+struct FontContentsHeader *Croi_Diskfont_NewFontContents_Impl(BPTR fontsLock, STRPTR name);
+void Croi_Diskfont_DisposeFontContents_Impl(struct FontContentsHeader *fch);
+
 #endif // CARA_DISKFONT_LIB_H

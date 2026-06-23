@@ -22,4 +22,7 @@
 .section .lib_text.diskfont, "ax"
 .balign 4
 
-CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Diskfont_OpenDiskFont, SYS_Diskfont_OpenDiskFont
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Diskfont_OpenDiskFont,        SYS_Diskfont_OpenDiskFont
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Diskfont_AvailFonts,          SYS_Diskfont_AvailFonts
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Diskfont_NewFontContents,     SYS_Diskfont_NewFontContents
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Diskfont_DisposeFontContents, SYS_Diskfont_DisposeFontContents

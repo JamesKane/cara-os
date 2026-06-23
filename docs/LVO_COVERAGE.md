@@ -31,7 +31,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | asl.library | 10 | 6 | 0 | 0 | 4 | 100% |
 | iffparse.library | 39 | 22 | 0 | 13 | 4 | 62% |
 | icon.library | 23 | 10 | 0 | 9 | 4 | 52% |
-| diskfont.library | 9 | 1 | 0 | 4 | 4 | 20% |
+| diskfont.library | 9 | 4 | 0 | 1 | 4 | 80% |
 | cruth.library | 23 | 9 | 10 | 0 | 4 | 100% |
 
 ## exec.library
@@ -434,21 +434,24 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 ## diskfont.library
 
-ABI surface declared through LVO -54 (ordinal 8). 5 user-callable slots: **1 impl**, 0 server, **4 stub**; coverage **20%**.
+ABI surface declared through LVO -54 (ordinal 8). 5 user-callable slots: **4 impl**, 0 server, **1 stub**; coverage **80%**.
 
-### Implemented (1)
+### Implemented (4)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
 | 4 | -30 | `OpenDiskFont` | syscall |
+| 5 | -36 | `AvailFonts` | syscall |
+| 6 | -42 | `NewFontContents` | syscall |
+| 7 | -48 | `DisposeFontContents` | syscall |
 
-### Unimplemented stub slots (4)
+### Unimplemented stub slots (1)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
 | ord range | LVO range | count |
 |-----------|-----------|------:|
-| 5..8 | -36..-54 | 4 |
+| 8..8 | -54..-54 | 1 |
 
 ## cruth.library
 

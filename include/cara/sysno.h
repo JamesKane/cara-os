@@ -226,6 +226,9 @@ enum {
     SYS_Icon_GetDefDiskObject = 172,
     SYS_Icon_PutDefDiskObject = 173,
     SYS_Diskfont_OpenDiskFont = 174,
+    SYS_Diskfont_AvailFonts = 175,
+    SYS_Diskfont_NewFontContents = 176,
+    SYS_Diskfont_DisposeFontContents = 177,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -415,6 +418,9 @@ enum {
 #define SYS_Icon_GetDefDiskObject 172
 #define SYS_Icon_PutDefDiskObject 173
 #define SYS_Diskfont_OpenDiskFont 174
+#define SYS_Diskfont_AvailFonts 175
+#define SYS_Diskfont_NewFontContents 176
+#define SYS_Diskfont_DisposeFontContents 177
 #endif
 
 #endif

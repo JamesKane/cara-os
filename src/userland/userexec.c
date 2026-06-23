@@ -1021,14 +1021,20 @@ int main(void)
         DiskfontBase = (struct DiskfontBase *)dflib;
         diskfont_ok = (((struct Library *)DiskfontBase)->lib_Version == 36);
 
-        (void)DeleteFile((STRPTR) "FONTS:test/8");
-        (void)DeleteFile((STRPTR) "FONTS:test");
-        BPTR fdir = CreateDir((STRPTR) "FONTS:test");
+        // Fonts live at :Fonts/<name>/<ysize> (root-relative; FONTS: has no
+        // dos assign in v0). Seed :Fonts/test/8, then OpenDiskFont it.
+        (void)DeleteFile((STRPTR) ":Fonts/test/8");
+        (void)DeleteFile((STRPTR) ":Fonts/test");
+        BPTR fontsdir = CreateDir((STRPTR) ":Fonts"); // may already exist
+        if (fontsdir) {
+            UnLock(fontsdir);
+        }
+        BPTR fdir = CreateDir((STRPTR) ":Fonts/test");
         diskfont_ok = diskfont_ok && fdir != BNULL;
         if (fdir) {
             UnLock(fdir);
         }
-        BPTR wf = Open((STRPTR) "FONTS:test/8", MODE_NEWFILE);
+        BPTR wf = Open((STRPTR) ":Fonts/test/8", MODE_NEWFILE);
         diskfont_ok = diskfont_ok && wf != BNULL;
         if (wf) {
             diskfont_ok = diskfont_ok &&
@@ -1045,8 +1051,16 @@ int main(void)
                           (f->tf_Flags & FPF_DISKFONT) != 0 && f->tf_Modulo == 2 &&
                           f->tf_CharData != nullptr && ((UBYTE *)f->tf_CharData)[0] == 0xFF;
         }
-        (void)DeleteFile((STRPTR) "FONTS:test/8");
-        (void)DeleteFile((STRPTR) "FONTS:test");
+
+        // AvailFonts now lists the disk face we installed (+ the ROM face).
+        static UBYTE afbuf[512];
+        LONG extra = AvailFonts((STRPTR)afbuf, (LONG)sizeof afbuf, AFF_MEMORY | AFF_DISK);
+        diskfont_ok = diskfont_ok && extra == 0;
+        struct AvailFontsHeader *afh = (struct AvailFontsHeader *)afbuf;
+        diskfont_ok = diskfont_ok && afh->afh_NumEntries >= 2;
+
+        (void)DeleteFile((STRPTR) ":Fonts/test/8");
+        (void)DeleteFile((STRPTR) ":Fonts/test");
         CloseLibrary(dflib);
     }
     if (!diskfont_ok) {
