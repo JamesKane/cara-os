@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+88b2e25 phase-3/L12.3 diskfont AvailFonts + FontContents helpers — closes L12 (asl wiring deferred)
 895da18 phase-3/L12.2 diskfont.library + OpenDiskFont + the Cara font codec (FONTS: dos path → TextFont)
 ffb6b0a phase-3/L12.1 Dath text renders from a generic TextFont strike (topaz reframed; foundation for disk fonts)
 3d03087 docs          scope L12 diskfont.library (docs/DISKFONT.md)
@@ -993,14 +994,27 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `KERNEL_TEST(diskfont_render)` (parse + render a hand-built box glyph,
   pixel-compare, no dos) + a userexec Gleas (write to `FONTS:test/8` →
   OpenDiskFont → verify metrics + FPF_DISKFONT + strike first byte; exit
-  `0xBAE3`). **NEXT: L12.3** (closes L12) — `AvailFonts -36` (walk `FONTS:`
-  with dos Examine/ExNext, emit AvailFonts records for the ROM face + each
-  disk `.font`), `NewFontContents -42`/`DisposeFontContents -48` (parse a
-  `FONTS:<name>.font` index), wire the asl font requester (L9) to
-  AvailFonts; `NewScaledDiskFont -54` stays a stub. (Offsets still to lock
-  against `diskfont_lib.fd`.) After L12: L13-14 = commodities, expansion.
-  Then T tools → A apps (`docs/PORTING.md` + editor/paint/file-manager).
-  Old L10.4 note kept below.
+  `0xBAE3`).
+- **L12.3 shipped (`88b2e25`): AvailFonts + FontContents helpers — closes
+  L12.** `AvailFonts -36`/`NewFontContents -42`/`DisposeFontContents -48`
+  (`SYS_Diskfont` 175-177); `NewScaledDiskFont -54` stub. AvailFonts packs
+  an `AvailFontsHeader` + `AvailFonts` records (ta_Name into the caller's
+  buffer) for the ROM face (AFF_MEMORY) + each disk font under `:Fonts`
+  (AFF_DISK), returns 0 if it fit else extra bytes needed; NewFontContents
+  builds a `FontContents` index from a family's size files. **Enumeration
+  walks CaraFS directly (`g_carafs`)** so it needs no Process —
+  KERNEL_TEST-able. **Font storage convention settled: `root/Fonts/<family>/
+  <ysize>`; OpenDiskFont now resolves `:Fonts/<name>/<ysize>`** (FONTS: has
+  no dos assign in v0) — the L12.2 Gleas updated to match. diskfont 80%
+  (4/5). Tests: `KERNEL_TEST(diskfont_avail)` (seed via CaraFS, assert ROM
+  + disk faces, small-buffer byte-count, NewFontContents) + the userexec
+  Gleas calls AvailFonts. **Deferred (tracked):** wiring the asl font
+  requester's CYCLE list to AvailFonts (cross-library; the requester keeps
+  its single face until paint/file-manager drives font selection). **L12
+  CLOSED. NEXT: L13** — `scope L13` (commodities.library), then L14
+  (expansion.library, FDT-backed AutoConfig analogue). After L13-14:
+  T tools → A apps (`docs/PORTING.md` + editor/paint/file-manager — which
+  now have icon + disk-font backing). Old L10.4 note kept below.
 
   (Superseded note) After L10:
   L11-14 = icon.library (.info ↔ CARAFS cara.icon
