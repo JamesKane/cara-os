@@ -24,6 +24,8 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+f4f0bcc phase-3/L14.1 expansion.library — FDT-backed AutoConfig ConfigDev list — closes L14 (L1-L14 surface in)
+e9a31a1 docs          scope L14 expansion.library (docs/EXPANSION.md)
 24031c9 phase-3/L13.2 commodities ParseIX + filter config + CxMsg accessors — closes L13
 33fb3ab phase-3/L13.1 commodities.library foundation + the CxObj object model (live input dispatch deferred)
 bdb3c99 docs          scope L13 commodities.library (docs/COMMODITIES.md)
@@ -1050,13 +1052,33 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `AddIEvents`, `InvertKeyMap`, `InvertString`, `RouteCxMsg`, `DivertCxMsg`.
   commodities 80% (21/26). `KERNEL_TEST(commodities_parseix)` covers ParseIX
   (+ bad-spec), SetFilterIX/SetFilter, and the CxMsg accessor round-trip.
-  **L13 CLOSED. NEXT: L14** — `scope L14` (expansion.library, an FDT-backed
-  AutoConfig analogue — enumerate the boot PCIe/FDT devices as ConfigDevs).
-  After L14: **T tools → A apps** (`docs/PORTING.md` + editor/paint/
-  file-manager — now have icon + disk-font backing). **Deferred (tracked):**
-  the input-handler chain — commodities' live half + intuition-as-handler
-  both need it; arrives when a commodity T-tool needs live hotkeys. Old
-  L10.4 note kept below.
+  **L13 CLOSED.**
+- **L14 — expansion.library: SCOPED (`e9a31a1`, `docs/EXPANSION.md`) +
+  shipped (`f4f0bcc`), closes L14.** No Zorro bus, so the FDT/PCI boot
+  inventory (`g_pci_inv`) IS the AutoConfig chain. A base-ful `syscall`
+  library (icon recipe) with the ConfigDev list ops (`SYS_Exp` 199-203):
+  `AddConfigDev -30`/`AllocConfigDev -48`/`FindConfigDev -72`/
+  `FreeConfigDev -84`/`RemConfigDev -132` (scattered — `expansion_lib.fd`
+  is the alphabetical FD; pad_run covers the gaps). The list is built lazily
+  on first access from `g_pci_inv`: one ConfigDev per `PciFunction`
+  (vendor_id→er_Manufacturer, device_id→er_Product low byte, bar[0].base/
+  size→cd_BoardAddr/cd_BoardSize). ConfigDev embeds ExpansionRom by value;
+  new ABI `libraries/configvars.h`. Stubbed: Zorro board-config, expansion-
+  mem alloc, the binding model, the DOS boot-node path (CaraFS boots over
+  NVMe). expansion 23% (5/21). `KERNEL_TEST(expansion_configdev)` walks the
+  list (one per PCI func), checks the func[0]→ConfigDev mapping, and a
+  synthetic Alloc/Add/Find/Rem/Free round-trip.
+- **L10–L14 long tail COMPLETE; the whole L1–L14 V36+ library surface is in
+  place.** **NEXT: T tools → A apps** — `docs/PORTING.md` + the three
+  yardstick apps (editor, paint, file-manager), which now have their full
+  library backing (icon for the file-manager, iffparse+diskfont for paint,
+  gadtools/asl/intuition/graphics/dos for all). Scope the T/A phase next
+  (likely a `docs/` plan doc first, mirroring `docs/PHASE3.md`). **Deferred
+  (tracked) substrate an app may force forward:** the input-handler chain
+  (commodities' live half + intuition-as-handler), layers.library (window
+  occlusion), DrawImage (planar→chunky), async device IO, gadtools
+  LISTVIEW/PALETTE (→ asl dir browse), the asl font-requester→AvailFonts
+  wiring, iffparse custom stream hooks/clipboard. Old L10.4 note kept below.
 
   (Superseded note) After L10:
   L11-14 = icon.library (.info ↔ CARAFS cara.icon
