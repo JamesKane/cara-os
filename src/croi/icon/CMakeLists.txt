@@ -13,8 +13,15 @@ cara_lvo_gen_library("${CMAKE_SOURCE_DIR}/tools/lvo-gen/icon.conf")
 add_library(cara_icon_lib STATIC
     icon_hooks.c
     icon_lib.c
+    icon_strings.c
     trampolines.S
 )
+
+# icon_strings.c holds the `local`-flavour LVOs that execute from the
+# .lib_text.icon RX page (~1 GiB from .rodata): a switch jump table would
+# live in .rodata and overflow the PC-relative reloc, so disable them
+# (same as src/croi/intuition_lib/boopsi.c).
+set_source_files_properties(icon_strings.c PROPERTIES COMPILE_OPTIONS -fno-jump-tables)
 target_link_libraries(cara_icon_lib
     PUBLIC cara_headers
     PRIVATE cara_kernel_flags

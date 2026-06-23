@@ -792,6 +792,24 @@ int main(void)
             FreeDiskObject(gd);
         }
 
+        // L11.3: the local-flavour string helpers (no FS) over the `tt`
+        // tool-type array — FindToolType / MatchToolValue / BumpRevision.
+        STRPTR cv = FindToolType(tt, (STRPTR) "CX_PRIORITY");
+        icon_ok = icon_ok && cv != nullptr && ue_streq(cv, "5");
+        icon_ok = icon_ok && MatchToolValue(cv, (STRPTR) "5") != 0;
+        STRPTR dv = FindToolType(tt, (STRPTR) "DONOTWAIT");
+        icon_ok = icon_ok && dv != nullptr && dv[0] == 0; // present, empty value
+        icon_ok = icon_ok && FindToolType(tt, (STRPTR) "NOPE") == nullptr;
+        icon_ok = icon_ok && MatchToolValue((STRPTR) "on|off|auto", (STRPTR) "off") != 0;
+        icon_ok = icon_ok && MatchToolValue((STRPTR) "on|off|auto", (STRPTR) "maybe") == 0;
+
+        char revbuf[32];
+        icon_ok = icon_ok && ue_streq(BumpRevision(revbuf, (STRPTR) "foo"), "copy_of_foo");
+        icon_ok = icon_ok &&
+                  ue_streq(BumpRevision(revbuf, (STRPTR) "copy_of_foo"), "copy_2_of_foo");
+        icon_ok = icon_ok &&
+                  ue_streq(BumpRevision(revbuf, (STRPTR) "copy_2_of_foo"), "copy_3_of_foo");
+
         (void)DeleteFile((STRPTR) "uexec.icontgt");
         CloseLibrary(iconlib);
     }
