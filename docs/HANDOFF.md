@@ -24,6 +24,8 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+33fb3ab phase-3/L13.1 commodities.library foundation + the CxObj object model (live input dispatch deferred)
+bdb3c99 docs          scope L13 commodities.library (docs/COMMODITIES.md)
 88b2e25 phase-3/L12.3 diskfont AvailFonts + FontContents helpers — closes L12 (asl wiring deferred)
 895da18 phase-3/L12.2 diskfont.library + OpenDiskFont + the Cara font codec (FONTS: dos path → TextFont)
 ffb6b0a phase-3/L12.1 Dath text renders from a generic TextFont strike (topaz reframed; foundation for disk fonts)
@@ -1011,10 +1013,37 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   Gleas calls AvailFonts. **Deferred (tracked):** wiring the asl font
   requester's CYCLE list to AvailFonts (cross-library; the requester keeps
   its single face until paint/file-manager drives font selection). **L12
-  CLOSED. NEXT: L13** — `scope L13` (commodities.library), then L14
-  (expansion.library, FDT-backed AutoConfig analogue). After L13-14:
-  T tools → A apps (`docs/PORTING.md` + editor/paint/file-manager — which
-  now have icon + disk-font backing). Old L10.4 note kept below.
+  CLOSED.**
+- **L13 — commodities.library: SCOPED (`bdb3c99`, `docs/COMMODITIES.md`).**
+  First long-tail lib with **no app consumer**; its live half (filter live
+  InputEvents through a CxObj tree, route CxMsgs) is blocked on the
+  input.device handler chain (recorded-not-invoked, `CROI_DEVICES §2.5`).
+  Decision: ship the testable app-independent core (ABI + CxObj object model
+  + CxMsg accessors + ParseIX), defer live input dispatch.
+- **L13.1 shipped (`33fb3ab`): library + the CxObj object model.** The
+  contiguous `-30..-102` lifecycle/tree block (`SYS_Cx` 178-190):
+  CreateCxObj/CxBroker, ActivateCxObj, DeleteCxObj/DeleteCxObjAll,
+  CxObjType, CxObjError/ClearCxObjError, SetCxObjPri, AttachCxObj/
+  EnqueueCxObj/InsertCxObj/RemoveCxObj. A commodity builds a tree of CxObjs
+  (broker root + children) on the shared heap; the opaque public `CxObj *`
+  IS the kernel-private `CaraCxObj` (children singly-linked via `next`;
+  DeleteCxObj unlinks + frees the subtree). New ABI header
+  `libraries/commodities.h` (CxObj/CxMsg opaque, NewBroker, InputXpression,
+  CX_*/CXM_*/COERR_*/base CxBase). icon recipe; no live input.
+  `KERNEL_TEST(commodities_tree)` builds/queries/tears down a tree + the
+  null-safety contract. commodities coverage 72% (13/22). **NEXT: L13.2**
+  (closes L13) — `SetTranslate -108`/`SetFilter -114`/`SetFilterIX -120`
+  (store config on the CxObj) + `ParseIX -126` (input-description string →
+  `InputXpression`, the pure parser) + the CxMsg accessors (`CxMsgType`/
+  `CxMsgData`/`CxMsgID`/`DisposeCxMsg`/`RouteCxMsg`, offsets locked against
+  `commodities_lib.fd`); `AddIEvents`/`InvertKeyMap` stay stubbed.
+  KERNEL_TEST: `ParseIX("ctrl alt f1")` → assert the IX fields. After L13:
+  L14 = expansion.library (FDT-backed AutoConfig analogue). Then T tools →
+  A apps (`docs/PORTING.md` + editor/paint/file-manager — now have icon +
+  disk-font backing). **Deferred (tracked):** the input-handler chain — the
+  load-bearing substrate commodities' live half + intuition-as-handler both
+  need; arrives when a commodity T-tool needs live hotkeys. Old L10.4 note
+  kept below.
 
   (Superseded note) After L10:
   L11-14 = icon.library (.info ↔ CARAFS cara.icon
