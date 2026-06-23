@@ -58,3 +58,36 @@ KERNEL_TEST(commodities_tree)
     TEST_ASSERT(ctx, Croi_Cx_CxObjType_Impl(nullptr) == CX_INVALID, "null type");
     TEST_ASSERT(ctx, Croi_Cx_CxObjError_Impl(nullptr) == COERR_ISNULL, "null error");
 }
+
+// KERNEL_TEST(commodities_parseix): ParseIX + filter config + the CxMsg
+// accessors (L13.2). Pure logic, no input plumbing.
+KERNEL_TEST(commodities_parseix)
+{
+    struct InputXpression ix;
+    TEST_ASSERT(ctx, Croi_Cx_ParseIX_Impl((STRPTR) "ctrl alt f1", &ix) == IXERR_OK, "ParseIX ok");
+    TEST_ASSERT(ctx, ix.ix_Class == IECLASS_RAWKEY, "class rawkey");
+    TEST_ASSERT(ctx, ix.ix_Code == 0x50, "code f1");
+    TEST_ASSERT(ctx, ix.ix_Qualifier == (IEQUALIFIER_CONTROL | IEQUALIFIER_LALT), "qualifiers");
+    TEST_ASSERT(ctx, ix.ix_QualMask == (IEQUALIFIER_CONTROL | IEQUALIFIER_LALT), "qual mask");
+
+    // An unrecognised token is a parse error (ascii keys are deferred).
+    struct InputXpression bad;
+    TEST_ASSERT(ctx, Croi_Cx_ParseIX_Impl((STRPTR) "ctrl boguskey", &bad) == IXERR_BADSPEC,
+                "bad spec");
+
+    // SetFilterIX stores a prebuilt IX; SetFilter parses + stores.
+    struct CxObj *filt = Croi_Cx_CreateCxObj_Impl(CX_FILTER, 0, 0);
+    TEST_ASSERT(ctx, filt != nullptr, "filter");
+    TEST_ASSERT(ctx, Croi_Cx_SetFilterIX_Impl(filt, &ix) == 0, "SetFilterIX ok");
+    Croi_Cx_SetFilter_Impl(filt, (STRPTR) "shift f2");
+    TEST_ASSERT(ctx, Croi_Cx_CxObjError_Impl(filt) == 0, "SetFilter no error");
+    Croi_Cx_DeleteCxObj_Impl(filt);
+
+    // CxMsg accessors over an internally-built message.
+    struct CxMsg *m = Croi_Cx_AllocCxMsg(CXM_IEVENT, (IPTR)0xCAFEu, 42);
+    TEST_ASSERT(ctx, m != nullptr, "AllocCxMsg");
+    TEST_ASSERT(ctx, Croi_Cx_CxMsgType_Impl(m) == CXM_IEVENT, "CxMsgType");
+    TEST_ASSERT(ctx, Croi_Cx_CxMsgData_Impl(m) == (APTR)(uptr)0xCAFEu, "CxMsgData");
+    TEST_ASSERT(ctx, Croi_Cx_CxMsgID_Impl(m) == 42, "CxMsgID");
+    Croi_Cx_DisposeCxMsg_Impl(m);
+}

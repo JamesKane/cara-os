@@ -32,7 +32,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | iffparse.library | 39 | 22 | 0 | 13 | 4 | 62% |
 | icon.library | 23 | 10 | 0 | 9 | 4 | 52% |
 | diskfont.library | 9 | 4 | 0 | 1 | 4 | 80% |
-| commodities.library | 22 | 13 | 0 | 5 | 4 | 72% |
+| commodities.library | 30 | 21 | 0 | 5 | 4 | 80% |
 | cruth.library | 23 | 9 | 10 | 0 | 4 | 100% |
 
 ## exec.library
@@ -456,9 +456,9 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 ## commodities.library
 
-ABI surface declared through LVO -132 (ordinal 21). 18 user-callable slots: **13 impl**, 0 server, **5 stub**; coverage **72%**.
+ABI surface declared through LVO -180 (ordinal 29). 26 user-callable slots: **21 impl**, 0 server, **5 stub**; coverage **80%**.
 
-### Implemented (13)
+### Implemented (21)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
@@ -475,6 +475,14 @@ ABI surface declared through LVO -132 (ordinal 21). 18 user-callable slots: **13
 | 14 | -90 | `EnqueueCxObj` | syscall |
 | 15 | -96 | `InsertCxObj` | syscall |
 | 16 | -102 | `RemoveCxObj` | syscall |
+| 17 | -108 | `SetTranslate` | syscall |
+| 18 | -114 | `SetFilter` | syscall |
+| 19 | -120 | `SetFilterIX` | syscall |
+| 20 | -126 | `ParseIX` | syscall |
+| 25 | -156 | `DisposeCxMsg` | syscall |
+| 27 | -168 | `CxMsgType` | syscall |
+| 28 | -174 | `CxMsgData` | syscall |
+| 29 | -180 | `CxMsgID` | syscall |
 
 ### Unimplemented stub slots (5)
 
@@ -482,7 +490,8 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 | ord range | LVO range | count |
 |-----------|-----------|------:|
-| 17..21 | -108..-132 | 5 |
+| 21..24 | -132..-150 | 4 |
+| 26..26 | -162..-162 | 1 |
 
 ## cruth.library
 

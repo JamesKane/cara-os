@@ -35,3 +35,11 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Cx_AttachCxObj,     SYS_Cx_AttachCxObj
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Cx_EnqueueCxObj,    SYS_Cx_EnqueueCxObj
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Cx_InsertCxObj,     SYS_Cx_InsertCxObj
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Cx_RemoveCxObj,     SYS_Cx_RemoveCxObj
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Cx_SetTranslate,    SYS_Cx_SetTranslate
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Cx_SetFilter,       SYS_Cx_SetFilter
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Cx_SetFilterIX,     SYS_Cx_SetFilterIX
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Cx_ParseIX,         SYS_Cx_ParseIX
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Cx_DisposeCxMsg,    SYS_Cx_DisposeCxMsg
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Cx_CxMsgType,       SYS_Cx_CxMsgType
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Cx_CxMsgData,       SYS_Cx_CxMsgData
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_Cx_CxMsgID,         SYS_Cx_CxMsgID

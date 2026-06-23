@@ -242,6 +242,14 @@ enum {
     SYS_Cx_EnqueueCxObj = 188,
     SYS_Cx_InsertCxObj = 189,
     SYS_Cx_RemoveCxObj = 190,
+    SYS_Cx_SetTranslate = 191,
+    SYS_Cx_SetFilter = 192,
+    SYS_Cx_SetFilterIX = 193,
+    SYS_Cx_ParseIX = 194,
+    SYS_Cx_DisposeCxMsg = 195,
+    SYS_Cx_CxMsgType = 196,
+    SYS_Cx_CxMsgData = 197,
+    SYS_Cx_CxMsgID = 198,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -447,6 +455,14 @@ enum {
 #define SYS_Cx_EnqueueCxObj 188
 #define SYS_Cx_InsertCxObj 189
 #define SYS_Cx_RemoveCxObj 190
+#define SYS_Cx_SetTranslate 191
+#define SYS_Cx_SetFilter 192
+#define SYS_Cx_SetFilterIX 193
+#define SYS_Cx_ParseIX 194
+#define SYS_Cx_DisposeCxMsg 195
+#define SYS_Cx_CxMsgType 196
+#define SYS_Cx_CxMsgData 197
+#define SYS_Cx_CxMsgID 198
 #endif
 
 #endif

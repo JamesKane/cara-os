@@ -36,6 +36,16 @@ struct CaraCxObj {
     bool has_ix;
 };
 
+// Kernel-private CxMsg. The opaque public CxMsg * IS this pointer. The
+// system has no live producer yet (the input handler chain is deferred),
+// so CxMsgs are made via Croi_Cx_AllocCxMsg (the future input handler + the
+// test) and read back through the accessors.
+struct CaraCxMsg {
+    ULONG type; // CXM_IEVENT / CXM_COMMAND
+    IPTR data;  // InputEvent * (CXM_IEVENT) or command payload
+    ULONG id;   // commodity message id
+};
+
 // ---- Reserved-slot library hooks (`local` flavour) ------------------
 struct Library *Croi_Cx_Open(struct Library *base, struct CxBase *cb);
 void Croi_Cx_Close(struct Library *base, struct CxBase *cb);
@@ -56,5 +66,20 @@ void Croi_Cx_AttachCxObj_Impl(struct CxObj *headObj, struct CxObj *co);
 void Croi_Cx_EnqueueCxObj_Impl(struct CxObj *headObj, struct CxObj *co);
 void Croi_Cx_InsertCxObj_Impl(struct CxObj *headObj, struct CxObj *co, struct CxObj *pred);
 void Croi_Cx_RemoveCxObj_Impl(struct CxObj *co);
+
+// ---- Input config + ParseIX + CxMsg accessors (L13.2) ---------------
+struct InputEvent;
+void Croi_Cx_SetTranslate_Impl(struct CxObj *translator, struct InputEvent *events);
+void Croi_Cx_SetFilter_Impl(struct CxObj *filter, STRPTR text);
+LONG Croi_Cx_SetFilterIX_Impl(struct CxObj *filter, struct InputXpression *ix);
+LONG Croi_Cx_ParseIX_Impl(STRPTR description, struct InputXpression *ix);
+ULONG Croi_Cx_CxMsgType_Impl(struct CxMsg *cxm);
+APTR Croi_Cx_CxMsgData_Impl(struct CxMsg *cxm);
+ULONG Croi_Cx_CxMsgID_Impl(struct CxMsg *cxm);
+void Croi_Cx_DisposeCxMsg_Impl(struct CxMsg *cxm);
+
+// Internal (not an LVO): make a CxMsg on the shared heap. The future input
+// handler + the kernel test use it; DisposeCxMsg frees it.
+struct CxMsg *Croi_Cx_AllocCxMsg(ULONG type, IPTR data, ULONG id);
 
 #endif // CARA_COMMODITIES_LIB_H

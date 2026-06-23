@@ -606,6 +606,26 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_Cx_RemoveCxObj:
         Croi_Cx_RemoveCxObj_Impl((struct CxObj *)(uptr)a0);
         return 0;
+    case SYS_Cx_SetTranslate:
+        Croi_Cx_SetTranslate_Impl((struct CxObj *)(uptr)a0, (struct InputEvent *)(uptr)a1);
+        return 0;
+    case SYS_Cx_SetFilter:
+        Croi_Cx_SetFilter_Impl((struct CxObj *)(uptr)a0, (STRPTR)(uptr)a1);
+        return 0;
+    case SYS_Cx_SetFilterIX:
+        return (i64)Croi_Cx_SetFilterIX_Impl((struct CxObj *)(uptr)a0,
+                                             (struct InputXpression *)(uptr)a1);
+    case SYS_Cx_ParseIX:
+        return (i64)Croi_Cx_ParseIX_Impl((STRPTR)(uptr)a0, (struct InputXpression *)(uptr)a1);
+    case SYS_Cx_DisposeCxMsg:
+        Croi_Cx_DisposeCxMsg_Impl((struct CxMsg *)(uptr)a0);
+        return 0;
+    case SYS_Cx_CxMsgType:
+        return (i64)Croi_Cx_CxMsgType_Impl((struct CxMsg *)(uptr)a0);
+    case SYS_Cx_CxMsgData:
+        return (i64)(uptr)Croi_Cx_CxMsgData_Impl((struct CxMsg *)(uptr)a0);
+    case SYS_Cx_CxMsgID:
+        return (i64)Croi_Cx_CxMsgID_Impl((struct CxMsg *)(uptr)a0);
 
     // ---- exec device IO primitives (L6) ----
     case SYS_OpenDevice:
