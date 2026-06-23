@@ -38,7 +38,9 @@
 #include <graphics/gfxbase.h>
 #include <graphics/rastport.h>
 #include <graphics/text.h>
+#include <libraries/diskfont.h>
 #include <libraries/iffparse.h>
+#include <proto/diskfont.h>
 #include <proto/dos.h>
 #include <proto/exec.h>
 #include <proto/graphics.h>
@@ -67,6 +69,7 @@
 #define USEREXEC_EXIT_GFX_FAIL 0xBADF
 #define USEREXEC_EXIT_IFF_FAIL 0xBAE1
 #define USEREXEC_EXIT_ICON_FAIL 0xBAE2
+#define USEREXEC_EXIT_DISKFONT_FAIL 0xBAE3
 
 // Inline ecall for SYS_LOG_WRITE — used to surface progress markers
 // in the kernel log alongside the existing kernel-side messages so
@@ -181,6 +184,9 @@ struct IFFParseBase *IFFParseBase;
 
 // Referenced by the <proto/icon.h> inline stubs (L11).
 struct IconBase *IconBase;
+
+// Referenced by the <proto/diskfont.h> inline stubs (L12).
+struct DiskfontBase *DiskfontBase;
 
 // Referenced by the <proto/graphics.h> inline stubs (same idiom).
 struct GfxBase *GfxBase;
@@ -995,6 +1001,57 @@ int main(void)
     if (!gfx_ok) {
         CloseLibrary(lib);
         return (int)USEREXEC_EXIT_GFX_FAIL;
+    }
+
+    // 4l. diskfont.library (L12.2). Write a Cara font file under FONTS:,
+    //     OpenDiskFont it, and verify the loaded TextFont — the FONTS: dos
+    //     path + the Cara font parse end to end. (FONTS: resolves to the
+    //     volume root in v0.) Strike rendering is the diskfont_render kernel
+    //     test; here we read the loaded strike's first byte to prove the
+    //     bytes round-tripped. The font is a 1-glyph 'A' box (§2.2).
+    static const UBYTE cfnt[] = {
+        'C',  'F',  'N',  'T',  0x01, 0x00, 0x00, 0x00, 0x08, 0x00, 0x08, 0x00,
+        0x07, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x41, 0x41, 0xFF, 0x00,
+        0x81, 0x00, 0x81, 0x00, 0x81, 0x00, 0x81, 0x00, 0x81, 0x00, 0x81, 0x00,
+        0xFF, 0x00, 0x08, 0x00, 0x00, 0x00, 0x08, 0x00, 0x08, 0x00,
+    };
+    bool diskfont_ok = false;
+    struct Library *dflib = OpenLibrary((STRPTR) "diskfont.library", 36);
+    if (dflib) {
+        DiskfontBase = (struct DiskfontBase *)dflib;
+        diskfont_ok = (((struct Library *)DiskfontBase)->lib_Version == 36);
+
+        (void)DeleteFile((STRPTR) "FONTS:test/8");
+        (void)DeleteFile((STRPTR) "FONTS:test");
+        BPTR fdir = CreateDir((STRPTR) "FONTS:test");
+        diskfont_ok = diskfont_ok && fdir != BNULL;
+        if (fdir) {
+            UnLock(fdir);
+        }
+        BPTR wf = Open((STRPTR) "FONTS:test/8", MODE_NEWFILE);
+        diskfont_ok = diskfont_ok && wf != BNULL;
+        if (wf) {
+            diskfont_ok = diskfont_ok &&
+                          Write(wf, (APTR)cfnt, (LONG)sizeof cfnt) == (LONG)sizeof cfnt;
+            Close(wf);
+        }
+
+        struct TextAttr ta = { (STRPTR) "test.font", 8, 0, 0 };
+        struct TextFont *f = OpenDiskFont(&ta);
+        diskfont_ok = diskfont_ok && f != nullptr;
+        if (f) {
+            diskfont_ok = diskfont_ok && f->tf_YSize == 8 && f->tf_XSize == 8 &&
+                          f->tf_LoChar == 'A' && f->tf_HiChar == 'A' &&
+                          (f->tf_Flags & FPF_DISKFONT) != 0 && f->tf_Modulo == 2 &&
+                          f->tf_CharData != nullptr && ((UBYTE *)f->tf_CharData)[0] == 0xFF;
+        }
+        (void)DeleteFile((STRPTR) "FONTS:test/8");
+        (void)DeleteFile((STRPTR) "FONTS:test");
+        CloseLibrary(dflib);
+    }
+    if (!diskfont_ok) {
+        CloseLibrary(lib);
+        return (int)USEREXEC_EXIT_DISKFONT_FAIL;
     }
 
     // 5. Balance the open. Note: libcara also opened exec.library

@@ -381,10 +381,13 @@ struct TextFont *Croi_Gfx_OpenFont_Impl(struct TextAttr *textAttr)
     return gfx_system_font();
 }
 
-// CloseFont — no-op; the system font persists for the session.
+// CloseFont — free a disk-loaded font (one shared-heap allocation, base ==
+// the TextFont); the ROM system font persists for the session.
 void Croi_Gfx_CloseFont_Impl(struct TextFont *textFont)
 {
-    (void)textFont;
+    if (textFont && (textFont->tf_Flags & FPF_DISKFONT)) {
+        Croi_Free(textFont);
+    }
 }
 
 // SetFont(rp, tf) — bind the RastPort's font + cache its metrics.

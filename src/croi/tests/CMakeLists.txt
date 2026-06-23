@@ -22,6 +22,7 @@ add_library(cara_kernel_tests STATIC
     test_asl.c
     test_iffparse.c
     test_icon.c
+    test_diskfont.c
     test_device.c
     test_exec_lib.c
     test_userexec.c

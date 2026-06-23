@@ -221,6 +221,10 @@ SECTIONS
          * shared RX+U region; icon's base + vec live in the SASOS shared
          * heap. */
         KEEP(*(.lib_text.icon))
+        /* diskfont.library's `syscall`-flavour trampolines (L12). Same
+         * shared RX+U region; diskfont's base + vec live in the SASOS
+         * shared heap. */
+        KEEP(*(.lib_text.diskfont))
         . = ALIGN(4K);
         __exec_lib_end = .;
     } > LIB_VIRT AT > RAM_PHYS :lib_exec

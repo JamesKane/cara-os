@@ -13,6 +13,7 @@
 
 #include <cara/asl_lib.h>
 #include <cara/device.h>
+#include <cara/diskfont_lib.h>
 #include <cara/dos_lib.h>
 #include <cara/exec_lib.h>
 #include <cara/gadtools_lib.h>
@@ -557,6 +558,10 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return (i64)(uptr)Croi_Icon_GetDefDiskObject_Impl((LONG)a0);
     case SYS_Icon_PutDefDiskObject:
         return (i64)Croi_Icon_PutDefDiskObject_Impl((struct DiskObject *)(uptr)a0);
+
+    // ---- diskfont.library (L12) ----
+    case SYS_Diskfont_OpenDiskFont:
+        return (i64)(uptr)Croi_Diskfont_OpenDiskFont_Impl((struct TextAttr *)(uptr)a0);
 
     // ---- exec device IO primitives (L6) ----
     case SYS_OpenDevice:

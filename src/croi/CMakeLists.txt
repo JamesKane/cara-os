@@ -117,6 +117,7 @@ target_link_libraries(croi PRIVATE
     cara_asl_lib
     cara_iffparse_lib
     cara_icon_lib
+    cara_diskfont_lib
     cara_kernel_tests
     -Wl,--no-whole-archive
 )
