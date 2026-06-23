@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+24031c9 phase-3/L13.2 commodities ParseIX + filter config + CxMsg accessors — closes L13
 33fb3ab phase-3/L13.1 commodities.library foundation + the CxObj object model (live input dispatch deferred)
 bdb3c99 docs          scope L13 commodities.library (docs/COMMODITIES.md)
 88b2e25 phase-3/L12.3 diskfont AvailFonts + FontContents helpers — closes L12 (asl wiring deferred)
@@ -1037,13 +1038,25 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `InputXpression`, the pure parser) + the CxMsg accessors (`CxMsgType`/
   `CxMsgData`/`CxMsgID`/`DisposeCxMsg`/`RouteCxMsg`, offsets locked against
   `commodities_lib.fd`); `AddIEvents`/`InvertKeyMap` stay stubbed.
-  KERNEL_TEST: `ParseIX("ctrl alt f1")` → assert the IX fields. After L13:
-  L14 = expansion.library (FDT-backed AutoConfig analogue). Then T tools →
-  A apps (`docs/PORTING.md` + editor/paint/file-manager — now have icon +
-  disk-font backing). **Deferred (tracked):** the input-handler chain — the
-  load-bearing substrate commodities' live half + intuition-as-handler both
-  need; arrives when a commodity T-tool needs live hotkeys. Old L10.4 note
-  kept below.
+  KERNEL_TEST: `ParseIX("ctrl alt f1")` → assert the IX fields.
+- **L13.2 shipped (`24031c9`): ParseIX + filter config + CxMsg accessors —
+  closes L13.** `SetTranslate -108`/`SetFilter -114`/`SetFilterIX -120`/
+  `ParseIX -126` + `DisposeCxMsg -156`/`CxMsgType -168`/`CxMsgData -174`/
+  `CxMsgID -180` (`SYS_Cx` 191-198). ParseIX tokenises an input description
+  → `InputXpression` (qualifier words → `IEQUALIFIER_*`, optional class,
+  named key → Amiga rawkey f1-f10/esc/space/arrows/…; ascii/keymap keys
+  deferred). `Croi_Cx_AllocCxMsg` (internal) builds a CxMsg for the test +
+  the future input handler. **Stubbed** (live dispatch / keymap):
+  `AddIEvents`, `InvertKeyMap`, `InvertString`, `RouteCxMsg`, `DivertCxMsg`.
+  commodities 80% (21/26). `KERNEL_TEST(commodities_parseix)` covers ParseIX
+  (+ bad-spec), SetFilterIX/SetFilter, and the CxMsg accessor round-trip.
+  **L13 CLOSED. NEXT: L14** — `scope L14` (expansion.library, an FDT-backed
+  AutoConfig analogue — enumerate the boot PCIe/FDT devices as ConfigDevs).
+  After L14: **T tools → A apps** (`docs/PORTING.md` + editor/paint/
+  file-manager — now have icon + disk-font backing). **Deferred (tracked):**
+  the input-handler chain — commodities' live half + intuition-as-handler
+  both need it; arrives when a commodity T-tool needs live hotkeys. Old
+  L10.4 note kept below.
 
   (Superseded note) After L10:
   L11-14 = icon.library (.info ↔ CARAFS cara.icon
