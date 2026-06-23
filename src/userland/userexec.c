@@ -42,6 +42,7 @@
 #include <proto/dos.h>
 #include <proto/exec.h>
 #include <proto/graphics.h>
+#include <proto/icon.h>
 #include <proto/iffparse.h>
 #include <proto/utility.h>
 #include <utility/hooks.h>
@@ -65,6 +66,7 @@
 #define USEREXEC_EXIT_SRV_FAIL 0xBADE
 #define USEREXEC_EXIT_GFX_FAIL 0xBADF
 #define USEREXEC_EXIT_IFF_FAIL 0xBAE1
+#define USEREXEC_EXIT_ICON_FAIL 0xBAE2
 
 // Inline ecall for SYS_LOG_WRITE — used to surface progress markers
 // in the kernel log alongside the existing kernel-side messages so
@@ -177,6 +179,9 @@ struct DosLibrary *DOSBase;
 // Referenced by the <proto/iffparse.h> inline stubs (L10).
 struct IFFParseBase *IFFParseBase;
 
+// Referenced by the <proto/icon.h> inline stubs (L11).
+struct IconBase *IconBase;
+
 // Referenced by the <proto/graphics.h> inline stubs (same idiom).
 struct GfxBase *GfxBase;
 
@@ -188,6 +193,22 @@ static IPTR ue_hook_fn(struct Hook *h, APTR object, APTR message)
 {
     (void)h;
     return (IPTR)object + (IPTR)message;
+}
+
+// Byte-string equality (no libc in userland).
+static bool ue_streq(const char *a, const char *b)
+{
+    if (!a || !b) {
+        return false;
+    }
+    while (*a && *b) {
+        if (*a != *b) {
+            return false;
+        }
+        a++;
+        b++;
+    }
+    return *a == *b;
 }
 
 int main(void);
@@ -698,6 +719,83 @@ int main(void)
         CloseLibrary(ilib);
     }
 
+    // L11: icon.library DiskObject round-trip. icon metadata lives in the
+    //      object's cara.icon xattr (no .info files): create a file,
+    //      PutDiskObject a WBTOOL icon onto it, GetDiskObject it back and
+    //      check the fields, DeleteDiskObject, then GetDiskObjectNew
+    //      returns a synthesised default. Also a GetDefDiskObject /
+    //      PutDefDiskObject round-trip exercising the drawer-geometry path.
+    bool icon_ok = false;
+    struct Library *iconlib = OpenLibrary((STRPTR) "icon.library", 36);
+    if (iconlib) {
+        IconBase = (struct IconBase *)iconlib;
+        icon_ok = (((struct Library *)IconBase)->lib_Version == 36);
+
+        // The object the icon attaches to must exist for the path Lock.
+        BPTR tf = Open((STRPTR) "uexec.icontgt", MODE_NEWFILE);
+        icon_ok = icon_ok && tf != BNULL;
+        if (tf) {
+            Close(tf);
+        }
+
+        static char *tt[] = { (char *)"CX_PRIORITY=5", (char *)"DONOTWAIT", nullptr };
+        struct DiskObject d = { 0 };
+        d.do_Magic = WB_DISKMAGIC;
+        d.do_Version = WB_DISKVERSION;
+        d.do_Type = WBTOOL;
+        d.do_CurrentX = 120;
+        d.do_CurrentY = 96;
+        d.do_StackSize = 16384;
+        d.do_DefaultTool = (char *)"SYS:Tools/Calculator";
+        d.do_ToolTypes = tt;
+
+        icon_ok = icon_ok && PutDiskObject((STRPTR) "uexec.icontgt", &d) != 0;
+
+        struct DiskObject *r = GetDiskObject((STRPTR) "uexec.icontgt");
+        icon_ok = icon_ok && r != nullptr;
+        if (r) {
+            icon_ok = icon_ok && r->do_Type == WBTOOL && r->do_CurrentX == 120 &&
+                      r->do_CurrentY == 96 && r->do_StackSize == 16384 &&
+                      ue_streq(r->do_DefaultTool, "SYS:Tools/Calculator") &&
+                      r->do_ToolTypes != nullptr && ue_streq(r->do_ToolTypes[0], "CX_PRIORITY=5") &&
+                      ue_streq(r->do_ToolTypes[1], "DONOTWAIT") && r->do_ToolTypes[2] == nullptr;
+            FreeDiskObject(r);
+        }
+
+        // Delete the icon; GetDiskObject now misses, GetDiskObjectNew
+        // synthesises a default project icon.
+        icon_ok = icon_ok && DeleteDiskObject((STRPTR) "uexec.icontgt") != 0;
+        icon_ok = icon_ok && GetDiskObject((STRPTR) "uexec.icontgt") == nullptr;
+        struct DiskObject *nd = GetDiskObjectNew((STRPTR) "uexec.icontgt");
+        icon_ok = icon_ok && nd != nullptr && nd->do_Type == WBPROJECT;
+        if (nd) {
+            FreeDiskObject(nd);
+        }
+
+        // Default-icon store/fetch with a drawer (exercises DrawerData).
+        struct DrawerData dd = { 0 };
+        dd.dd_NewWindow.LeftEdge = 10;
+        dd.dd_NewWindow.TopEdge = 20;
+        dd.dd_NewWindow.Width = 400;
+        dd.dd_NewWindow.Height = 256;
+        struct DiskObject defd = { 0 };
+        defd.do_Magic = WB_DISKMAGIC;
+        defd.do_Version = WB_DISKVERSION;
+        defd.do_Type = WBDRAWER;
+        defd.do_DefaultTool = (char *)"";
+        defd.do_DrawerData = &dd;
+        icon_ok = icon_ok && PutDefDiskObject(&defd) != 0;
+        struct DiskObject *gd = GetDefDiskObject(WBDRAWER);
+        icon_ok = icon_ok && gd != nullptr && gd->do_Type == WBDRAWER &&
+                  gd->do_DrawerData != nullptr && gd->do_DrawerData->dd_NewWindow.Width == 400;
+        if (gd) {
+            FreeDiskObject(gd);
+        }
+
+        (void)DeleteFile((STRPTR) "uexec.icontgt");
+        CloseLibrary(iconlib);
+    }
+
     CloseLibrary(dlib);
     if (!dos_ok) {
         CloseLibrary(lib);
@@ -706,6 +804,10 @@ int main(void)
     if (!iff_ok) {
         CloseLibrary(lib);
         return (int)USEREXEC_EXIT_IFF_FAIL;
+    }
+    if (!icon_ok) {
+        CloseLibrary(lib);
+        return (int)USEREXEC_EXIT_ICON_FAIL;
     }
 
     // 4j. dos server-flavour call path (L3.2) — drive a full DosPacket

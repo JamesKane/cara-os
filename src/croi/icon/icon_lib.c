@@ -33,6 +33,9 @@
 #define ICON_BLOB_VERSION 1u
 #define ICON_MAX_TOOLTYPES 64
 
+// Blob flags byte. Bit 0: a DrawerData block follows the tool types.
+#define ICON_BLOB_F_DRAWER 0x01u
+
 // ---- self-contained byte helpers (no libc dependency) ---------------
 
 static u32 icon_strlen(const char *s)
@@ -130,10 +133,11 @@ u32 Croi_Icon_BlobBuild(const struct DiskObject *d, u8 *buf, u32 buflen)
         return 0;
     }
     struct wcur w = { buf, buflen, 0, true };
+    u8 flags = (d->do_DrawerData != nullptr) ? ICON_BLOB_F_DRAWER : 0;
     w_u16(&w, ICON_BLOB_MAGIC);
     w_u16(&w, ICON_BLOB_VERSION);
     w_u8(&w, d->do_Type);
-    w_u8(&w, 0); // flags
+    w_u8(&w, flags);
     w_u32(&w, (u32)d->do_CurrentX);
     w_u32(&w, (u32)d->do_CurrentY);
     w_u32(&w, (u32)d->do_StackSize);
@@ -151,7 +155,7 @@ u32 Croi_Icon_BlobBuild(const struct DiskObject *d, u8 *buf, u32 buflen)
         w_str(&w, d->do_ToolTypes[i]);
     }
 
-    if (d->do_Type == WBDRAWER) {
+    if (flags & ICON_BLOB_F_DRAWER) {
         const struct DrawerData *dd = d->do_DrawerData;
         i16 le = 0, te = 0, wi = 0, he = 0;
         i32 ddx = 0, ddy = 0;
@@ -239,7 +243,7 @@ static struct DiskObject *icon_blob_parse(const u8 *blob, u32 len)
         return nullptr;
     }
     u8 type = r_u8(&r);
-    (void)r_u8(&r); // flags
+    u8 flags = r_u8(&r);
     i32 cx = (i32)r_u32(&r);
     i32 cy = (i32)r_u32(&r);
     u32 stack = r_u32(&r);
@@ -258,7 +262,7 @@ static struct DiskObject *icon_blob_parse(const u8 *blob, u32 len)
         tt_off[i] = r_str(&r, &tt_len[i]);
     }
 
-    bool drawer = (type == WBDRAWER);
+    bool drawer = (flags & ICON_BLOB_F_DRAWER) != 0;
     i16 le = 0, te = 0, wi = 0, he = 0;
     i32 ddx = 0, ddy = 0;
     if (drawer) {
@@ -341,6 +345,63 @@ static struct DiskObject *icon_blob_parse(const u8 *blob, u32 len)
     return d;
 }
 
+// The xattr name a default icon for `type` is stashed under, on the
+// volume root cnode: "cara.icondef" + a single type digit (1..8). `out`
+// must hold >= 14 bytes; returns the name length.
+static u32 icon_def_xattr_name(LONG type, char *out)
+{
+    static const char base[] = "cara.icondef";
+    u32 i = 0;
+    for (; base[i]; i++) {
+        out[i] = base[i];
+    }
+    out[i++] = (char)('0' + (int)(type & 0x7));
+    return i;
+}
+
+// Synthesise a built-in default DiskObject for `type` (no FS read): the
+// fallback when PutDefDiskObject never stored one. Reuses the codec —
+// build a blob, parse it back into a heap DiskObject.
+static struct DiskObject *icon_make_default(LONG type)
+{
+    static const char empty[] = "";
+    struct DiskObject d = { 0 };
+    d.do_Magic = WB_DISKMAGIC;
+    d.do_Version = WB_DISKVERSION;
+    d.do_Type = (UBYTE)type;
+    d.do_CurrentX = (LONG)NO_ICON_POSITION;
+    d.do_CurrentY = (LONG)NO_ICON_POSITION;
+    d.do_DefaultTool = (char *)empty;
+    struct DrawerData dd = { 0 };
+    if (type == WBDISK || type == WBDRAWER || type == WBGARBAGE) {
+        dd.dd_NewWindow.LeftEdge = 48;
+        dd.dd_NewWindow.TopEdge = 32;
+        dd.dd_NewWindow.Width = 320;
+        dd.dd_NewWindow.Height = 200;
+        d.do_DrawerData = &dd;
+    }
+    u8 buf[CARA_ICON_BLOB_MAX];
+    u32 n = Croi_Icon_BlobBuild(&d, buf, sizeof buf);
+    if (!n) {
+        return nullptr;
+    }
+    return icon_blob_parse(buf, n);
+}
+
+// Resolve a path to its CaraFS cnode via a dos Lock. Returns false (and
+// leaves *cnode untouched) when the object does not exist.
+static bool icon_lock_cnode(STRPTR name, u64 *cnode, BPTR *lock_out)
+{
+    BPTR lock = Croi_Dos_Lock_Impl(name, SHARED_LOCK);
+    if (!lock) {
+        return false;
+    }
+    struct FileLock *fl = (struct FileLock *)BADDR(lock);
+    *cnode = (u64)(uptr)fl->fl_Key;
+    *lock_out = lock;
+    return true;
+}
+
 // ---- impls ----------------------------------------------------------
 
 struct DiskObject *Croi_Icon_ReadCnode(struct CarafsMount *m, u64 cnode)
@@ -364,15 +425,45 @@ struct DiskObject *Croi_Icon_GetDiskObject_Impl(STRPTR name)
     if (!name) {
         return nullptr;
     }
-    BPTR lock = Croi_Dos_Lock_Impl(name, SHARED_LOCK);
-    if (!lock) {
+    u64 cnode;
+    BPTR lock;
+    if (!icon_lock_cnode(name, &cnode, &lock)) {
         return nullptr;
     }
-    struct FileLock *fl = (struct FileLock *)BADDR(lock);
-    u64 cnode = (u64)(uptr)fl->fl_Key;
     struct DiskObject *d = Croi_Icon_ReadCnode(&g_carafs, cnode);
     Croi_Dos_UnLock_Impl(lock);
     return d;
+}
+
+// GetDiskObjectNew: like GetDiskObject, but synthesise a default (project)
+// icon when the object carries none, so the caller always gets a usable
+// DiskObject.
+struct DiskObject *Croi_Icon_GetDiskObjectNew_Impl(STRPTR name)
+{
+    struct DiskObject *d = Croi_Icon_GetDiskObject_Impl(name);
+    if (d) {
+        return d;
+    }
+    return icon_make_default(WBPROJECT);
+}
+
+// GetDefDiskObject: the default icon for a WB* type — a copy stored by
+// PutDefDiskObject on the volume root, else the built-in default.
+struct DiskObject *Croi_Icon_GetDefDiskObject_Impl(LONG type)
+{
+    char nm[16];
+    u32 nl = icon_def_xattr_name(type, nm);
+    u8 buf[CARA_ICON_BLOB_MAX];
+    usize len = 0;
+    if (Carafs_XattrGet(&g_carafs, g_carafs.sb.root_cnode, nm, nl, buf, sizeof buf, &len) ==
+            CARA_EOK &&
+        len > 0 && len <= sizeof buf) {
+        struct DiskObject *d = icon_blob_parse(buf, (u32)len);
+        if (d) {
+            return d;
+        }
+    }
+    return icon_make_default(type);
 }
 
 void Croi_Icon_FreeDiskObject_Impl(struct DiskObject *diskobj)
@@ -380,4 +471,60 @@ void Croi_Icon_FreeDiskObject_Impl(struct DiskObject *diskobj)
     if (diskobj) {
         Croi_Free(diskobj); // the single shared-heap allocation
     }
+}
+
+// PutDiskObject: serialise `diskobj` and store it as the object's
+// cara.icon xattr. BOOL (1 ok / 0 fail).
+LONG Croi_Icon_PutDiskObject_Impl(STRPTR name, struct DiskObject *diskobj)
+{
+    if (!name || !diskobj) {
+        return 0;
+    }
+    u8 buf[CARA_ICON_BLOB_MAX];
+    u32 n = Croi_Icon_BlobBuild(diskobj, buf, sizeof buf);
+    if (!n) {
+        return 0;
+    }
+    u64 cnode;
+    BPTR lock;
+    if (!icon_lock_cnode(name, &cnode, &lock)) {
+        return 0;
+    }
+    int rc = Carafs_XattrSet(&g_carafs, cnode, "cara.icon", 9, buf, n);
+    Croi_Dos_UnLock_Impl(lock);
+    return (rc == CARA_EOK) ? 1 : 0;
+}
+
+// PutDefDiskObject: store `diskobj` as the default for its do_Type on the
+// volume root. BOOL.
+LONG Croi_Icon_PutDefDiskObject_Impl(struct DiskObject *diskobj)
+{
+    if (!diskobj) {
+        return 0;
+    }
+    u8 buf[CARA_ICON_BLOB_MAX];
+    u32 n = Croi_Icon_BlobBuild(diskobj, buf, sizeof buf);
+    if (!n) {
+        return 0;
+    }
+    char nm[16];
+    u32 nl = icon_def_xattr_name((LONG)diskobj->do_Type, nm);
+    int rc = Carafs_XattrSet(&g_carafs, g_carafs.sb.root_cnode, nm, nl, buf, n);
+    return (rc == CARA_EOK) ? 1 : 0;
+}
+
+// DeleteDiskObject: remove the object's cara.icon xattr. BOOL.
+LONG Croi_Icon_DeleteDiskObject_Impl(STRPTR name)
+{
+    if (!name) {
+        return 0;
+    }
+    u64 cnode;
+    BPTR lock;
+    if (!icon_lock_cnode(name, &cnode, &lock)) {
+        return 0;
+    }
+    int rc = Carafs_XattrRemove(&g_carafs, cnode, "cara.icon", 9);
+    Croi_Dos_UnLock_Impl(lock);
+    return (rc == CARA_EOK) ? 1 : 0;
 }

@@ -220,6 +220,11 @@ enum {
     SYS_Iff_FindCollection = 166,
     SYS_Icon_GetDiskObject = 167,
     SYS_Icon_FreeDiskObject = 168,
+    SYS_Icon_PutDiskObject = 169,
+    SYS_Icon_DeleteDiskObject = 170,
+    SYS_Icon_GetDiskObjectNew = 171,
+    SYS_Icon_GetDefDiskObject = 172,
+    SYS_Icon_PutDefDiskObject = 173,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -403,6 +408,11 @@ enum {
 #define SYS_Iff_FindCollection 166
 #define SYS_Icon_GetDiskObject 167
 #define SYS_Icon_FreeDiskObject 168
+#define SYS_Icon_PutDiskObject 169
+#define SYS_Icon_DeleteDiskObject 170
+#define SYS_Icon_GetDiskObjectNew 171
+#define SYS_Icon_GetDefDiskObject 172
+#define SYS_Icon_PutDefDiskObject 173
 #endif
 
 #endif

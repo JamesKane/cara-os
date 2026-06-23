@@ -30,7 +30,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | gadtools.library | 23 | 17 | 0 | 2 | 4 | 89% |
 | asl.library | 10 | 6 | 0 | 0 | 4 | 100% |
 | iffparse.library | 39 | 22 | 0 | 13 | 4 | 62% |
-| icon.library | 23 | 2 | 0 | 17 | 4 | 10% |
+| icon.library | 23 | 7 | 0 | 12 | 4 | 36% |
 | cruth.library | 23 | 9 | 10 | 0 | 4 | 100% |
 
 ## exec.library
@@ -404,24 +404,29 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 ## icon.library
 
-ABI surface declared through LVO -138 (ordinal 22). 19 user-callable slots: **2 impl**, 0 server, **17 stub**; coverage **10%**.
+ABI surface declared through LVO -138 (ordinal 22). 19 user-callable slots: **7 impl**, 0 server, **12 stub**; coverage **36%**.
 
-### Implemented (2)
+### Implemented (7)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
 | 11 | -72 | `GetDiskObject` | syscall |
+| 12 | -78 | `PutDiskObject` | syscall |
 | 13 | -84 | `FreeDiskObject` | syscall |
+| 18 | -114 | `GetDiskObjectNew` | syscall |
+| 19 | -120 | `DeleteDiskObject` | syscall |
+| 21 | -132 | `GetDefDiskObject` | syscall |
+| 22 | -138 | `PutDefDiskObject` | syscall |
 
-### Unimplemented stub slots (17)
+### Unimplemented stub slots (12)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
 | ord range | LVO range | count |
 |-----------|-----------|------:|
 | 4..10 | -30..-66 | 7 |
-| 12..12 | -78..-78 | 1 |
-| 14..22 | -90..-138 | 9 |
+| 14..17 | -90..-108 | 4 |
+| 20..20 | -126..-126 | 1 |
 
 ## cruth.library
 

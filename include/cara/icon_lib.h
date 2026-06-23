@@ -34,6 +34,17 @@ ULONG Croi_Icon_ExtFunc(struct Library *base, struct IconBase *ib);
 struct DiskObject *Croi_Icon_GetDiskObject_Impl(STRPTR name);
 void Croi_Icon_FreeDiskObject_Impl(struct DiskObject *diskobj);
 
+// ---- LVO impls (L11.2) ----------------------------------------------
+// GetDiskObjectNew falls back to a default icon; GetDefDiskObject returns
+// the default for a WB* type (stored copy, else built-in). PutDiskObject /
+// PutDefDiskObject / DeleteDiskObject persist or remove via the cara.icon
+// (or per-type cara.icondef) xattr. The Put/Delete LVOs return BOOL.
+struct DiskObject *Croi_Icon_GetDiskObjectNew_Impl(STRPTR name);
+struct DiskObject *Croi_Icon_GetDefDiskObject_Impl(LONG type);
+LONG Croi_Icon_PutDiskObject_Impl(STRPTR name, struct DiskObject *diskobj);
+LONG Croi_Icon_PutDefDiskObject_Impl(struct DiskObject *diskobj);
+LONG Croi_Icon_DeleteDiskObject_Impl(STRPTR name);
+
 // ---- Internal seams (shared with the kernel test) -------------------
 // Largest cara.icon blob handled inline (a default DiskObject is tens of
 // bytes; bounds the parse/seed scratch buffers).

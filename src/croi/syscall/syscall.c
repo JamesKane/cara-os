@@ -547,6 +547,16 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_Icon_FreeDiskObject:
         Croi_Icon_FreeDiskObject_Impl((struct DiskObject *)(uptr)a0);
         return 0;
+    case SYS_Icon_PutDiskObject:
+        return (i64)Croi_Icon_PutDiskObject_Impl((STRPTR)(uptr)a0, (struct DiskObject *)(uptr)a1);
+    case SYS_Icon_DeleteDiskObject:
+        return (i64)Croi_Icon_DeleteDiskObject_Impl((STRPTR)(uptr)a0);
+    case SYS_Icon_GetDiskObjectNew:
+        return (i64)(uptr)Croi_Icon_GetDiskObjectNew_Impl((STRPTR)(uptr)a0);
+    case SYS_Icon_GetDefDiskObject:
+        return (i64)(uptr)Croi_Icon_GetDefDiskObject_Impl((LONG)a0);
+    case SYS_Icon_PutDefDiskObject:
+        return (i64)Croi_Icon_PutDefDiskObject_Impl((struct DiskObject *)(uptr)a0);
 
     // ---- exec device IO primitives (L6) ----
     case SYS_OpenDevice:
