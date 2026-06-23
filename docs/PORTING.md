@@ -63,8 +63,9 @@ The pattern (see any target in `src/userland/CMakeLists.txt`):
   headers and the generated `<proto/*>` live. (`cara_headers` also
   exposes `cara/*`, but your source must not include those.)
 - **Link** `-nostdlib`, the user linker script `src/userland/user.lds`,
-  and the C runtime `libcara_user` (whole-archived so `_start` survives
-  GC). `libcara`'s `_start` opens exec.library to set `SysBase`, calls
+  the C runtime `libcara_user` (whole-archived so `_start` survives GC),
+  and — if your source uses the C standard library — `cara_user_libc`
+  (§6). `libcara`'s `_start` opens exec.library to set `SysBase`, calls
   `main()`, and turns the return value into the exit status (the role of
   the Amiga startup + amiga.lib — not your source).
 - **Depend** on the generated stubs for the libraries you use
@@ -92,20 +93,59 @@ the normal Amiga situation: an application opens onto an existing screen.
 
 ---
 
-## 5. What works today (Phase 3 progress)
+## 5. What works today
 
-P0 baseline: `exec.library` (a core slice — OpenLibrary, AllocMem,
-ports, signals) and `intuition.library` (OpenWindow/CloseWindow,
-gadgets) are live; a verbatim-V36 open-a-window program builds and runs.
+The whole **L1–L14 V36+ library surface** is in place: `exec` (lists,
+memory, tasks, ports, signals, semaphores, device IO), `utility` (tags,
+hooks), `dos` (Open/Read/Write/Lock/Examine/…), `graphics`/Dath (RastPort
+pens + primitives, RectFill, blits, **Text** + fonts, Area* fill, a live
+`Screen.RastPort` — drawing works), `intuition` (windows, gadgets, menus,
+requesters, screens, IDCMP), `gadtools`, `asl`, BOOPSI, `iffparse`,
+`icon`, `diskfont`, `commodities`, `expansion`. Coverage per library is in
+`docs/LVO_COVERAGE.md`.
 
-The rest of the V36 surface arrives library by library (`docs/PHASE3.md`
-epic order: exec → utility → dos → graphics → intuition → devices →
-BOOPSI → gadtools → asl → …). Each library is **link-complete first**
-(every documented LVO is declared at its canonical number, so your
-program always links) with **bodies filled in apps-driven** — an
-unimplemented function is a defined, logged stub, not a missing symbol.
-If a call returns a not-yet-implemented failure, that gap is tracked,
-not a porting error on your side.
+Each library is **link-complete first** (every documented LVO is declared
+at its canonical number, so your program always links) with **bodies
+filled in apps-driven** — an unimplemented function is a defined, logged
+stub (`Croi_LvoUnimplemented`), not a missing symbol. If a call returns a
+not-yet-implemented failure, that gap is tracked, not a porting error on
+your side. Known deferred substrate a port may hit: the input-handler
+chain (commodities live events), `layers.library` (overlapping windows),
+`DrawImage`, gadtools LISTVIEW/PALETTE, the asl-font-requester list, full
+buffered/disk stdio. See the per-epic docs + `docs/PORTS.md §5`.
 
 Cross-building from a host is the path for now; the on-target compiler
 (`tion`, Phase 6) is the eventual self-host story.
+
+---
+
+## 6. The C standard library + porting an external app (Phase T)
+
+Real third-party V36 source uses the compiler's libc (`<string.h>`,
+`<stdlib.h>`, `<stdio.h>`, `<ctype.h>`) + `amiga.lib`. CaraOS provides a
+**userland libc subset** for this — `cara_user_libc` (`src/userland/libc/`,
+`docs/PORTS.md §1.1`): `string`/`ctype` (pure), `stdlib` (`malloc`/`free`/
+`calloc`/`realloc` over exec `AllocVec`; `atoi`/`strtol`/`qsort`/`abs`/
+`rand`/`exit`), and `stdio` (`printf`/`fprintf`/`s(n)printf`/`puts`/
+`putchar`/`fwrite` — line-buffered to the console). Link `cara_user_libc`
+and its `PUBLIC` include dir supplies the standard headers under
+`-nostdlibinc`. Not yet provided (add when a port needs it): disk `FILE`
+streams (`fopen`/`fread`/`fgets` over dos), floating-point `printf`
+(`%f`/`%g`), `setjmp`. `libctest` is the worked example.
+
+**Porting an external application** (the Phase T goal — build real Amiga
+source unedited and run it):
+
+1. Vendor the app's source under `ports/<name>/` with its **own upstream
+   license** intact (third-party, exempt from the BSD-2 SPDX rule; it is a
+   separate U-mode ELF, never linked into the kernel image).
+2. Add a CMake target like the `src/userland` programs: `cara_kernel_flags`
+   + `cara_headers` + `libcara_user` (whole-archived) + `cara_user_libc`,
+   `-Wl,-T,user.lds`, depending on the `cara_*_lib_gen` of each library it
+   opens.
+3. Build it **without editing the app's source**. A compile/link gap is a
+   missing libc function or an unimplemented LVO — fill the libc / library,
+   don't patch the app.
+4. Embed the ELF (`.incbin` in `src/croi/CMakeLists.txt`'s `user_blob.S`)
+   or load it from the CaraFS volume, and spawn it via
+   `Croi_SpawnUserTaskFromElf` (a `KERNEL_TEST` or the boot path).

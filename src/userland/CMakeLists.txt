@@ -15,6 +15,21 @@ set(_user_lds "${CMAKE_CURRENT_SOURCE_DIR}/user.lds")
 add_library(libcara_user STATIC libcara_init.c libcara_boopsi.c)
 target_link_libraries(libcara_user PRIVATE cara_kernel_flags cara_headers)
 
+# cara_user_libc — the userland libc subset (Phase T, docs/PORTS.md §1.1):
+# <string.h>/<ctype.h>/<stdlib.h>/<stdio.h> over the Amiga API + syscalls,
+# so a real ported V36+ C application's source compiles unedited. The
+# PUBLIC include dir (libc/include) is how a consumer gets the standard
+# headers under -nostdlibinc.
+add_library(cara_user_libc STATIC
+    libc/string.c
+    libc/stdlib.c
+    libc/fmt.c
+    libc/stdio.c
+)
+target_include_directories(cara_user_libc PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libc/include")
+target_link_libraries(cara_user_libc PRIVATE cara_kernel_flags cara_headers)
+add_dependencies(cara_user_libc cara_exec_lib_gen)
+
 add_executable(userhello userhello.c)
 target_link_libraries(userhello PRIVATE cara_kernel_flags cara_headers)
 target_link_options(userhello PRIVATE
@@ -140,4 +155,31 @@ set_target_properties(v36hello PROPERTIES
     LINKER_LANGUAGE C
     SUFFIX ".elf"
     OUTPUT_NAME "v36hello"
+)
+
+# libctest — exercises the Phase T userland libc (string/stdlib/stdio/
+# ctype) from a real U-mode Gleas, the way a ported app will use it. Links
+# cara_user_libc; spawned + checked by KERNEL_TEST(libctest_smoke).
+add_executable(libctest libctest.c)
+target_link_libraries(libctest PRIVATE
+    cara_kernel_flags
+    cara_headers
+    libcara_user
+    cara_user_libc
+)
+add_dependencies(libctest cara_exec_lib_gen)
+target_link_options(libctest PRIVATE
+    -nostdlib
+    -fuse-ld=${CARA_RV64_LDLLD_PATH}
+    -Wl,-T,${_user_lds}
+    -Wl,--build-id=none
+    -Wl,--whole-archive
+    "$<TARGET_FILE:libcara_user>"
+    -Wl,--no-whole-archive
+)
+set_target_properties(libctest PROPERTIES
+    LINK_DEPENDS ${_user_lds}
+    LINKER_LANGUAGE C
+    SUFFIX ".elf"
+    OUTPUT_NAME "libctest"
 )
