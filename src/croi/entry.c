@@ -49,6 +49,7 @@
 #include <libraries/iffparse.h>
 #include <utility/tagitem.h>
 #include <utility/utilitybase.h>
+#include <workbench/icon.h>
 
 // Boot-time PCIe inventory. Populated by Croi_Pci_Init from the FDT
 // before the test runner so kernel tests (test_pci.c) can assert
@@ -115,6 +116,10 @@ extern const usize asl_lib_vec_count;
 // Generated from tools/lvo-gen/iffparse.conf (L10.1). iffparse.library.
 extern void *iffparse_lib_vec[];
 extern const usize iffparse_lib_vec_count;
+
+// Generated from tools/lvo-gen/icon.conf (L11.1). icon.library.
+extern void *icon_lib_vec[];
+extern const usize icon_lib_vec_count;
 
 // Clar (the Phase 1 Workbench Gleas) embedded in the .user_elf section
 // (src/croi/CMakeLists.txt user_blob.S). Spawned as the foreground task
@@ -808,6 +813,41 @@ static void console_putc(char c)
         struct Library *base = Croi_MakeLibrary(mklib_tags);
         if (!base) {
             LOG_FATAL("entry", "Croi_MakeLibrary(iffparse.library) failed");
+            Croi_Halt();
+        }
+    }
+
+    // ---- Construct icon.library (L11.1).
+    //      Same shared-heap layout. IconBase has no public fields past
+    //      LibNode (priv_size 0). L11.1 ships the reserved hooks + the
+    //      DiskObject read path (GetDiskObject/FreeDiskObject) over the
+    //      cara.icon xattr; the write side + tool-type helpers arrive
+    //      with later slices.
+    {
+        usize priv_size = sizeof(struct IconBase) - sizeof(struct Library);
+        usize neg_size = sizeof(void *) * icon_lib_vec_count;
+        usize block_size = neg_size + sizeof(struct Library) + priv_size;
+
+        u8 *block = (u8 *)Croi_AllocShared(block_size);
+        if (!block) {
+            LOG_FATAL("entry", "AllocShared(icon.library, %llu bytes) failed", (u64)block_size);
+            Croi_Halt();
+        }
+        struct Library *ibase = (struct Library *)(block + neg_size);
+
+        struct TagItem mklib_tags[] = {
+            { MKL_NAME, (IPTR) "icon.library" },
+            { MKL_BASE, (IPTR)ibase },
+            { MKL_VEC_TABLE, (IPTR)icon_lib_vec },
+            { MKL_VEC_COUNT, (IPTR)icon_lib_vec_count },
+            { MKL_VERSION, 36 },
+            { MKL_REVISION, 0 },
+            { MKL_PRIVATE_SIZE, (IPTR)priv_size },
+            { TAG_END, 0 },
+        };
+        struct Library *base = Croi_MakeLibrary(mklib_tags);
+        if (!base) {
+            LOG_FATAL("entry", "Croi_MakeLibrary(icon.library) failed");
             Croi_Halt();
         }
     }

@@ -591,4 +591,34 @@ struct CarafsDirEntry {
 [[nodiscard]] int Carafs_SymlinkRead(struct CarafsMount *m, u64 cnode, void *buf, usize buflen,
                                      usize *len_out);
 
+// ---- Extended attributes (epic L11; CARAFS.md §3.10) -------------------------
+//
+// Named attributes stored on the object's cnode — the `cara.icon` xattr
+// backs icon.library, and `cara.*` is reserved / `user.*` free-form. v0
+// is inline-only: all of a cnode's attributes share one
+// CARAFS_ITEM_XATTR item, a packed list of records
+//   { u8 name_len; u8 flags; u16 val_len; name[name_len]; val[val_len] }.
+// A value that will not fit the cnode's inline item area returns
+// CARA_EOVERFLOW (the XATTR_OVERFLOW chain is a later slice). Names are
+// 1..CARAFS_XATTR_NAME_MAX bytes and matched case-sensitively; values are
+// 0..65535 bytes.
+
+constexpr u32 CARAFS_XATTR_NAME_MAX = 255;
+constexpr u32 CARAFS_XATTR_VALUE_MAX = 65535;
+
+// Read attribute `name` of `cnode` into buf (up to buflen bytes). *len_out
+// (non-null) gets the full value length even when it exceeds buflen, so a
+// caller can size a second call. CARA_ENOENT if the attribute is absent.
+[[nodiscard]] int Carafs_XattrGet(struct CarafsMount *m, u64 cnode, const void *name, u32 name_len,
+                                  void *buf, usize buflen, usize *len_out);
+
+// Set (create or replace) attribute `name` of `cnode`. CARA_EOVERFLOW if
+// it will not fit inline. Brackets its own transaction; durable on return.
+[[nodiscard]] int Carafs_XattrSet(struct CarafsMount *m, u64 cnode, const void *name, u32 name_len,
+                                  const void *val, u32 val_len);
+
+// Remove attribute `name` of `cnode`. CARA_ENOENT if absent. Own txn.
+[[nodiscard]] int Carafs_XattrRemove(struct CarafsMount *m, u64 cnode, const void *name,
+                                     u32 name_len);
+
 #endif

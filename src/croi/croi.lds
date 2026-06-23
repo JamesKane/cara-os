@@ -217,6 +217,10 @@ SECTIONS
          * shared RX+U region; iffparse's base + vec live in the SASOS
          * shared heap. */
         KEEP(*(.lib_text.iffparse))
+        /* icon.library's `syscall`-flavour trampolines (L11). Same
+         * shared RX+U region; icon's base + vec live in the SASOS shared
+         * heap. */
+        KEEP(*(.lib_text.icon))
         . = ALIGN(4K);
         __exec_lib_end = .;
     } > LIB_VIRT AT > RAM_PHYS :lib_exec

@@ -218,6 +218,8 @@ enum {
     SYS_Iff_CollectionChunks = 164,
     SYS_Iff_FindProp = 165,
     SYS_Iff_FindCollection = 166,
+    SYS_Icon_GetDiskObject = 167,
+    SYS_Icon_FreeDiskObject = 168,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -399,6 +401,8 @@ enum {
 #define SYS_Iff_CollectionChunks 164
 #define SYS_Iff_FindProp 165
 #define SYS_Iff_FindCollection 166
+#define SYS_Icon_GetDiskObject 167
+#define SYS_Icon_FreeDiskObject 168
 #endif
 
 #endif

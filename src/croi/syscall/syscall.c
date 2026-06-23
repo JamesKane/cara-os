@@ -17,6 +17,7 @@
 #include <cara/exec_lib.h>
 #include <cara/gadtools_lib.h>
 #include <cara/graphics_lib.h>
+#include <cara/icon_lib.h>
 #include <cara/iffparse_lib.h>
 #include <cara/intuition_lib.h>
 #include <cara/log.h>
@@ -539,6 +540,13 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_Iff_FindCollection:
         return (i64)(uptr)Croi_Iff_FindCollection_Impl((struct IFFHandle *)(uptr)a0, (LONG)a1,
                                                        (LONG)a2);
+
+    // ---- icon.library DiskObject read path (L11) ----
+    case SYS_Icon_GetDiskObject:
+        return (i64)(uptr)Croi_Icon_GetDiskObject_Impl((STRPTR)(uptr)a0);
+    case SYS_Icon_FreeDiskObject:
+        Croi_Icon_FreeDiskObject_Impl((struct DiskObject *)(uptr)a0);
+        return 0;
 
     // ---- exec device IO primitives (L6) ----
     case SYS_OpenDevice:
