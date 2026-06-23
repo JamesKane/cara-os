@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+314d0d9 phase-3/L11.2 icon.library write side + defaults (PutDiskObject/DeleteDiskObject/GetDiskObjectNew/Get+PutDefDiskObject)
 8dabe86 phase-3/L11.1 icon.library foundation + CaraFS xattr layer + GetDiskObject
 38a97b4 docs          scope L11 icon.library (docs/ICON.md)
 8dd9182 phase-3/L10.4 iffparse props/collections — closes L10 (PropChunk/FindProp/CollectionChunk/FindCollection)
@@ -929,16 +930,27 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   frees it. New ABI headers `workbench/workbench.h` (DiskObject/DrawerData/
   `WB*`) + `workbench/icon.h` (IconBase). icon coverage 10% (2/19). The
   blob codec (`Croi_Icon_BlobBuild`/parse) + `Croi_Icon_ReadCnode(m,cnode)`
-  are exposed for the test. **NEXT: L11.2** — the write side + defaults:
-  `PutDiskObject -78`/`PutDefDiskObject -138`/`DeleteDiskObject -120`
-  (serialise back / remove the xattr), `GetDefDiskObject -132` (synthesise
-  a default DiskObject per `WB*` type), `GetDiskObjectNew -114` (Get else
-  GetDef). Test: a Gleas round-trip (PutDiskObject → reboot → GetDiskObject
-  same fields) — needs a Process for the by-name path Lock, so it can't be
-  a KERNEL_TEST (the L10 constraint); the two-boot smoke covers
-  persistence. Then **L11.3** — `FindToolType -90`/`MatchToolValue -96`/
-  `BumpRevision -102` (`local` flavour, RX page). After L11:
-  L12-14 = diskfont, commodities, expansion. Old L10.4 note kept below.
+  are exposed for the test.
+- **L11.2 shipped (`314d0d9`): write side + defaults.** `PutDiskObject
+  -78`/`DeleteDiskObject -120` (serialise/remove the cara.icon xattr after
+  a dos-Lock path resolution; both return BOOL), `GetDiskObjectNew -114`
+  (Get, else a synthesised WBPROJECT default), `GetDefDiskObject -132`/
+  `PutDefDiskObject -138` (per-type default stored on the volume root as
+  the `cara.icondef<N>` xattr, else a built-in default) — `SYS_Icon`
+  169-173. A built-in default reuses the codec (build a blob, parse it).
+  The blob's drawer block is now keyed on a flag bit (`ICON_BLOB_F_DRAWER`)
+  not `do_Type==WBDRAWER`, so WBDISK/WBGARBAGE defaults carry DrawerData
+  too. Tested by a full `userexec` Gleas round-trip (Put→Get→assert
+  fields→Delete→GetDiskObjectNew default→Put/GetDefDiskObject drawer;
+  exit `0xBAE2`); persistence covered by the two-boot smoke. icon coverage
+  36% (7/19). **NEXT: L11.3** (closes L11) — the pure-string `local`
+  helpers: `FindToolType -90` (scan `do_ToolTypes` for a "KEY[=VAL]"),
+  `MatchToolValue -96` (match a value against a `a|b|c` list),
+  `BumpRevision -102` (build a "copy_N_of_name"). `local` flavour → a
+  `.lib_text.icon` RX-page TU (RX rules: force-inline helpers,
+  self-contained, no out-of-section calls); tested from the Gleas over a
+  static `char *[]`. After L11: L12-14 = diskfont, commodities, expansion.
+  Old L10.4 note kept below.
 
   (Superseded note) After L10:
   L11-14 = icon.library (.info ↔ CARAFS cara.icon
