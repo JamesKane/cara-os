@@ -23,6 +23,7 @@ target_link_libraries(libcara_user PRIVATE cara_kernel_flags cara_headers)
 add_library(cara_user_libc STATIC
     libc/string.c
     libc/stdlib.c
+    libc/strtod.c
     libc/fmt.c
     libc/stdio.c
     libc/times.c

@@ -9,6 +9,17 @@ cara_unit_test(test_c23)
 cara_unit_test(test_list)
 cara_unit_test(test_ring)
 
+# test_libc_float: the userland libc float bits (fmt.c %f/%e/%g + strtod.c)
+# are pure (no syscalls), so compile them straight into a host test. T.4.2.
+add_executable(test_libc_float
+    test_libc_float.c
+    "${CMAKE_SOURCE_DIR}/src/userland/libc/fmt.c"
+    "${CMAKE_SOURCE_DIR}/src/userland/libc/strtod.c"
+)
+target_include_directories(test_libc_float PRIVATE "${CMAKE_SOURCE_DIR}/src/userland/libc")
+target_link_libraries(test_libc_float PRIVATE cara_flags cara_headers)
+add_test(NAME test_libc_float COMMAND test_libc_float)
+
 cara_unit_test(test_fdt_header cara_fdt)
 cara_unit_test(test_fdt_walk   cara_fdt)
 cara_unit_test(test_fdt_qemu   cara_fdt)

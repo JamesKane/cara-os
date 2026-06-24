@@ -21,8 +21,10 @@ void *realloc(void *ptr, size_t size);
 
 int atoi(const char *s);
 long atol(const char *s);
+double atof(const char *s);
 long strtol(const char *s, char **endptr, int base);
 unsigned long strtoul(const char *s, char **endptr, int base);
+double strtod(const char *s, char **endptr);
 
 int abs(int n);
 long labs(long n);
