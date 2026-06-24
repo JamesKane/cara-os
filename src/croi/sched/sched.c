@@ -161,6 +161,25 @@ struct Task *Sched_Current(void)
     return t;
 }
 
+// Activate a task's address space before switching to it. Each U-mode
+// task has its own page table — its private text/stack live at the same
+// low VAs (0x10000…) but map to different physical pages — so satp must
+// point at the task we are switching TO. Before T.3.2 only one U-mode
+// task ever existed, so satp (set once in user_task_trampoline) was always
+// right; RunCommand introduces a second concurrent U-mode task, and
+// without this a blocked launcher would resume under the child's page
+// table. Kernel tasks run under whatever PT is current (the kernel and the
+// shared heap are mapped into every PT), so they need no switch.
+static void sched_activate_as(const struct Task *next)
+{
+    if (next && next->user_pt) {
+        u64 satp = Sv39_Satp(next->user_pt);
+        __asm__ volatile("sfence.vma zero, zero" ::: "memory");
+        __asm__ volatile("csrw satp, %0" : : "r"(satp) : "memory");
+        __asm__ volatile("sfence.vma zero, zero" ::: "memory");
+    }
+}
+
 void Croi_Yield(void)
 {
     if (!g_inited) {
@@ -191,6 +210,7 @@ void Croi_Yield(void)
         runq_add(old);
     }
     g_current = next;
+    sched_activate_as(next);
     croi_ctx_switch(old ? old->saved_regs : nullptr, next->saved_regs);
 }
 
@@ -219,6 +239,7 @@ void Croi_Yield(void)
 
     // We pass the dying task's saved_regs as the from buffer; ctx_switch
     // will write into it but no one reads it again.
+    sched_activate_as(next);
     croi_ctx_switch(old->saved_regs, next->saved_regs);
     __builtin_unreachable();
 }
@@ -381,8 +402,14 @@ void Croi_Enable(void)
     return t;
 }
 
-[[nodiscard]] struct Task *Croi_SpawnUserTaskFromElf(const char *name, i32 pri,
-                                                     const void *elf_blob, usize elf_size)
+// Max command-line bytes copied into a spawned Process's stack (T.3.2).
+// Kept well under a page so it always fits in the top stack page.
+#define CARA_USER_CMDLINE_MAX 256u
+
+[[nodiscard]] struct Task *Croi_SpawnUserProc(const char *name, i32 pri, const void *elf_blob,
+                                              usize elf_size, const char *cmdline, usize cmdlen,
+                                              struct Task *exit_waiter, u32 exit_waiter_sig,
+                                              i64 *exit_code_slot)
 {
     if (!g_inited || !elf_blob || elf_size == 0) {
         return nullptr;
@@ -452,6 +479,7 @@ void Croi_Enable(void)
 
     extern struct PageAllocator g_page_alloc;
     u32 stack_pages = CARA_USER_STACK_SIZE / (u32)CARA_PAGE_SIZE;
+    u64 top_phys = 0;
     for (u32 i = 0; i < stack_pages; i++) {
         u64 phys = Page_Alloc(&g_page_alloc, 1);
         if (phys == 0) {
@@ -461,10 +489,37 @@ void Croi_Enable(void)
         if (Page_Map(t->user_pt, dst_va, phys, PTE_USER_RW) != CARA_EOK) {
             return nullptr;
         }
+        if (i == stack_pages - 1) {
+            top_phys = phys; // the page that backs the stack top
+        }
+    }
+
+    u64 stack_top = (CARA_USER_STACK_BASE + CARA_USER_STACK_SIZE) & ~15ull;
+    t->user_a0 = 0;
+    t->user_a1 = 0;
+    if (cmdline && cmdlen > 0 && top_phys != 0) {
+        // Copy the command line into the top stack page (just below the
+        // stack top) and hand its user-VA + length to the entry in a0/a1.
+        // libcara's _start tokenises it into argv (T.3.2). The stack then
+        // grows down from below the command-line bytes.
+        usize n = cmdlen < (CARA_USER_CMDLINE_MAX - 1) ? cmdlen : (CARA_USER_CMDLINE_MAX - 1);
+        u64 cmd_uva = (stack_top - CARA_USER_CMDLINE_MAX) & ~15ull;
+        u64 top_page_va = CARA_USER_STACK_BASE + CARA_USER_STACK_SIZE - CARA_PAGE_SIZE;
+        u8 *dst = (u8 *)Mm_PhysToVirt(top_phys) + (cmd_uva - top_page_va);
+        for (usize k = 0; k < n; k++) {
+            dst[k] = (u8)cmdline[k];
+        }
+        dst[n] = 0;
+        t->user_a0 = cmd_uva;
+        t->user_a1 = (u64)n;
+        stack_top = cmd_uva;
     }
 
     t->user_entry = entry_va;
-    t->user_sp_top = (CARA_USER_STACK_BASE + CARA_USER_STACK_SIZE) & ~15ull;
+    t->user_sp_top = stack_top & ~15ull;
+    t->exit_waiter = exit_waiter;
+    t->exit_waiter_sig = exit_waiter_sig;
+    t->exit_code_slot = exit_code_slot;
 
     u64 sp_top = (u64)(uptr)t->kstack + CARA_TASK_KSTACK_SIZE;
     sp_top &= ~15ull;
@@ -473,9 +528,15 @@ void Croi_Enable(void)
     t->saved_regs[16] = sp_top; // sscratch
 
     runq_add(t);
-    LOG_DEBUG("schd", "spawn user-elf '%s' pri=%d entry=0x%llx sp_top=0x%llx", t->tc_Node.ln_Name,
-              (int)t->tc_Node.ln_Pri, t->user_entry, t->user_sp_top);
+    LOG_DEBUG("schd", "spawn user-proc '%s' pri=%d entry=0x%llx a0=0x%llx", t->tc_Node.ln_Name,
+              (int)t->tc_Node.ln_Pri, t->user_entry, t->user_a0);
     return t;
+}
+
+[[nodiscard]] struct Task *Croi_SpawnUserTaskFromElf(const char *name, i32 pri,
+                                                     const void *elf_blob, usize elf_size)
+{
+    return Croi_SpawnUserProc(name, pri, elf_blob, elf_size, nullptr, 0, nullptr, 0, nullptr);
 }
 
 // Called from task_trampoline (.S) on the new task's first dispatch.
@@ -595,6 +656,7 @@ u32 Croi_Wait(u32 mask)
         struct Task *next = node_to_task(n);
         next->tc_State = TS_RUN;
         g_current = next;
+        sched_activate_as(next);
         croi_ctx_switch(old->saved_regs, next->saved_regs);
         // resume here when re-scheduled — loop and re-check sigrecvd
     }

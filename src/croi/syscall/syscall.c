@@ -91,8 +91,21 @@ static i64 sys_log_write(i64 level, const char *user_tag, const char *user_msg, 
 
 [[noreturn]] static void sys_exit(i64 status)
 {
-    g_user_exited = true;
-    g_user_exit_status = status;
+    // Process-join (T.3.2): a task spawned with an exit_waiter (e.g. a
+    // RunCommand child) hands its status back to the waiter and signals it,
+    // rather than tripping the global single-task UserExited flag. This
+    // keeps a nested launch (launcher → RunCommand → child) from corrupting
+    // the top-level task's exit signalling.
+    struct Task *self = Sched_Current();
+    if (self && self->exit_waiter) {
+        if (self->exit_code_slot) {
+            *self->exit_code_slot = status;
+        }
+        Croi_Signal(self->exit_waiter, self->exit_waiter_sig);
+    } else {
+        g_user_exited = true;
+        g_user_exit_status = status;
+    }
     LOG_INFO("user", "exit status=%lld", status);
     Croi_TaskExit();
 }
@@ -192,6 +205,13 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     case SYS_Dos_Delay:
         Croi_Dos_Delay_Impl((LONG)a0);
         return 0;
+    case SYS_Dos_LoadSeg:
+        return (i64)(uptr)Croi_Dos_LoadSeg_Impl((STRPTR)(uptr)a0);
+    case SYS_Dos_UnLoadSeg:
+        Croi_Dos_UnLoadSeg_Impl((BPTR)(uptr)a0);
+        return 0;
+    case SYS_Dos_RunCommand:
+        return (i64)Croi_Dos_RunCommand_Impl((BPTR)(uptr)a0, (LONG)a1, (STRPTR)(uptr)a2, (LONG)a3);
 
     // ---- graphics.library (Dath rasteriser) ----
     case SYS_Gfx_AllocBitMap:

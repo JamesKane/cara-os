@@ -71,4 +71,15 @@ void Croi_Dos_Delay_Impl(LONG ticks);
 // the handler TU because it shares the kernel-private DosFileExt layout.
 BPTR Croi_Dos_MakeConsoleHandle(void);
 
+// ---- Program load / launch (T.3.2) ----------------------------------
+// LoadSeg reads an executable off CaraFS (Open MODE_OLDFILE → Seek/Read
+// the whole file → validate ELF) and returns a BPTR seglist (a private
+// struct CaraSeg holding the loaded ELF blob + load name). UnLoadSeg
+// frees it. RunCommand spawns the seglist as a child Process with a
+// command tail (→ argv), runs it to completion, and returns its return
+// code. See src/logaic/dos/loadseg.c and docs/PORTS.md §6.
+BPTR Croi_Dos_LoadSeg_Impl(STRPTR name);
+void Croi_Dos_UnLoadSeg_Impl(BPTR seglist);
+LONG Croi_Dos_RunCommand_Impl(BPTR seglist, LONG stack, STRPTR argptr, LONG argsize);
+
 #endif // CARA_DOS_LIB_H

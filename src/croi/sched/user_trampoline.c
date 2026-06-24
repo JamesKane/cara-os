@@ -38,11 +38,17 @@
     // sepc = user entry.
     __asm__ volatile("csrw sepc, %0" : : "r"(t->user_entry) : "memory");
 
-    u64 user_sp = t->user_sp_top;
-
-    // sret with sp = user_sp; clear all other GPRs so the user
-    // process starts from a known-zero register file.
+    // Initial register file: sp = user stack top; a0/a1 = the entry args
+    // (T.3.2 — command-line pointer + length, which libcara turns into
+    // argv; zero for tasks spawned without a command line). Pin them to
+    // fixed registers so the asm can consume them before clearing the
+    // scratch registers. Everything else starts zero.
+    register u64 _sp __asm__("s1") = t->user_sp_top;
+    register u64 _a0 __asm__("s2") = t->user_a0;
+    register u64 _a1 __asm__("s3") = t->user_a1;
     __asm__ volatile("mv  sp, %0\n"
+                     "mv  a0, %1\n"
+                     "mv  a1, %2\n"
                      "li  ra, 0\n"
                      "li  gp, 0\n"
                      "li  tp, 0\n"
@@ -53,8 +59,6 @@
                      "li  t4, 0\n"
                      "li  t5, 0\n"
                      "li  t6, 0\n"
-                     "li  a0, 0\n"
-                     "li  a1, 0\n"
                      "li  a2, 0\n"
                      "li  a3, 0\n"
                      "li  a4, 0\n"
@@ -75,7 +79,7 @@
                      "li  s11, 0\n"
                      "sret\n"
                      :
-                     : "r"(user_sp)
+                     : "r"(_sp), "r"(_a0), "r"(_a1)
                      : "memory");
 
     __builtin_unreachable();

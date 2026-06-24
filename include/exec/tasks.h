@@ -90,6 +90,19 @@ struct Task {
     struct PageTable *user_pt;
     u64 user_entry;
     u64 user_sp_top;
+    // Initial a0/a1 handed to the user entry (_start). T.3.2 uses these to
+    // pass the command-tail pointer + length so libcara can build argv;
+    // zero for tasks spawned without a command line.
+    u64 user_a0;
+    u64 user_a1;
+    // Process-join (T.3.2): when a task exits via SYS_EXIT, if exit_waiter
+    // is set the kernel writes the status to *exit_code_slot and signals
+    // exit_waiter with exit_waiter_sig — this is how RunCommand blocks on a
+    // child and recovers its return code. Tasks with no waiter fall back to
+    // the global UserExited flag (the single-task test path).
+    struct Task *exit_waiter;
+    u32 exit_waiter_sig;
+    i64 *exit_code_slot;
     struct MinNode sched_node;
 };
 

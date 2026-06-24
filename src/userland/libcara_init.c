@@ -47,7 +47,10 @@ static void _libcara_ecall1_noreturn(long n, long a0)
     }
 }
 
-extern int main(void);
+extern int main(int argc, char **argv);
+
+// Max argv entries libcara builds from the command line (T.3.2).
+#define CARA_MAX_ARGV 32
 
 // Freestanding requires memset/memcpy to be available — the compiler
 // may emit calls to them for struct initialisers / copies (e.g. a large
@@ -74,14 +77,44 @@ void *memcpy(void *dst, const void *src, __SIZE_TYPE__ n)
     return dst;
 }
 
-[[noreturn]] void _start(void);
+[[noreturn]] void _start(char *cmdline, long cmdlen);
 
-[[noreturn]] void _start(void)
+// The kernel hands the new task its command line in a0 (pointer) and a1
+// (length) — see Croi_SpawnUserProc (T.3.2). We declare those as the
+// _start parameters so the calling convention delivers them directly, then
+// tokenise the (writable, NUL-terminated) command line in place into argv.
+[[noreturn]] void _start(char *cmdline, long cmdlen)
 {
     static const char exec_lib_name[] = "exec.library";
     SysBase = (struct ExecBase *)_libcara_ecall2(SYS_OpenLibrary, (long)exec_lib_name, 0);
 
-    int rc = main();
+    // Build argv from the command line: whitespace-separated tokens, argv[0]
+    // = the command name. Spawned-without-a-command-line tasks get cmdline
+    // == nullptr / cmdlen == 0 → argc 0.
+    static char *argv[CARA_MAX_ARGV];
+    int argc = 0;
+    if (cmdline && cmdlen > 0) {
+        char *s = cmdline;
+        char *end = cmdline + cmdlen;
+        while (s < end && *s != 0 && argc < CARA_MAX_ARGV - 1) {
+            while (s < end && (*s == ' ' || *s == '\t')) {
+                s++;
+            }
+            if (s >= end || *s == 0) {
+                break;
+            }
+            argv[argc++] = s;
+            while (s < end && *s != 0 && *s != ' ' && *s != '\t') {
+                s++;
+            }
+            if (s < end && *s != 0) {
+                *s++ = 0;
+            }
+        }
+    }
+    argv[argc] = nullptr;
+
+    int rc = main(argc, argv);
 
     // TODO: balance the OpenLibrary above with a CloseLibrary on the
     // happy path (Phase D v0 leaves the implicit open in place; the

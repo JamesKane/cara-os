@@ -18,6 +18,7 @@ add_library(cara_dos_lib STATIC
     io_err.c
     handler.c
     ops.c
+    loadseg.c
     dos_hooks.c
     trampolines.S
 )

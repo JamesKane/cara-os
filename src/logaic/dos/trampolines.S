@@ -42,3 +42,6 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosCreateDir,  SYS_Dos_CreateDir
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosInput,      SYS_Dos_Input
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosOutput,     SYS_Dos_Output
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosDelay,      SYS_Dos_Delay
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosLoadSeg,    SYS_Dos_LoadSeg
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosUnLoadSeg,  SYS_Dos_UnLoadSeg
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_DosRunCommand, SYS_Dos_RunCommand

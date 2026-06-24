@@ -40,6 +40,7 @@ add_library(cara_kernel_tests STATIC
     test_idcmp.c
     test_string.c
     test_console_input.c
+    test_loadseg.c
     test_shared.c
 )
 target_include_directories(cara_kernel_tests PRIVATE

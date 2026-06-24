@@ -255,6 +255,11 @@ enum {
     SYS_Exp_FindConfigDev = 201,
     SYS_Exp_FreeConfigDev = 202,
     SYS_Exp_RemConfigDev = 203,
+
+    // dos.library program-load path (T.3.2)
+    SYS_Dos_LoadSeg = 204,
+    SYS_Dos_UnLoadSeg = 205,
+    SYS_Dos_RunCommand = 206,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -473,6 +478,9 @@ enum {
 #define SYS_Exp_FindConfigDev 201
 #define SYS_Exp_FreeConfigDev 202
 #define SYS_Exp_RemConfigDev 203
+#define SYS_Dos_LoadSeg 204
+#define SYS_Dos_UnLoadSeg 205
+#define SYS_Dos_RunCommand 206
 #endif
 
 #endif

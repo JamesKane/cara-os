@@ -158,6 +158,32 @@ set_target_properties(v36hello PROPERTIES
     OUTPUT_NAME "v36hello"
 )
 
+# runseg — T.3.2 launch-path proof. LoadSeg()s a program off CaraFS by
+# name and RunCommand()s it (see KERNEL_TEST(loadseg_runcommand)). Same
+# link recipe as clar; drives exec.library + dos.library inline stubs.
+add_executable(runseg runseg.c)
+target_link_libraries(runseg PRIVATE
+    cara_kernel_flags
+    cara_headers
+    libcara_user
+)
+add_dependencies(runseg cara_exec_lib_gen cara_dos_lib_gen)
+target_link_options(runseg PRIVATE
+    -nostdlib
+    -fuse-ld=${CARA_RV64_LDLLD_PATH}
+    -Wl,-T,${_user_lds}
+    -Wl,--build-id=none
+    -Wl,--whole-archive
+    "$<TARGET_FILE:libcara_user>"
+    -Wl,--no-whole-archive
+)
+set_target_properties(runseg PROPERTIES
+    LINK_DEPENDS ${_user_lds}
+    LINKER_LANGUAGE C
+    SUFFIX ".elf"
+    OUTPUT_NAME "runseg"
+)
+
 # libctest — exercises the Phase T userland libc (string/stdlib/stdio/
 # ctype) from a real U-mode Gleas, the way a ported app will use it. Links
 # cara_user_libc; spawned + checked by KERNEL_TEST(libctest_smoke).

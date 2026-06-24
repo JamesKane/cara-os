@@ -46,6 +46,19 @@ void Sched_Init(void);
 [[nodiscard]] struct Task *Croi_SpawnUserTaskFromElf(const char *name, i32 pri,
                                                      const void *elf_blob, usize elf_size);
 
+// Spawn a U-mode Process from an in-memory ELF blob with a command line
+// and optional exit-join (T.3.2 — the RunCommand launch path). cmdline /
+// cmdlen are copied into the new task's stack and handed to its entry in
+// a0/a1 (libcara turns them into argv). If exit_waiter is non-null, the
+// kernel writes the child's SYS_EXIT status to *exit_code_slot and signals
+// exit_waiter with exit_waiter_sig when it exits (instead of setting the
+// global UserExited flag). Pass cmdline=nullptr / exit_waiter=nullptr to
+// opt out of either. Returns nullptr on failure.
+[[nodiscard]] struct Task *Croi_SpawnUserProc(const char *name, i32 pri, const void *elf_blob,
+                                              usize elf_size, const char *cmdline, usize cmdlen,
+                                              struct Task *exit_waiter, u32 exit_waiter_sig,
+                                              i64 *exit_code_slot);
+
 void Croi_Yield(void);
 
 [[noreturn]] void Croi_TaskExit(void);
