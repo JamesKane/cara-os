@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+72efe5a phase-T/T.3.1 console input — keyboard → dos Input() (cooked line discipline)
 cdc7f51 docs          PORTS.md — T.3 reframed as the AmigaDOS launch path (Shell/LoadSeg/argv)
 bc87a9c phase-T/T.2   first real port — Dhrystone 1.1 builds + runs unedited (ports/dhrystone)
 c6ae1f2 phase-T/T.1   userland libc (cara_user_libc) — string/stdlib/stdio/ctype; the substrate for real ports
@@ -1105,12 +1106,31 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   OS launches a program.** CaraOS has no console input (dos stdin = EOF), no
   `LoadSeg`/`RunCommand`/`CreateProc`/`Execute`, no command-tail→`argv`
   (`_start` calls `main(void)`) — the process-launch half of AmigaDOS, which
-  L3 deferred (`docs/PORTS.md §6`). **NEXT: T.3 — build that launch path,
-  sliced:** T.3.1 console input (CON: line discipline → `Input()`), T.3.2
-  `LoadSeg`-from-CaraFS + `RunCommand`/`CreateNewProc` + `argv`, T.3.3 the
-  **Shell** + boot-to-shell — milestone: boot → `>` prompt → type
-  `dhrystone` → it runs (launched, not embedded). The embed path stays for
-  headless tests. Then **T.4** — first real GUI app.
+  L3 deferred (`docs/PORTS.md §6`). **T.3 — build that launch path, sliced:**
+- **T.3.1 shipped (`72efe5a`): console input → dos `Input()`.** ns16550 RX
+  (`ns16550_rx_ready`/`getc`, polled — the QEMU `-nographic` terminal) +
+  `src/croi/console_input.c`: a raw ring (UART RX or `Croi_ConsoleInput_
+  Inject`) behind a cooked line discipline (echo, backspace, Enter →
+  `\n`-terminated line); `Croi_ConsoleInput_Read` blocks (yields) until a
+  line. dos `ACTION_READ` on a CONSOLE handle now calls it (in the caller's
+  context, so blocking = the Process yields) instead of EOF. `KERNEL_TEST
+  (console_input)` (inject + backspace + short-read). **Gotcha fixed:**
+  userexec asserted the old `Read(Input())==0` EOF stopgap → blocked forever
+  headless; dropped that assertion (a console read is now blocking, and the
+  smoke has no console input — the Shell drives interactive input). A UART
+  RX interrupt + wait signal (vs poll-yield) is the noted refinement.
+- **NEXT: T.3.2** — `LoadSeg`/`UnLoadSeg` (read an ELF off CaraFS via dos →
+  `Croi_LoadElf`), `RunCommand`/`CreateNewProc`/`SystemTagList` (spawn a
+  loaded segment as a child Process with a command tail, std streams,
+  current dir, `pr_CLI`), and `libcara` `_start` building `argc`/`argv` from
+  the command tail. Test: a Gleas `LoadSeg`s + `RunCommand`s `dhrystone`
+  *from a CaraFS file* (not the embed) — the real launch path minus the
+  interactive shell. **Then T.3.3** — the **Shell** + boot-to-shell
+  (milestone: boot → `>` prompt → type `dhrystone` → it runs). The
+  blocking-console-read means a shell auto-booted in the headless smoke
+  would hang waiting for input — T.3.3 must handle that (don't auto-boot it
+  headless, or feed it via QEMU stdin). The embed path stays for headless
+  tests. Then **T.4** — first real GUI app.
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
