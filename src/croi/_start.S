@@ -54,8 +54,13 @@ _start:
 
     // Clear sstatus.SIE; set SUM (bit 18) so S-mode can read U-mode
     // pages — needed for syscall buffers without per-byte get_user().
+    // Also set FS=Initial (bits [14:13]=01) to power on the FPU: the
+    // kernel is soft-float, but croi_ctx_switch saves/restores the FP
+    // register file with fld/fsd (T.4.1, for U-mode FP apps like amiCalc),
+    // and those trap illegal unless FS != Off. FS persists non-Off after
+    // this (nothing ever turns it back Off).
     csrci   sstatus, 0x2
-    li      t0, (1 << 18)
+    li      t0, (1 << 18) | (1 << 13)
     csrs    sstatus, t0
 
     // sscratch convention: 0 in kernel-mode, kstack_top in user-mode.

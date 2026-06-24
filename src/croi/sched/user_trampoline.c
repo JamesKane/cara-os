@@ -31,8 +31,11 @@
 
     // sstatus: SPP=0 (sret returns to U), SPIE=1 (user gets SIE), SUM=1
     // (S-mode can read U-mode pages — kept in case a syscall handler
-    // needs it before re-entering kernel mode).
-    u64 sstatus_val = (1ull << 5) | (1ull << 18);
+    // needs it before re-entering kernel mode), FS=Initial (bits[14:13]=01)
+    // so the task may execute FP instructions (T.4.1 — U-mode FPU). Without
+    // FS != Off a U-mode fadd.d/fmul.d traps illegal. The FP register file
+    // is preserved across switches by croi_ctx_switch.
+    u64 sstatus_val = (1ull << 5) | (1ull << 18) | (1ull << 13);
     __asm__ volatile("csrw sstatus, %0" : : "r"(sstatus_val) : "memory");
 
     // sepc = user entry.

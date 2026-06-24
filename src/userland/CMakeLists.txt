@@ -210,6 +210,32 @@ set_target_properties(shell PROPERTIES
     OUTPUT_NAME "shell"
 )
 
+# fputest — T.4.1 proof: U-mode double arithmetic survives context switches
+# (the FPU-enable + FP save/restore substrate for the amiCalc port). Same
+# link recipe as runseg; uses dos.library Delay() to force switches.
+add_executable(fputest fputest.c)
+target_link_libraries(fputest PRIVATE
+    cara_kernel_flags
+    cara_headers
+    libcara_user
+)
+add_dependencies(fputest cara_exec_lib_gen cara_dos_lib_gen)
+target_link_options(fputest PRIVATE
+    -nostdlib
+    -fuse-ld=${CARA_RV64_LDLLD_PATH}
+    -Wl,-T,${_user_lds}
+    -Wl,--build-id=none
+    -Wl,--whole-archive
+    "$<TARGET_FILE:libcara_user>"
+    -Wl,--no-whole-archive
+)
+set_target_properties(fputest PROPERTIES
+    LINK_DEPENDS ${_user_lds}
+    LINKER_LANGUAGE C
+    SUFFIX ".elf"
+    OUTPUT_NAME "fputest"
+)
+
 # libctest — exercises the Phase T userland libc (string/stdlib/stdio/
 # ctype) from a real U-mode Gleas, the way a ported app will use it. Links
 # cara_user_libc; spawned + checked by KERNEL_TEST(libctest_smoke).

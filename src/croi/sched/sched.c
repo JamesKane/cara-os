@@ -15,7 +15,7 @@
 #include <cara/types.h>
 #include <dos/dosextens.h> // struct Process — U-mode Tasks live at pr_Task
 
-extern void croi_ctx_switch(u64 *from, u64 *to);
+extern void croi_ctx_switch(u64 *from_int, u64 *to_int, u64 *from_fp, u64 *to_fp);
 extern void task_trampoline(void);
 extern void user_task_trampoline(void);
 void Sched_Trampoline(void);
@@ -211,7 +211,8 @@ void Croi_Yield(void)
     }
     g_current = next;
     sched_activate_as(next);
-    croi_ctx_switch(old ? old->saved_regs : nullptr, next->saved_regs);
+    croi_ctx_switch(old ? old->saved_regs : nullptr, next->saved_regs, old ? old->fp_save : nullptr,
+                    next->fp_save);
 }
 
 [[noreturn]] void Croi_TaskExit(void)
@@ -240,7 +241,7 @@ void Croi_Yield(void)
     // We pass the dying task's saved_regs as the from buffer; ctx_switch
     // will write into it but no one reads it again.
     sched_activate_as(next);
-    croi_ctx_switch(old->saved_regs, next->saved_regs);
+    croi_ctx_switch(old->saved_regs, next->saved_regs, old->fp_save, next->fp_save);
     __builtin_unreachable();
 }
 
@@ -657,7 +658,7 @@ u32 Croi_Wait(u32 mask)
         next->tc_State = TS_RUN;
         g_current = next;
         sched_activate_as(next);
-        croi_ctx_switch(old->saved_regs, next->saved_regs);
+        croi_ctx_switch(old->saved_regs, next->saved_regs, old->fp_save, next->fp_save);
         // resume here when re-scheduled — loop and re-check sigrecvd
     }
 }

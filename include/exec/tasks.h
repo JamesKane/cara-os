@@ -82,6 +82,13 @@ struct Task {
     // Field order is implementation-only; V36+ source must not depend on it.
     char _ln_name_buf[CARA_TASK_NAME_LEN]; // backs tc_Node.ln_Name
     u64 saved_regs[TASK_NSAVED];
+    // FP register file saved across a context switch (T.4.1): f0..f31 at
+    // [0..31], fcsr at [32]. The kernel is soft-float so FP state lives only
+    // in the hardware regs while a task is trapped in the kernel; croi_ctx_
+    // switch round-trips it here so a U-mode FP app (amiCalc) survives a
+    // switch to any other task. Zero-initialised → a fresh task starts with
+    // a clean FP file.
+    u64 fp_save[33];
     void *kstack;
     usize kstack_size;
     void (*entry_fn)(void *);
