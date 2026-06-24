@@ -260,6 +260,10 @@ enum {
     SYS_Dos_LoadSeg = 204,
     SYS_Dos_UnLoadSeg = 205,
     SYS_Dos_RunCommand = 206,
+
+    // intuition.library refresh bracket (T.4.4, amiCalc port)
+    SYS_BeginRefresh = 207,
+    SYS_EndRefresh = 208,
 };
 #else
 // Phase 1 — kernel smoke / log surface.
@@ -481,6 +485,8 @@ enum {
 #define SYS_Dos_LoadSeg 204
 #define SYS_Dos_UnLoadSeg 205
 #define SYS_Dos_RunCommand 206
+#define SYS_BeginRefresh 207
+#define SYS_EndRefresh 208
 #endif
 
 #endif

@@ -415,6 +415,12 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         Croi_RefreshGList_Impl((struct Gadget *)(uptr)a0, (struct Window *)(uptr)a1,
                                (struct Requester *)(uptr)a2, (LONG)a3);
         return 0;
+    case SYS_BeginRefresh:
+        Croi_BeginRefresh_Impl((struct Window *)(uptr)a0);
+        return 0;
+    case SYS_EndRefresh:
+        Croi_EndRefresh_Impl((struct Window *)(uptr)a0, (LONG)a1);
+        return 0;
     case SYS_RefreshWindowFrame:
         Croi_RefreshWindowFrame_Impl((struct Window *)(uptr)a0);
         return 0;

@@ -25,7 +25,9 @@ typedef int8_t BYTE;
 typedef uint8_t UBYTE;
 typedef int16_t WORD;
 typedef uint16_t UWORD;
-typedef int32_t LONG; // V36+ 32-bit, NOT C `long` on RV64
+typedef int16_t SHORT;   // classic alias of WORD
+typedef uint16_t USHORT; // classic alias of UWORD
+typedef int32_t LONG;    // V36+ 32-bit, NOT C `long` on RV64
 typedef uint32_t ULONG;
 
 typedef void *APTR;

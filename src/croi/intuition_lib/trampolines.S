@@ -74,6 +74,10 @@ CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_FindClass,         SYS_FindClass
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AddClass,          SYS_AddClass
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_RemoveClass,       SYS_RemoveClass
 
+// ---- Refresh bracket (T.4.4) ----
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_BeginRefresh,    SYS_BeginRefresh
+CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_EndRefresh,      SYS_EndRefresh
+
 // ---- Gadgets ----
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_AddGadget,       SYS_AddGadget
 CARA_SYSCALL_TRAMPOLINE Cara_Trampoline_RemoveGadget,    SYS_RemoveGadget

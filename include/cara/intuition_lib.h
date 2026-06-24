@@ -79,6 +79,8 @@ void Croi_OffGadget_Impl(struct Gadget *gadget, struct Window *window, struct Re
 void Croi_RefreshGList_Impl(struct Gadget *gadgets, struct Window *window,
                             struct Requester *requester, LONG numGad);
 void Croi_RefreshWindowFrame_Impl(struct Window *window);
+void Croi_BeginRefresh_Impl(struct Window *window);
+void Croi_EndRefresh_Impl(struct Window *window, LONG complete);
 
 // ---- Requesters (L5) ------------------------------------------------
 struct EasyStruct;

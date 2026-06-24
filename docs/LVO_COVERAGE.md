@@ -23,7 +23,7 @@ Coverage % = (impl + server) / user-callable slots (i.e. excluding the 4 reserve
 | Library | ABI slots | impl | server | stub | reserved | coverage |
 |---------|----------:|-----:|-------:|-----:|---------:|---------:|
 | exec.library | 115 | 44 | 0 | 67 | 4 | 39% |
-| intuition.library | 119 | 45 | 0 | 70 | 4 | 39% |
+| intuition.library | 119 | 47 | 0 | 68 | 4 | 40% |
 | utility.library | 30 | 13 | 0 | 13 | 4 | 50% |
 | dos.library | 84 | 22 | 0 | 58 | 4 | 27% |
 | graphics.library | 154 | 24 | 0 | 126 | 4 | 16% |
@@ -112,9 +112,9 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 
 ## intuition.library
 
-ABI surface declared through LVO -714 (ordinal 118). 115 user-callable slots: **45 impl**, 0 server, **70 stub**; coverage **39%**.
+ABI surface declared through LVO -714 (ordinal 118). 115 user-callable slots: **47 impl**, 0 server, **68 stub**; coverage **40%**.
 
-### Implemented (45)
+### Implemented (47)
 
 | ord | LVO | name | flavour |
 |----:|----:|------|---------|
@@ -143,6 +143,8 @@ ABI surface declared through LVO -714 (ordinal 118). 115 user-callable slots: **
 | 51 | -312 | `WindowToFront` | syscall |
 | 54 | -330 | `IntuiTextLength` | syscall |
 | 57 | -348 | `AutoRequest` | local |
+| 58 | -354 | `BeginRefresh` | syscall |
+| 60 | -366 | `EndRefresh` | syscall |
 | 71 | -432 | `RefreshGList` | syscall |
 | 72 | -438 | `AddGList` | syscall |
 | 73 | -444 | `RemoveGList` | syscall |
@@ -164,7 +166,7 @@ ABI surface declared through LVO -714 (ordinal 118). 115 user-callable slots: **
 | 117 | -708 | `RemoveClass` | syscall |
 | 118 | -714 | `FreeClass` | local |
 
-### Unimplemented stub slots (70)
+### Unimplemented stub slots (68)
 
 Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists so the vec index stays stable, but the call is unimplemented until a row replaces it.
 
@@ -186,7 +188,8 @@ Per-LVO `##pad_run` placeholders (`Croi_LvoUnimplemented`): the ABI slot exists 
 | 48..49 | -294..-300 | 2 |
 | 52..53 | -318..-324 | 2 |
 | 55..56 | -336..-342 | 2 |
-| 58..70 | -354..-426 | 13 |
+| 59..59 | -360..-360 | 1 |
+| 61..70 | -372..-426 | 10 |
 | 77..96 | -468..-582 | 20 |
 | 98..99 | -594..-600 | 2 |
 | 102..104 | -618..-630 | 3 |

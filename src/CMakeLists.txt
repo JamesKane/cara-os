@@ -46,6 +46,24 @@ if(CARA_TARGET STREQUAL "riscv64")
         -std=gnu89
         -w
     )
+
+    # Same as cara_port_flags but -std=gnu23: for ported apps that drive the
+    # Amiga library API, since the generated <proto/*.h> inline stubs use C23
+    # attribute syntax ([[gnu::always_inline]]). Still permissive (-w) — we
+    # don't own the source. The amiCalc port (T.4.4) uses this.
+    add_library(cara_port_flags_c23 INTERFACE)
+    target_compile_options(cara_port_flags_c23 INTERFACE
+        -ffreestanding
+        -nostdlibinc
+        -fno-stack-protector
+        -fno-builtin
+        -mno-relax
+        -mcmodel=medany
+        -march=${CARA_RV64_KERNEL_ARCH}
+        -mabi=${CARA_RV64_KERNEL_ABI}
+        -std=gnu23
+        -w
+    )
 endif()
 
 # Always-on: shared modules that compile in both worlds.
@@ -105,6 +123,7 @@ if(CARA_TARGET STREQUAL "riscv64")
     # Third-party ported apps (Phase T). Out-of-tree source under ports/,
     # added before croi so the embedded ELFs (user_blob.S) exist.
     add_subdirectory("${CMAKE_SOURCE_DIR}/ports/dhrystone" "${CMAKE_BINARY_DIR}/ports/dhrystone")
+    add_subdirectory("${CMAKE_SOURCE_DIR}/ports/amicalc" "${CMAKE_BINARY_DIR}/ports/amicalc")
     add_subdirectory(croi/tests)
     add_subdirectory(croi)
     # add_subdirectory(splanc)   # arrives in real-hardware slice

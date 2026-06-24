@@ -385,6 +385,29 @@ void Croi_RefreshWindowFrame_Impl(struct Window *window)
     }
 }
 
+// BeginRefresh/EndRefresh (T.4.4) — the classic SMART_REFRESH bracket a
+// program runs around its redraw on IDCMP_REFRESHWINDOW. Leargas renders
+// window content immediately into the window's RastPort (no damage region
+// to clip to), and never posts IDCMP_REFRESHWINDOW, so these are minimal:
+// they exist so V36+ source that brackets its drawing links and runs. A
+// real damage-clipped refresh is a later refinement.
+void Croi_BeginRefresh_Impl(struct Window *window)
+{
+    (void)window;
+}
+
+void Croi_EndRefresh_Impl(struct Window *window, LONG complete)
+{
+    (void)complete;
+    if (!window) {
+        return;
+    }
+    struct LeargasWindow *lw = Leargas_Window_FromPub(window);
+    if (lw) {
+        Leargas_Window_Render(lw);
+    }
+}
+
 // ---- Screens (L5.6) -------------------------------------------------
 //
 // v0 opens custom screens over the single boot display framebuffer

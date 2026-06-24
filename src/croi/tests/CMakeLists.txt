@@ -43,6 +43,7 @@ add_library(cara_kernel_tests STATIC
     test_loadseg.c
     test_shell.c
     test_fpu.c
+    test_amicalc.c
     test_shared.c
 )
 target_include_directories(cara_kernel_tests PRIVATE
