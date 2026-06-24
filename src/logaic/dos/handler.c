@@ -152,21 +152,12 @@ struct DosFileExt {
     u32 kind; // CARA_FH_FILE / CARA_FH_CONSOLE
 };
 
-// v0 console stdout: emit `len` bytes through the kernel log (chunked to
-// the log record's message capacity). docs/LOGAIC_DOS.md §6.
+// Console stdout: a CON: handle is a terminal, so write the bytes straight
+// to the UART (CR/LF-expanded), not the decorated kernel log — this is what
+// lets the boot Shell render a real prompt (T.3.3). docs/LOGAIC_DOS.md §6.
 static void console_write(const void *buf, usize len)
 {
-    const char *p = (const char *)buf;
-    char line[CARA_LOG_MSG_LEN];
-    usize i = 0;
-    do {
-        usize n = 0;
-        while (i < len && n < sizeof(line) - 1) {
-            line[n++] = p[i++];
-        }
-        line[n] = 0;
-        Croi_Log(LOG_LV_INFO, "cout", "%s", line);
-    } while (i < len);
+    Croi_Console_Write((const char *)buf, len);
 }
 
 // Build a v0 console FileHandle (CARA_FH_CONSOLE). The dos handler owns

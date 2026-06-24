@@ -184,6 +184,32 @@ set_target_properties(runseg PROPERTIES
     OUTPUT_NAME "runseg"
 )
 
+# shell — CaraShell, the boot console shell (T.3.3). Reads typed commands
+# and dispatches them through LoadSeg + RunCommand. Same link recipe as
+# runseg; drives exec.library + dos.library inline stubs.
+add_executable(shell shell.c)
+target_link_libraries(shell PRIVATE
+    cara_kernel_flags
+    cara_headers
+    libcara_user
+)
+add_dependencies(shell cara_exec_lib_gen cara_dos_lib_gen)
+target_link_options(shell PRIVATE
+    -nostdlib
+    -fuse-ld=${CARA_RV64_LDLLD_PATH}
+    -Wl,-T,${_user_lds}
+    -Wl,--build-id=none
+    -Wl,--whole-archive
+    "$<TARGET_FILE:libcara_user>"
+    -Wl,--no-whole-archive
+)
+set_target_properties(shell PROPERTIES
+    LINK_DEPENDS ${_user_lds}
+    LINKER_LANGUAGE C
+    SUFFIX ".elf"
+    OUTPUT_NAME "shell"
+)
+
 # libctest — exercises the Phase T userland libc (string/stdlib/stdio/
 # ctype) from a real U-mode Gleas, the way a ported app will use it. Links
 # cara_user_libc; spawned + checked by KERNEL_TEST(libctest_smoke).

@@ -13,6 +13,7 @@ set(_clar_elf      "${CMAKE_BINARY_DIR}/src/userland/clar.elf")
 set(_v36hello_elf  "${CMAKE_BINARY_DIR}/src/userland/v36hello.elf")
 set(_libctest_elf  "${CMAKE_BINARY_DIR}/src/userland/libctest.elf")
 set(_runseg_elf    "${CMAKE_BINARY_DIR}/src/userland/runseg.elf")
+set(_shell_elf     "${CMAKE_BINARY_DIR}/src/userland/shell.elf")
 set(_dhrystone_elf "${CMAKE_BINARY_DIR}/ports/dhrystone/dhrystone.elf")
 file(WRITE ${_user_blob_s}
 "// Auto-generated. Embeds userhello.elf and userexec.elf into croi.elf
@@ -62,6 +63,12 @@ __runseg_elf_start:
 .incbin \"${_runseg_elf}\"
 __runseg_elf_end:
 .balign 8
+.globl __shell_elf_start
+.globl __shell_elf_end
+__shell_elf_start:
+.incbin \"${_shell_elf}\"
+__shell_elf_end:
+.balign 8
 .globl __dhrystone_elf_start
 .globl __dhrystone_elf_end
 __dhrystone_elf_start:
@@ -69,7 +76,7 @@ __dhrystone_elf_start:
 __dhrystone_elf_end:
 ")
 set_source_files_properties(${_user_blob_s} PROPERTIES
-    OBJECT_DEPENDS "${_userhello_elf};${_userexec_elf};${_userintuition_elf};${_clar_elf};${_v36hello_elf};${_libctest_elf};${_runseg_elf};${_dhrystone_elf}"
+    OBJECT_DEPENDS "${_userhello_elf};${_userexec_elf};${_userintuition_elf};${_clar_elf};${_v36hello_elf};${_libctest_elf};${_runseg_elf};${_shell_elf};${_dhrystone_elf}"
 )
 
 add_executable(croi
@@ -91,7 +98,7 @@ add_executable(croi
     input_pump.c
     carafs_bind.c
 )
-add_dependencies(croi userhello userexec userintuition clar v36hello libctest runseg dhrystone)
+add_dependencies(croi userhello userexec userintuition clar v36hello libctest runseg shell dhrystone)
 # Make the Phase 9 aggregated lookup table build alongside croi.elf
 # even though no current code references it — keeps the artefact
 # in sync with the active .conf set so when Phase 9 lands the

@@ -314,6 +314,36 @@ static void seed_startup(void)
     LOG_INFO("carafs", "seeded S/Startup-Sequence");
 }
 
+void Croi_Boot_SeedCommand(const char *name, u32 name_len, const void *blob, usize size)
+{
+    if (!g_carafs_mounted || !blob || size == 0) {
+        return;
+    }
+    u64 root = g_carafs.sb.root_cnode;
+    u64 cdir;
+    u16 ty;
+    if (Carafs_DirLookup(&g_carafs, root, "C", 1, &cdir, &ty) != CARA_EOK) {
+        if (Carafs_DirCreate(&g_carafs, root, "C", 1, CARAFS_T_DIR, &cdir) != CARA_EOK) {
+            LOG_WARN("carafs", "seed C dir failed");
+            return;
+        }
+    }
+    u64 cn;
+    if (Carafs_DirLookup(&g_carafs, cdir, name, name_len, &cn, &ty) == CARA_EOK) {
+        (void)Carafs_DirRemove(&g_carafs, cdir, name, name_len);
+    }
+    if (Carafs_DirCreate(&g_carafs, cdir, name, name_len, CARAFS_T_FILE, &cn) != CARA_EOK) {
+        LOG_WARN("carafs", "seed C/%s failed", name);
+        return;
+    }
+    if (Carafs_FileWrite(&g_carafs, cn, 0, blob, size) != CARA_EOK) {
+        LOG_WARN("carafs", "seed C/%s write failed", name);
+        return;
+    }
+    (void)Carafs_Sync(&g_carafs);
+    LOG_INFO("carafs", "seeded C/%s (%u bytes)", name, (u32)size);
+}
+
 [[nodiscard]] bool Croi_Boot_RunStartup(void)
 {
     char buf[512];

@@ -25,5 +25,9 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame);
 bool Croi_Syscall_UserExited(void);
 i64 Croi_Syscall_UserExitStatus(void);
 void Croi_Syscall_ResetUserExit(void);
+// Monotonic count of U-mode SYS_EXITs since boot (every task, join or not).
+// Not cleared by ResetUserExit — lets a test prove that N programs ran
+// (e.g. shell + the command it launched). T.3.3.
+i64 Croi_Syscall_UserExitCount(void);
 
 #endif

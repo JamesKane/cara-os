@@ -142,6 +142,13 @@ extern const usize expansion_lib_vec_count;
 extern char __clar_elf_start[];
 extern char __clar_elf_end[];
 
+// CaraShell + dhrystone embeds (T.3.3): the boot console shell and a
+// command to seed into C/ so `dhrystone` resolves at the prompt.
+extern char __shell_elf_start[];
+extern char __shell_elf_end[];
+extern char __dhrystone_elf_start[];
+extern char __dhrystone_elf_end[];
+
 // Kernel-image extents materialised into upper-half rodata by the
 // linker script's .kernel_extents — see croi.lds. We can't reach the
 // low-phys symbols directly from upper-half code (39-bit gap).
@@ -1039,6 +1046,28 @@ static void console_putc(char c)
             LOG_WARN("boot", "live demo unavailable (screen/pointer/HID absent); halting");
         }
     }
+
+    // ---- Console boot Shell (T.3.3, docs/PORTS.md §6). On the headless /
+    //      no-framebuffer path (the QEMU smoke and a real serial console),
+    //      bring up CaraShell: it reads typed commands and dispatches them
+    //      via LoadSeg + RunCommand. Seed C/dhrystone so `dhrystone`
+    //      resolves at the prompt. In the headless smoke no input ever
+    //      arrives, so the shell blocks at its prompt (yielding) until the
+    //      harness timeout — the test gate (printed by Test_RunAll above) is
+    //      already satisfied, so this does not affect it. The framebuffer
+    //      path above never returns when the Workbench comes up.
+    Croi_Boot_SeedCommand("dhrystone", 9, __dhrystone_elf_start,
+                          (usize)(__dhrystone_elf_end - __dhrystone_elf_start));
+    usize shell_size = (usize)(__shell_elf_end - __shell_elf_start);
+    struct Task *shell = Croi_SpawnUserTaskFromElf("shell", 5, __shell_elf_start, shell_size);
+    if (shell) {
+        LOG_INFO("boot", "CaraShell up on console");
+        Croi_TaskSetSelfPriority(-100);
+        for (;;) {
+            Croi_Yield();
+        }
+    }
+    LOG_WARN("boot", "spawn CaraShell failed; halting");
 
     Croi_Halt();
 }

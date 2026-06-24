@@ -99,6 +99,21 @@ static void fill_line(void)
     }
 }
 
+// Raw console output (T.3.3): a CON: handle is a terminal, so the dos
+// console Write goes straight to the UART (not the decorated kernel log),
+// which is what makes the boot Shell's prompt look like a prompt. '\n' is
+// expanded to CR/LF for the terminal, matching the input echo.
+void Croi_Console_Write(const char *buf, usize n)
+{
+    for (usize i = 0; i < n; i++) {
+        char c = buf[i];
+        if (c == '\n') {
+            console_putc('\r');
+        }
+        console_putc(c);
+    }
+}
+
 usize Croi_ConsoleInput_Read(char *buf, usize len)
 {
     if (len == 0) {

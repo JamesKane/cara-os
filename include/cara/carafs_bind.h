@@ -35,4 +35,9 @@ extern bool g_carafs_mounted;
 // volume is seeded with a default sequence at format (Croi_Carafs_BringUp).
 [[nodiscard]] bool Croi_Boot_RunStartup(void);
 
+// Seed an executable into C/<name> on the root volume so the boot Shell
+// (T.3.3) can LoadSeg it by name. Idempotent: replaces any existing copy.
+// No-op if the volume is not mounted.
+void Croi_Boot_SeedCommand(const char *name, u32 name_len, const void *blob, usize size);
+
 #endif

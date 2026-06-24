@@ -23,4 +23,9 @@ usize Croi_ConsoleInput_Read(char *buf, usize len);
 // the kernel test both use this.
 void Croi_ConsoleInput_Inject(const char *s, usize n);
 
+// Write raw bytes to the console (the UART terminal), expanding '\n' to
+// CR/LF. This backs the dos CON: handle's Write — a console is a raw
+// terminal, not the decorated kernel log (T.3.3).
+void Croi_Console_Write(const char *buf, usize n);
+
 #endif // CARA_CONSOLE_INPUT_H

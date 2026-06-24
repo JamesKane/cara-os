@@ -38,6 +38,7 @@
 
 static volatile bool g_user_exited = false;
 static volatile i64 g_user_exit_status = 0;
+static volatile i64 g_user_exit_count = 0; // monotonic; survives ResetUserExit
 
 bool Croi_Syscall_UserExited(void)
 {
@@ -46,6 +47,10 @@ bool Croi_Syscall_UserExited(void)
 i64 Croi_Syscall_UserExitStatus(void)
 {
     return g_user_exit_status;
+}
+i64 Croi_Syscall_UserExitCount(void)
+{
+    return g_user_exit_count;
 }
 void Croi_Syscall_ResetUserExit(void)
 {
@@ -96,6 +101,7 @@ static i64 sys_log_write(i64 level, const char *user_tag, const char *user_msg, 
     // rather than tripping the global single-task UserExited flag. This
     // keeps a nested launch (launcher → RunCommand → child) from corrupting
     // the top-level task's exit signalling.
+    g_user_exit_count++;
     struct Task *self = Sched_Current();
     if (self && self->exit_waiter) {
         if (self->exit_code_slot) {
