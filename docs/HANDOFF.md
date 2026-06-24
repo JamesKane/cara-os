@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+6bd245e phase-T/T.3.3 CaraShell — boot to a console shell, type a command, it runs
 e35f594 phase-T/T.3.2 AmigaDOS launch path — LoadSeg + RunCommand + argv (run a program off CaraFS)
 72efe5a phase-T/T.3.1 console input — keyboard → dos Input() (cooked line discipline)
 cdc7f51 docs          PORTS.md — T.3 reframed as the AmigaDOS launch path (Shell/LoadSeg/argv)
@@ -1150,16 +1151,38 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   (file → LoadSeg → spawn child + argv → run → join). dos coverage 27%
   (22/84). `CreateNewProc`/`SystemTagList`/old `CreateProc` stay padded
   (async launch — land when the Shell's background `run` needs them).
-- **NEXT: T.3.3 — the Shell + boot-to-shell.** Milestone: boot → `>` prompt
-  → type `dhrystone` → it runs. The Shell is a U-mode Gleas: read a line
-  (dos `Input()`, already blocking since T.3.1) → parse `argv[0]` + tail →
-  `LoadSeg` it (try `name`, likely a `C/` path search) → `RunCommand` with
-  the tail → print the rc → loop. **Gotcha (flagged):** a blocking shell
-  auto-booted in the headless smoke would hang on `Input()` forever — don't
-  auto-boot it headless, or feed QEMU stdin, or gate it behind a flag; the
-  embed path stays for headless tests. Will likely want a real CaraFS `C/`
-  dir + a LoadSeg path search and dhrystone seeded onto the boot volume
-  (the T.3.2 test seeds it at runtime). Then **T.4** — first real GUI app.
+- **T.3.3 shipped (`6bd245e`): CaraShell — boot to a console shell, type a
+  command, it runs.** `src/userland/shell.c` is a U-mode Gleas: read a line
+  (dos `Input()`, cooked + blocking since T.3.1) → split into a command word
+  + tail → `LoadSeg` the command (bare name, then a `C/` search) →
+  `RunCommand` with the tail → print rc → loop; `quit`/`endcli`/`endshell`
+  exit. **Raw console output** (`Croi_Console_Write`,
+  `src/croi/console_input.c`): a CON: handle is a terminal, so the dos
+  console `Write` now goes straight to the UART (CR/LF-expanded) instead of
+  the decorated kernel log, so the prompt renders like a prompt
+  (`handler.c` `console_write` routes through it; no smoke needle depends on
+  the old decoration). **Boot wiring** (`entry.c`): the headless /
+  no-framebuffer path seeds `C/dhrystone` (`Croi_Boot_SeedCommand`,
+  `carafs_bind.c`) and spawns CaraShell; the framebuffer path
+  (Workbench/Clar) is unchanged and still takes over when a display is up.
+  In the headless smoke no input arrives, so the shell blocks at its prompt
+  (yielding) until timeout — the test gate is already printed by
+  `Test_RunAll`, unaffected. **Proof:** a new monotonic
+  `Croi_Syscall_UserExitCount` (every `SYS_EXIT` bumps it) lets
+  `KERNEL_TEST(shell_runs_command)` inject `"dhrystone\nquit\n"`, spawn the
+  shell, and assert it exits 0 **and** two programs ran (shell + the
+  dhrystone it launched) — a shell that failed to find the command would
+  still exit 0, so the count check is what proves dhrystone ran. Also
+  verified interactively: boot → `CaraShell ready.` → `> dhrystone` (typed
+  over the UART) → `LoadSeg C/dhrystone` → it runs + prints its benchmark →
+  `> quit`. No new LVOs (LoadSeg/RunCommand landed in T.3.2), so coverage is
+  unchanged.
+- **NEXT: T.4 — first real GUI app.** A small ported V36+ intuition app
+  (clock / calculator class) run from the Shell on the Workbench. Likely
+  forces deferred substrate (see below) — window event loop polish,
+  possibly layers.library / DrawImage / gadtools LISTVIEW. The launch path
+  is now complete (LoadSeg/RunCommand/argv + a working Shell), so T.4 is
+  about the app + whatever GUI substrate it needs.
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
