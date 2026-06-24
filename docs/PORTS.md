@@ -127,11 +127,11 @@ current surface is part of T.1.
 
 ## 3. Slice plan
 
-> **Status:** T.1 ✅ (`c6ae1f2`, the libc) and T.2 ✅ (`bc87a9c`, Dhrystone
-> 1.1 builds + runs unedited). But T.2 exposed a deeper gap — see §6: apps
-> are still *embedded* and spawned by a test, not *launched*. T.3 is now the
-> AmigaDOS launch path (Shell + LoadSeg + RunCommand + argv + console
-> input); the first GUI app moves to T.4.
+> **Status:** T.1 ✅ (`c6ae1f2`, the libc), T.2 ✅ (`bc87a9c`, Dhrystone 1.1
+> builds + runs unedited), **T.3 ✅ — the AmigaDOS launch path COMPLETE**:
+> T.3.1 console input (`72efe5a`), T.3.2 LoadSeg + RunCommand + argv
+> (`e35f594`), T.3.3 CaraShell / boot-to-shell (`6bd245e`). **T.4 is next —
+> first real GUI app, candidate chosen = `amiCalc`** (scoped below).
 
 ### T.1 — the userland libc + SDK harness ✅
 
@@ -187,20 +187,97 @@ The missing layer T.2 revealed. Sliced:
   `>` prompt, type `dhrystone`, and watch the real benchmark run — a program
   launched the way a real OS launches programs.
 
-### T.4 — first real GUI app
+### T.4 — first real GUI app: **amiCalc**
 
-- Recon + select a small license-clean intuition/gadtools app (a clock /
-  calculator-class program — opens a window, gadtools gadgets, draws,
-  IDCMP loop), vendor + build **unmodified**, run it under QEMU.
-- **Done-bar (the phase milestone):** a third-party AmigaOS GUI program,
-  unedited at the source level, opens its window and responds to input on
-  CaraOS. The gaps it forces (a missing gadtools kind, a graphics call, an
-  intuition tag, layers occlusion, the asl-font wiring) are filled or
-  explicitly deferred.
+**Candidate chosen (2026-06-24): `amiCalc`** — github `713avo/amiCalc`, **MIT**
+(© 2025 moneyland), a single-file (1796-line) AmigaOS scientific calculator.
+Picked after vetting real candidates against our U-mode GUI surface:
 
-Subsequent slices port progressively larger/realer apps (an editor, a
-viewer), each pulling forward the substrate it needs — the L1–L14
-apps-driven rhythm, now driven by *external* code.
+| Candidate | License | GUI deps | Verdict |
+|---|---|---|---|
+| **713avo/amiCalc** | **MIT** | stock `intuition` + `graphics` only | **chosen** |
+| alexalkis/acalc | none | gadtools ✓ but **GMP + MPFR + libm** | dependency dealbreaker |
+| monopoldesign/GadToolsTest | murky (GadToolsBox) | gadtools incl. **LISTVIEW** | license + a deferred gadget kind |
+| Aminet clocks (AnalogClock…) | freeware | — | binary-only, no source |
+| AROS examples / RKM demos | APL / Commodore | stock | build-heavy / example-code, not a real app |
+| hdpart | MIT | raw RDB/device IO | wrong domain |
+
+**Why amiCalc fits.** Its GUI is **pure `intuition` + `graphics`** — it
+`OpenWindow`s, draws its own button grid + display with `RectFill`/`Text`, and
+runs a `WaitPort`/`GetMsg` IDCMP mouse loop doing its own hit-testing. **No
+gadtools, no MUI, no slider/listview/palette, no `DrawImage`.** That is exactly
+the surface we already support (the T.4 capability survey: window + IDCMP +
+graphics draw all work), so the *GUI* should validate immediately rather than
+forcing GUI substrate. It is also the strongest "port a real third-party app"
+story since Dhrystone: a genuine, MIT-licensed, single-file application.
+
+**What it forces (the substrate this slice builds).** amiCalc is *scientific*,
+so its cost is **numerical**, not GUI:
+
+1. **U-mode FPU.** Kernel `-march` is `rv64imafdc` (FP instructions present) but
+   `-mabi=lp64` (soft-float ABI) and `user_task_trampoline` sets `sstatus` =
+   `SPIE|SUM` only → **`FS=Off`**, so any U-mode `fadd.d`/`fmul.d` traps illegal.
+   amiCalc computes in `double` → hardware FP instructions (the `d` is in the
+   arch; no soft-float runtime is needed). So we must **enable FP for U-mode**
+   (set `sstatus.FS=Initial/Clean` for user tasks) and **save/restore the FP
+   register file** (`f0–f31` + `fcsr`) across `croi_ctx_switch`, since more than
+   one task can now touch the FPU. (Dhrystone never hit this — it is integer.)
+2. **libc float.** `fmt.c` currently emits a literal `"%f"` placeholder for
+   `%f/%g/%e` (deferred since T.1). amiCalc uses `sprintf("%.15g", …)` (display)
+   and `strtod` (input parse). So implement **`%f/%g/%e` formatting + `strtod`**
+   in `cara_user_libc` (host-unit-testable — they are pure functions).
+3. **libm.** amiCalc references **~11 transcendentals**: `sin cos tan asin acos
+   atan exp log pow sqrt`. All must resolve to link the source *unedited*, even
+   though basic `+ − × ÷` exercises none. Provide a small in-tree **`cara_libm`**
+   (own implementations — no third-party libm linked, per `PRINCIPLES.md §2`;
+   reading musl/openlibm to cross-check in tests is fine, linking is not). Basic
+   accuracy (range-reduced poly / CORDIC) suffices; host unit tests assert error
+   bounds vs a reference.
+4. **Running a GUI app (the launch tension).** Today the Workbench screen comes
+   up only on the *framebuffer* path (entry.c → `Leargas_OpenScreen` → Clar),
+   while the **Shell runs on the *no-framebuffer* path**. amiCalc `OpenWindow`s
+   on the Workbench screen, so a Shell-launched GUI app needs *both* a screen
+   and the shell. Resolve by letting the boot bring the Workbench screen up
+   whenever a framebuffer is present **and** run the Shell, so the console shell
+   can launch GUI apps onto the screen (`run amicalc`). For the **green gate**
+   (headless CI has no display), the GUI test uses a **synthetic in-RAM
+   framebuffer**: a `KERNEL_TEST` allocates a RAM `g_fb`, opens a screen on it,
+   spawns amiCalc, and asserts the window opened + the display buffer is
+   non-blank (rendered). A stretch assertion injects pointer clicks ("2 + 2 =")
+   and reads back the rendered "4". This keeps T.4 testable without a real
+   display while the interactive boot (ramfb + USB mouse + `run amicalc`) is the
+   live demo.
+
+Plus the usual **vendoring**: `ports/amicalc/amicalc.c` *verbatim* upstream +
+`PROVENANCE.md` (MIT text + commit) + a BSD-2 `CMakeLists.txt` built with
+`cara_port_flags` + `cara_user_libc` + `cara_libm` + `libcara_user`, embedded +
+launchable like dhrystone — the dhrystone recipe (§6, `ports/dhrystone/`).
+
+#### Slice plan
+
+- **T.4.1 — U-mode FPU.** Enable `sstatus.FS` for user tasks (trampoline) and
+  add FP save/restore (`f0–f31` + `fcsr`) to the context switch; lazy-FP (set
+  `FS=Initial`, save on switch only if dirtied) is the target, eager is the
+  acceptable v0. `KERNEL_TEST` (and/or a tiny U-mode Gleas) proves a U-mode
+  `double` computation survives a context switch. Kernel substrate; no app yet.
+- **T.4.2 — libc float.** `%f/%g/%e` in `fmt.c` + `strtod` in `cara_user_libc`;
+  host unit tests (`tests/unit/`) for formatting + round-trip parse. Pure, fast.
+- **T.4.3 — `cara_libm`.** The ~11 transcendentals (own impls), a new static lib
+  ports link; host unit tests assert accuracy vs a reference within a tolerance.
+- **T.4.4 — vendor + run amiCalc (the milestone).** Drop `amicalc.c` under
+  `ports/amicalc/` unedited; build it; bring the Workbench screen up alongside
+  the Shell when a framebuffer exists; run it. Green gate: a synthetic-RAM-fb
+  `KERNEL_TEST` opens the screen, spawns amiCalc, asserts it opened its window +
+  rendered (stretch: click "2+2=" → "4"). Demo: boot with ramfb + USB mouse →
+  `run amicalc` from the shell.
+
+**Done-bar (the phase milestone):** a third-party AmigaOS GUI program, unedited
+at the source level, opens its window and computes on CaraOS — the gaps it
+forced (U-mode FPU, float libc, libm) filled, the GUI surface validated.
+
+Subsequent slices port progressively larger/realer apps (an editor, a viewer),
+each pulling forward the substrate it needs — the L1–L14 apps-driven rhythm, now
+driven by *external* code.
 
 ---
 
