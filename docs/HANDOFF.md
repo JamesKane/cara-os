@@ -24,6 +24,8 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+8818335 phase-T/T.4.1 U-mode FPU — enable FP + save/restore across context switch
+8c6803b docs          scope T.4 — first GUI app (amiCalc); slice plan T.4.1–T.4.4
 6bd245e phase-T/T.3.3 CaraShell — boot to a console shell, type a command, it runs
 e35f594 phase-T/T.3.2 AmigaDOS launch path — LoadSeg + RunCommand + argv (run a program off CaraFS)
 72efe5a phase-T/T.3.1 console input — keyboard → dos Input() (cooked line discipline)
@@ -1177,12 +1179,29 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   over the UART) → `LoadSeg C/dhrystone` → it runs + prints its benchmark →
   `> quit`. No new LVOs (LoadSeg/RunCommand landed in T.3.2), so coverage is
   unchanged.
-- **NEXT: T.4 — first real GUI app.** A small ported V36+ intuition app
-  (clock / calculator class) run from the Shell on the Workbench. Likely
-  forces deferred substrate (see below) — window event loop polish,
-  possibly layers.library / DrawImage / gadtools LISTVIEW. The launch path
-  is now complete (LoadSeg/RunCommand/argv + a working Shell), so T.4 is
-  about the app + whatever GUI substrate it needs.
+- **T.4 — first real GUI app = amiCalc (scoped `8c6803b`, `docs/PORTS.md`
+  §3 T.4).** `713avo/amiCalc` (MIT) — a real single-file scientific
+  calculator using **stock `intuition`+`graphics` only** (draws its own UI +
+  IDCMP mouse loop), so the GUI maps onto what we have; the substrate it
+  forces is *numerical*: U-mode FPU, libc float (`%g`+`strtod`), a small
+  libm. Slices T.4.1–T.4.4.
+- **T.4.1 shipped (`8818335`): U-mode FPU.** Kernel is soft-float (`lp64`)
+  but the arch is `rv64imafdc`, so `double` math is hardware FP — traps
+  illegal unless `sstatus.FS` is on, and its register file must round-trip
+  across switches (it lives only in the hardware regs while a task is
+  trapped; the kernel never spills FP to the trap frame). `_start.S` sets
+  `FS=Initial` at boot (so the kernel can run the save/restore insns; stays
+  non-Off); `user_task_trampoline` adds `FS=Initial` to the user `sstatus`;
+  `ctx_switch.S` (new 4-arg sig) saves/restores `f0–f31`+`fcsr`
+  unconditionally; `struct Task` gained `fp_save[33]`. Proof:
+  `KERNEL_TEST(fpu_umode)` runs `fputest` (U-mode `double` sum across
+  `Delay` yields, exits 0 iff exact) at matching priority while hammering
+  the FPU from the kernel side, so the two FP contexts interleave through
+  `ctx_switch` ~40k× and fputest still computes 120. 65 passed/0 failed.
+- **NEXT: T.4.2 — libc float.** `%f/%g/%e` in `fmt.c` (currently a
+  placeholder) + `strtod` in `cara_user_libc`, with host unit tests. Then
+  T.4.3 `cara_libm` (~11 transcendentals), then T.4.4 vendor + run amiCalc
+  (synthetic-RAM-framebuffer `KERNEL_TEST` + the screen/shell coexistence).
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
