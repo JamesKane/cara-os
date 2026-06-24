@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+e35f594 phase-T/T.3.2 AmigaDOS launch path — LoadSeg + RunCommand + argv (run a program off CaraFS)
 72efe5a phase-T/T.3.1 console input — keyboard → dos Input() (cooked line discipline)
 cdc7f51 docs          PORTS.md — T.3 reframed as the AmigaDOS launch path (Shell/LoadSeg/argv)
 bc87a9c phase-T/T.2   first real port — Dhrystone 1.1 builds + runs unedited (ports/dhrystone)
@@ -1119,18 +1120,46 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   headless; dropped that assertion (a console read is now blocking, and the
   smoke has no console input — the Shell drives interactive input). A UART
   RX interrupt + wait signal (vs poll-yield) is the noted refinement.
-- **NEXT: T.3.2** — `LoadSeg`/`UnLoadSeg` (read an ELF off CaraFS via dos →
-  `Croi_LoadElf`), `RunCommand`/`CreateNewProc`/`SystemTagList` (spawn a
-  loaded segment as a child Process with a command tail, std streams,
-  current dir, `pr_CLI`), and `libcara` `_start` building `argc`/`argv` from
-  the command tail. Test: a Gleas `LoadSeg`s + `RunCommand`s `dhrystone`
-  *from a CaraFS file* (not the embed) — the real launch path minus the
-  interactive shell. **Then T.3.3** — the **Shell** + boot-to-shell
-  (milestone: boot → `>` prompt → type `dhrystone` → it runs). The
-  blocking-console-read means a shell auto-booted in the headless smoke
-  would hang waiting for input — T.3.3 must handle that (don't auto-boot it
-  headless, or feed it via QEMU stdin). The embed path stays for headless
-  tests. Then **T.4** — first real GUI app.
+- **T.3.2 shipped (`e35f594`): the AmigaDOS launch path — LoadSeg +
+  RunCommand + argv.** dos.library, syscall flavour
+  (`src/logaic/dos/loadseg.c`): `LoadSeg(-150)` Opens `MODE_OLDFILE` →
+  Seek/Reads the whole file off CaraFS → validates an RV64 ELF → wraps it
+  in a kernel-private `struct CaraSeg` (loaded blob + load name) and returns
+  the seglist `BPTR`; `UnLoadSeg(-156)` frees it; `RunCommand(-504)` spawns
+  the seglist as a child Process with a command tail (→ argv), blocks on its
+  exit, and returns its return code. SASOS maps each Gleas's text per
+  page-table, so RunCommand runs a **fresh child** rather than reusing the
+  caller's image — the contract (run seglist with args, get rc) is
+  preserved. Kernel (`src/croi/sched/sched.c`): `Croi_SpawnUserProc` copies
+  a command line into the new task's top stack page and hands it to the
+  entry in `a0`/`a1` (`SpawnUserTaskFromElf` is now a wrapper); new
+  kernel-private `Task` fields (`user_a0`/`a1`, `exit_waiter`/`_sig`,
+  `exit_code_slot`); `user_task_trampoline` passes `a0`/`a1`; `sys_exit`'s
+  join path hands a waiter the status + a signal (else the global
+  `UserExited` flag), so a nested launch doesn't corrupt the top-level
+  task's exit signalling. `libcara` `_start(cmdline, cmdlen)` tokenises the
+  command line in place and calls `main(argc, argv)`. **Key fix:**
+  `sched_activate_as` switches `satp` to the destination task on **every**
+  context switch — before T.3.2 only one U-mode task ever existed so `satp`
+  (set once at first dispatch) was always right; RunCommand's second
+  concurrent U-mode task meant the blocked launcher would otherwise resume
+  under the child's page table (illegal-instruction crash, hit + fixed this
+  slice). Proof: `runseg.c` (U-mode launcher) `LoadSeg`s `"dhrystone"` off
+  CaraFS and `RunCommand`s it with a tail; `KERNEL_TEST(loadseg_runcommand)`
+  seeds the dhrystone ELF onto CaraFS, spawns runseg, and asserts it exits 0
+  (file → LoadSeg → spawn child + argv → run → join). dos coverage 27%
+  (22/84). `CreateNewProc`/`SystemTagList`/old `CreateProc` stay padded
+  (async launch — land when the Shell's background `run` needs them).
+- **NEXT: T.3.3 — the Shell + boot-to-shell.** Milestone: boot → `>` prompt
+  → type `dhrystone` → it runs. The Shell is a U-mode Gleas: read a line
+  (dos `Input()`, already blocking since T.3.1) → parse `argv[0]` + tail →
+  `LoadSeg` it (try `name`, likely a `C/` path search) → `RunCommand` with
+  the tail → print the rc → loop. **Gotcha (flagged):** a blocking shell
+  auto-booted in the headless smoke would hang on `Input()` forever — don't
+  auto-boot it headless, or feed QEMU stdin, or gate it behind a flag; the
+  embed path stays for headless tests. Will likely want a real CaraFS `C/`
+  dir + a LoadSeg path search and dhrystone seeded onto the boot volume
+  (the T.3.2 test seeds it at runtime). Then **T.4** — first real GUI app.
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
