@@ -24,6 +24,8 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+ac43228 phase-T/T.4.4 run amiCalc — a real third-party GUI app, unedited (MILESTONE)
+d82027c fix           commit dos.conf LoadSeg/UnLoadSeg/RunCommand (omitted from T.3.2)
 2893b6e phase-T/T.4.3 cara_libm — userland libm (10 transcendentals, no third-party)
 a26b90e phase-T       vendor amiCalc (ports/amicalc) — third-party MIT GUI app
 3b68f48 phase-T/T.4.2 libc float — %f/%g/%e formatting + strtod (no libm)
@@ -1225,15 +1227,31 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   double arithmetic (hardware FP on RV64 since T.4.1), so host-tested:
   `tests/unit/test_libc_math.c` compiles `math.c` and checks every function
   against references within tolerance + NaN/-inf edges. host ctest 30/30.
-- **NEXT: T.4.4 — vendor + run amiCalc (the T.4 milestone).** `amicalc.c` is
-  vendored; add `ports/amicalc/CMakeLists.txt` (`cara_port_flags` +
-  `cara_user_libc` + `cara_libm` + `libcara_user`, embed like dhrystone),
-  build it **unedited**, and run it. The open problem is *launching a GUI
-  app*: the Workbench screen comes up only on the framebuffer path while the
-  Shell is the headless path. Green gate (headless): a **synthetic in-RAM
-  framebuffer** `KERNEL_TEST` opens a screen, spawns amiCalc, asserts the
-  window opened + rendered (stretch: inject "2+2=" clicks → "4"). Live demo:
-  ramfb + USB mouse, `run amicalc` from the shell. Build → open → compute.
+- **T.4.4 shipped (`ac43228`): amiCalc RUNS unedited — the Phase T
+  milestone.** A real third-party AmigaOS GUI app builds against the SDK and
+  opens its window + responds to input with ZERO source edits. Build glue:
+  `ports/amicalc/CMakeLists.txt` + `cara_port_flags_c23` (new in
+  `src/CMakeLists` — permissive but `-std=gnu23`, since the generated
+  `<proto/*.h>` stubs use C23 attribute syntax); `include/clib/{exec,
+  intuition,graphics}_protos.h` forward to `<proto/*.h>`. Header completeness
+  the unedited source forced (verbatim V36): intuition.h classic short
+  aliases (`CLOSEWINDOW`/`MOUSEBUTTONS`/`MENUPICK`/`REFRESHWINDOW`/
+  `WINDOWDRAG`/`GIMMEZEROZERO`/…) + `CHECKWIDTH`; `exec/types.h` `USHORT`. One
+  missing LVO: intuition `BeginRefresh(-354)`/`EndRefresh(-366)` (added,
+  minimal — Leargas renders immediately + never posts IDCMP_REFRESHWINDOW).
+  Proof: `KERNEL_TEST(amicalc_gui)` stands up a synthetic in-RAM framebuffer +
+  Workbench screen (headless), spawns amiCalc, asserts it opened its window +
+  rendered (fb hash changed), then posts IDCMP_CLOSEWINDOW and asserts it
+  exits 0. 66 passed / 0 failed. The inventory was decisive — the entire
+  intuition+graphics surface amiCalc uses already worked; only refresh +
+  header aliases were missing. (Also `d82027c` fixed `dos.conf` being omitted
+  from the T.3.2 commit.)
+- **Phase T COMPLETE** (T.1 libc → T.2 Dhrystone → T.3 AmigaDOS launch
+  path/Shell → T.4 amiCalc). The ABI promise is validated end to end.
+- **NEXT: user's call.** Options: (a) more/larger real ports (editor, viewer),
+  each pulling forward deferred substrate; (b) the arch HAL refactor toward
+  ARM64; (c) harden boot-to-shell + GUI launch (run amiCalc from the Shell on
+  a live ramfb Workbench, not just the headless test).
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
