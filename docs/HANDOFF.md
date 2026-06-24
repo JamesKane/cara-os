@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+3b68f48 phase-T/T.4.2 libc float — %f/%g/%e formatting + strtod (no libm)
 8818335 phase-T/T.4.1 U-mode FPU — enable FP + save/restore across context switch
 8c6803b docs          scope T.4 — first GUI app (amiCalc); slice plan T.4.1–T.4.4
 6bd245e phase-T/T.3.3 CaraShell — boot to a console shell, type a command, it runs
@@ -1198,10 +1199,23 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `Delay` yields, exits 0 iff exact) at matching priority while hammering
   the FPU from the kernel side, so the two FP contexts interleave through
   `ctx_switch` ~40k× and fputest still computes 120. 65 passed/0 failed.
-- **NEXT: T.4.2 — libc float.** `%f/%g/%e` in `fmt.c` (currently a
-  placeholder) + `strtod` in `cara_user_libc`, with host unit tests. Then
-  T.4.3 `cara_libm` (~11 transcendentals), then T.4.4 vendor + run amiCalc
-  (synthetic-RAM-framebuffer `KERNEL_TEST` + the screen/shell coexistence).
+- **T.4.2 shipped (`3b68f48`): libc float — `%f/%g/%e` + `strtod` (no
+  libm).** `fmt.c` `fmt_float` is a no-libm dtoa: bit-decode the double,
+  scale to `[1,10)` for the decimal exponent, extract + guard-round
+  significant digits, build `%f`/`%e`/`%g` bodies (`%g` picks fixed vs
+  scientific per C99 + strips trailing zeros) with sign/width/zero-pad. New
+  self-contained `strtod.c` (own classifiers, no syscalls → host-compilable)
+  + `atof`, in `<stdlib.h>` and `cara_user_libc`. Host test
+  `tests/unit/test_libc_float.c` compiles `fmt.c`+`strtod.c` directly and
+  asserts `%.15g`/`%f`/`%e` strings, flags/width/precision, inf/nan, strtod
+  cases, and format→parse round-trips. host ctest 29/29.
+- **NEXT: T.4.3 — `cara_libm`.** The ~11 transcendentals amiCalc references
+  (`sin cos tan asin acos atan exp log pow sqrt`), our own implementations
+  (no third-party libm linked, `PRINCIPLES.md §2`) — all must link even
+  though basic arithmetic exercises none — as a static lib ports link, with
+  host accuracy unit tests. (`sqrt` can be the hardware `fsqrt.d`.) Then
+  T.4.4 vendor + run amiCalc (synthetic-RAM-framebuffer `KERNEL_TEST` + the
+  screen/shell coexistence).
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
