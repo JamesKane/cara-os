@@ -18,4 +18,10 @@ struct Ns16550 {
 void ns16550_init(struct Ns16550 *u, u32 clock_hz, u32 baud);
 void ns16550_putc(struct Ns16550 *u, char c);
 
+// True when a received byte is waiting (LSR data-ready bit).
+bool ns16550_rx_ready(const struct Ns16550 *u);
+
+// Non-blocking receive: the next byte (0..255), or -1 if none is ready.
+int ns16550_getc(struct Ns16550 *u);
+
 #endif

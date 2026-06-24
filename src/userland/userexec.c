@@ -638,16 +638,18 @@ int main(void)
 
     // L3.6 process I/O + console + Delay. Output()/Input() return the
     // Process's standard streams (lazily-created console handles, stable
-    // across calls). Write to stdout (log-backed); a stdin Read returns
-    // EOF (0) in v0. Delay(1) exercises the Croi_Time spin-yield shim.
+    // across calls). Write to stdout (log-backed); Input() is a valid,
+    // distinct handle. (We do NOT Read(Input()) here: as of T.3.1 a console
+    // read is cooked + blocking, and headless boots have no console input,
+    // so a read would block forever — the Shell, not this smoke, drives
+    // interactive input.) Delay(1) exercises the Croi_Time spin-yield shim.
     BPTR out = Output();
     dos_ok = dos_ok && out != BNULL && Output() == out; // idempotent
     static const char hello[] = "userexec: hello via dos.library Output()\n";
     LONG hlen = (LONG)(sizeof(hello) - 1);
     dos_ok = dos_ok && Write(out, (APTR)hello, hlen) == hlen;
     BPTR in = Input();
-    char inbuf[8];
-    dos_ok = dos_ok && in != BNULL && in != out && Read(in, inbuf, sizeof(inbuf)) == 0;
+    dos_ok = dos_ok && in != BNULL && in != out;
     Delay(1); // ~20 ms; returns void — just prove the path is wired
 
     // L10: iffparse.library round-trip — WRITE an IFF FORM ILBM (a BMHD +

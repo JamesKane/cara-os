@@ -20,6 +20,7 @@ enum {
 #define LCR_8N1 0x03
 #define FCR_FIFO_EN 0x07 // enable FIFO + clear RX/TX
 #define LSR_THRE 0x20    // transmit holding register empty
+#define LSR_DR 0x01      // received data ready
 
 static u8 ns_read(const struct Ns16550 *u, u32 reg)
 {
@@ -67,4 +68,17 @@ void ns16550_putc(struct Ns16550 *u, char c)
         // spin
     }
     ns_write(u, NS_THR, (u8)c);
+}
+
+bool ns16550_rx_ready(const struct Ns16550 *u)
+{
+    return (ns_read(u, NS_LSR) & LSR_DR) != 0;
+}
+
+int ns16550_getc(struct Ns16550 *u)
+{
+    if ((ns_read(u, NS_LSR) & LSR_DR) == 0) {
+        return -1;
+    }
+    return (int)ns_read(u, NS_RBR);
 }

@@ -21,6 +21,7 @@
 #include <cara/alloc.h>
 #include <cara/carafs.h>
 #include <cara/carafs_bind.h>
+#include <cara/console_input.h>
 #include <cara/dos_lib.h>
 #include <cara/exec_lib.h>
 #include <cara/log.h>
@@ -431,7 +432,10 @@ void Croi_Dos_Dispatch(struct DosPacket *dp)
         usize len = (usize)dp->dp_Arg3;
         usize nread = 0;
         if (fe && fe->kind == CARA_FH_CONSOLE) {
-            dp->dp_Res1 = 0; // v0 stdin: immediate EOF
+            // Cooked console input (T.3.1). Runs in the caller's context
+            // (the SYS_Dos_Read path), so the blocking wait is the calling
+            // Process yielding until a line is typed.
+            dp->dp_Res1 = (SIPTR)Croi_ConsoleInput_Read((char *)buf, len);
             dp->dp_Res2 = 0;
             break;
         }

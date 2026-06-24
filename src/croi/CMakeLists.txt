@@ -78,6 +78,7 @@ add_executable(croi
     sbi.c
     string.c
     ns16550.c
+    console_input.c
     platform_init.c
     ramfb.c
     input_pump.c
