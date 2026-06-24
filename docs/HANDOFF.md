@@ -24,6 +24,8 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+2893b6e phase-T/T.4.3 cara_libm — userland libm (10 transcendentals, no third-party)
+a26b90e phase-T       vendor amiCalc (ports/amicalc) — third-party MIT GUI app
 3b68f48 phase-T/T.4.2 libc float — %f/%g/%e formatting + strtod (no libm)
 8818335 phase-T/T.4.1 U-mode FPU — enable FP + save/restore across context switch
 8c6803b docs          scope T.4 — first GUI app (amiCalc); slice plan T.4.1–T.4.4
@@ -1209,13 +1211,29 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `tests/unit/test_libc_float.c` compiles `fmt.c`+`strtod.c` directly and
   asserts `%.15g`/`%f`/`%e` strings, flags/width/precision, inf/nan, strtod
   cases, and format→parse round-trips. host ctest 29/29.
-- **NEXT: T.4.3 — `cara_libm`.** The ~11 transcendentals amiCalc references
-  (`sin cos tan asin acos atan exp log pow sqrt`), our own implementations
-  (no third-party libm linked, `PRINCIPLES.md §2`) — all must link even
-  though basic arithmetic exercises none — as a static lib ports link, with
-  host accuracy unit tests. (`sqrt` can be the hardware `fsqrt.d`.) Then
-  T.4.4 vendor + run amiCalc (synthetic-RAM-framebuffer `KERNEL_TEST` + the
-  screen/shell coexistence).
+- **amiCalc vendored (`a26b90e`):** `ports/amicalc/{amicalc.c,LICENSE,
+  PROVENANCE.md}` — verbatim github `713avo/amiCalc` (MIT, commit
+  `b90c1fbe…`), the local source of truth. Math surface confirmed: `sin cos
+  tan asin acos atan exp log pow sqrt` + `M_PI`/`M_E`.
+- **T.4.3 shipped (`2893b6e`): `cara_libm`.** Own implementations of those 10
+  transcendentals (+ `fabs`), no third-party libm linked. `math.h` (`M_PI`/
+  `M_E` + protos) + `math.c` (new `cara_libm` static lib): `sqrt` Newton from
+  a bit-hack guess; `exp`/`log` via `2^k`/`m·2^e` decomposition + series;
+  `sin`/`cos` quadrant-reduce + Taylor (`tan`=sin/cos); `atan` via `1/x`+`π/8`
+  reductions + series; `asin`/`acos` from `atan`+`sqrt`; `pow` integer-exp
+  squaring (exact small powers / negative base) else `exp(y·log x)`. Portable
+  double arithmetic (hardware FP on RV64 since T.4.1), so host-tested:
+  `tests/unit/test_libc_math.c` compiles `math.c` and checks every function
+  against references within tolerance + NaN/-inf edges. host ctest 30/30.
+- **NEXT: T.4.4 — vendor + run amiCalc (the T.4 milestone).** `amicalc.c` is
+  vendored; add `ports/amicalc/CMakeLists.txt` (`cara_port_flags` +
+  `cara_user_libc` + `cara_libm` + `libcara_user`, embed like dhrystone),
+  build it **unedited**, and run it. The open problem is *launching a GUI
+  app*: the Workbench screen comes up only on the framebuffer path while the
+  Shell is the headless path. Green gate (headless): a **synthetic in-RAM
+  framebuffer** `KERNEL_TEST` opens a screen, spawns amiCalc, asserts the
+  window opened + rendered (stretch: inject "2+2=" clicks → "4"). Live demo:
+  ramfb + USB mouse, `run amicalc` from the shell. Build → open → compute.
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
