@@ -20,6 +20,15 @@ target_include_directories(test_libc_float PRIVATE "${CMAKE_SOURCE_DIR}/src/user
 target_link_libraries(test_libc_float PRIVATE cara_flags cara_headers)
 add_test(NAME test_libc_float COMMAND test_libc_float)
 
+# test_libc_math: cara_libm (math.c) is pure double arithmetic → compile it
+# into a host test and check each transcendental vs a reference. T.4.3.
+add_executable(test_libc_math
+    test_libc_math.c
+    "${CMAKE_SOURCE_DIR}/src/userland/libc/math.c"
+)
+target_link_libraries(test_libc_math PRIVATE cara_flags cara_headers)
+add_test(NAME test_libc_math COMMAND test_libc_math)
+
 cara_unit_test(test_fdt_header cara_fdt)
 cara_unit_test(test_fdt_walk   cara_fdt)
 cara_unit_test(test_fdt_qemu   cara_fdt)

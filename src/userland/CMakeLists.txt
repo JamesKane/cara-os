@@ -32,6 +32,15 @@ target_include_directories(cara_user_libc PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/li
 target_link_libraries(cara_user_libc PRIVATE cara_kernel_flags cara_headers)
 add_dependencies(cara_user_libc cara_exec_lib_gen)
 
+# cara_libm — the userland libm (Phase T.4.3, docs/PORTS.md §3): own
+# implementations of the transcendentals a real V36+ app needs (amiCalc:
+# sin/cos/tan/asin/acos/atan/exp/log/pow/sqrt), no third-party libm linked.
+# Pure double arithmetic (hardware FP on RV64 since T.4.1), so the same
+# source is host-unit-tested. Ports link this alongside cara_user_libc.
+add_library(cara_libm STATIC libc/math.c)
+target_include_directories(cara_libm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libc/include")
+target_link_libraries(cara_libm PRIVATE cara_kernel_flags cara_headers)
+
 add_executable(userhello userhello.c)
 target_link_libraries(userhello PRIVATE cara_kernel_flags cara_headers)
 target_link_options(userhello PRIVATE
