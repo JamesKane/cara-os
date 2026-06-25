@@ -24,6 +24,8 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+f1d480f epic-H/H.1    arch HAL skeleton + leaf seams (halt/irq/timer/firmware)
+274a603 docs          scope the arch HAL refactor (epic H) — docs/ARCH_HAL.md
 f222597 phase-T/T.5   harden the live launch path — boot to Workbench + shell, launch GUI apps
 ac43228 phase-T/T.4.4 run amiCalc — a real third-party GUI app, unedited (MILESTONE)
 d82027c fix           commit dos.conf LoadSeg/UnLoadSeg/RunCommand (omitted from T.3.2)
@@ -1260,12 +1262,24 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   headlessly (synthetic Workbench, inject `"amicalc\nquit\n"`, Shell launches
   amiCalc on the screen, CLOSEWINDOW → exit 0); verified live on a ramfb boot.
   67 passed / 0 failed.
-- **NEXT: user's call.** (a) more/larger real ports (editor, viewer); (b) the
-  arch HAL refactor toward ARM64; (c) background launch — `RunCommand` is
-  foreground (blocks the shell until the GUI app closes); a `run` builtin /
-  async `CreateNewProc` (dos LVO -498, currently padded) keeps the shell
-  responsive while a GUI app is open (and multiple windows → forces
-  layers.library).
+- **Epic H — arch HAL refactor toward ARM64 (`docs/ARCH_HAL.md`, scoped
+  `274a603`).** Carve the RISC-V-specific kernel internals behind an `arch/`
+  boundary (compile-time `CARA_ARCH`, one ISA per build) so an ARM64 backend
+  slots in. Behaviour-preserving carve-out on rv64; ARM64 is the terminal
+  goal. Slices: H.1 leaf seams → H.2 MMU → H.3 ctx+FP → H.4 trap+syscall →
+  H.5 boot → H.6 build+lvo-gen trampoline templates+docs → H.7+ ARM64.
+- **H.1 shipped (`f1d480f`): arch skeleton + leaf seams.** `include/cara/arch.h`
+  + `src/croi/arch/riscv64/{cpu,timer,firmware}.c` — `arch_halt`/`arch_idle`/
+  `arch_irq_enable/disable`, `arch_console_putc/puts` (the SBI console, ex
+  `sbi.c`, now deleted), `arch_timer_ticks/arm/disarm`. `time.c` is now
+  portable (ns↔ticks + deadline bookkeeping over `arch_timer_*`); panic/print
+  use `arch_console_*`; the scheduler's WFI termini use `arch_halt`. No raw
+  RISC-V asm left in the portable callers; rv64 bit-for-bit identical (67
+  passed/0 failed).
+- **NEXT: H.2 — the MMU seam** (PTE encode/activate + boot-leaf → `arch/
+  riscv64/mmu.c`; keep the generic Sv39 walk portable). Other deferred
+  options remain: more ports; background launch (`run`/async `CreateNewProc`,
+  dos LVO -498 → also forces layers.library).
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
