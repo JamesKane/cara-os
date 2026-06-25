@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+f222597 phase-T/T.5   harden the live launch path — boot to Workbench + shell, launch GUI apps
 ac43228 phase-T/T.4.4 run amiCalc — a real third-party GUI app, unedited (MILESTONE)
 d82027c fix           commit dos.conf LoadSeg/UnLoadSeg/RunCommand (omitted from T.3.2)
 2893b6e phase-T/T.4.3 cara_libm — userland libm (10 transcendentals, no third-party)
@@ -1248,10 +1249,23 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   from the T.3.2 commit.)
 - **Phase T COMPLETE** (T.1 libc → T.2 Dhrystone → T.3 AmigaDOS launch
   path/Shell → T.4 amiCalc). The ABI promise is validated end to end.
-- **NEXT: user's call.** Options: (a) more/larger real ports (editor, viewer),
-  each pulling forward deferred substrate; (b) the arch HAL refactor toward
-  ARM64; (c) harden boot-to-shell + GUI launch (run amiCalc from the Shell on
-  a live ramfb Workbench, not just the headless test).
+- **T.5 shipped (`f222597`): hardened the live launch path.** `entry.c`
+  restructured — when a framebuffer is present (+ `boot_wants_wb`) the boot
+  brings up the Workbench screen + HID pointer + input-pump + re-armed
+  routers and then **falls through to the console Shell**, so `amicalc` typed
+  at the prompt LoadSeg+RunCommands onto the live Workbench (mouse drives it).
+  Headless, the Shell runs alone (smoke unchanged). The Shell seeds
+  `C/dhrystone` + `C/amicalc`. Clar is no longer auto-run (it stays
+  `clar_smoke`). `KERNEL_TEST(shell_launches_gui)` proves the whole chain
+  headlessly (synthetic Workbench, inject `"amicalc\nquit\n"`, Shell launches
+  amiCalc on the screen, CLOSEWINDOW → exit 0); verified live on a ramfb boot.
+  67 passed / 0 failed.
+- **NEXT: user's call.** (a) more/larger real ports (editor, viewer); (b) the
+  arch HAL refactor toward ARM64; (c) background launch — `RunCommand` is
+  foreground (blocks the shell until the GUI app closes); a `run` builtin /
+  async `CreateNewProc` (dos LVO -498, currently padded) keeps the shell
+  responsive while a GUI app is open (and multiple windows → forces
+  layers.library).
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
