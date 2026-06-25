@@ -27,6 +27,19 @@ if(NOT CARA_TARGET STREQUAL "host" AND NOT CARA_TARGET STREQUAL "riscv64")
 endif()
 message(STATUS "CaraOS target: ${CARA_TARGET}")
 
+# CARA_ARCH selects which ISA backend the kernel links from
+# src/croi/arch/<arch>/ (the HAL — docs/ARCH_HAL.md, epic H). One ISA per
+# build image, like CARA_TARGET; riscv64 is the only backend today.
+set(CARA_ARCH "riscv64" CACHE STRING "Cara kernel ISA backend (arch/<arch>/)")
+set_property(CACHE CARA_ARCH PROPERTY STRINGS riscv64)
+if(NOT CARA_ARCH STREQUAL "riscv64")
+    message(FATAL_ERROR
+        "CARA_ARCH must be 'riscv64' (the only backend today); got '${CARA_ARCH}'.")
+endif()
+if(CARA_TARGET STREQUAL "riscv64")
+    message(STATUS "CaraOS kernel arch: ${CARA_ARCH}")
+endif()
+
 # --- Toolchain gate: clang only ----------------------------------------------
 # CaraOS targets clang exclusively (Apple Clang on macOS hosts is accepted).
 # GCC may follow once the codebase is real, but the C23 surface we use is

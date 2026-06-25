@@ -1,7 +1,13 @@
 # CaraOS Architecture
 
-A cleanroom C23/RISC-V reimplementation of the AmigaOS Release 2
-specification (the 3rd Edition RKMs in `amigaos_kb_markdown/`, V36+).
+A cleanroom C23 reimplementation of the AmigaOS Release 2 specification
+(the 3rd Edition RKMs in `amigaos_kb_markdown/`, V36+). RISC-V 64 (Sv39,
+S-mode) is the primary architecture; since epic H the ISA-specific kernel
+internals (boot, trap, context switch, MMU, timer, firmware) sit behind a
+small arch HAL (`src/croi/arch/<arch>/`, `cara/arch.h` — see
+`docs/ARCH_HAL.md`) so a second architecture, **ARM64 (AArch64)**, can be
+added without touching the portable kernel. One ISA per build, selected by
+`CARA_ARCH`.
 
 > Status: design draft. Implementation has not started. Numbers in tables (LVOs,
 > address ranges, struct sizes) are *targets* for the first cut and will be
@@ -55,9 +61,11 @@ specification (the 3rd Edition RKMs in `amigaos_kb_markdown/`, V36+).
 4. **Cleanroom from the RKMs.** The markdown copies in `amigaos_kb_markdown/`
    are the spec we read; we never copy text or code from the original sources
    into CaraOS.
-5. **Stock RISC-V SoCs only.** Targets: StarFive **VisionFive 2** (JH7110) and
-   **OrangePi RV2** (Spacemit K1). No custom hardware, no custom chipset
-   emulation. We stand on U-Boot, OpenSBI, and UEFI.
+5. **Stock SoCs only.** Primary targets: StarFive **VisionFive 2** (JH7110)
+   and **OrangePi RV2** (Spacemit K1), both RISC-V. No custom hardware, no
+   custom chipset emulation; we stand on U-Boot, OpenSBI, and UEFI. The arch
+   HAL (epic H, `docs/ARCH_HAL.md`) opens the door to a stock **ARM64** SoC
+   as a second target — same "stand on the firmware (PSCI/UEFI)" rule.
 6. **C23 throughout.** Use `typeof`, `constexpr`, `nullptr`, `[[nodiscard]]`,
    designated initializers, and `<stdatomic.h>` to retire the macro-heavy
    patterns of the original.

@@ -315,6 +315,11 @@ OpenSBI ships with QEMU; UEFI is the boot mode; the same `splanc.efi` +
 parser is what makes this work — QEMU `virt`'s MMIO map differs from the
 X1's, but both ship a DTB.
 
+The same model applies per architecture: once the ARM64 backend (epic H,
+`docs/ARCH_HAL.md`) lands, its loop is `qemu-system-aarch64 -M virt …` (PSCI
+in place of SBI, a PL011 console), driven by the same FDT-discovery
+discipline. One `CARA_ARCH` per build directory.
+
 Move to OrangePi RV2 hardware only when:
 
 - QEMU's model can't reproduce a peripheral or behaviour we're testing.

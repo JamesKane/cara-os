@@ -132,18 +132,24 @@ Behaviour-preserving carve-out, cheapest/most-isolated seams first so the
 - **H.4 — trap + syscall seam.** `trap_entry.S` + cause-decode + the
   `TrapFrame` + arg extraction → `arch/riscv64/`; the dispatcher uses arch
   accessors. `stvec` install behind `arch_trap_init`.
-- **H.5 — boot seam.** `_start.S` + the boot bring-up half of `croi_entry` →
-  `arch/riscv64/boot`; boot ABI behind the arch.
-- **H.6 — build + tooling + docs.** Introduce `CARA_ARCH` (default riscv64),
-  make CMake select the backend, make `lvo-gen`'s trampoline emitter
-  arch-aware (template per arch), and generalise `ARCHITECTURE.md §4` +
-  `PRINCIPLES.md` (the "stock RISC-V only" stance → "primary RISC-V; arch/ HAL;
-  ARM64 second target"). rv64 still the only built arch.
+- **H.5 + H.6 — build + docs (shipped together).** `_start.S` relocated to
+  `arch/riscv64/` (the H.5 boot-file move, folded in) so the arch backend is
+  complete; introduced `CARA_ARCH` (default riscv64) and made the build select
+  `src/croi/arch/<arch>/` via that arch's `CMakeLists.txt` (it contributes its
+  sources to croi); generalised `ARCHITECTURE.md` + `PRINCIPLES.md` (RISC-V is
+  the *primary* arch; the HAL opens ARM64 as a second target). rv64 unchanged.
+  **Correction:** the per-LVO syscall trampolines are *hand-written* `.S`
+  (`src/croi/<lib>/trampolines.S`, the `CARA_SYSCALL_TRAMPOLINE` macro = `li
+  a7,N; ecall; ret`), **not** `lvo-gen` output (lvo-gen emits the proto inline
+  stubs + the vec table, which are arch-neutral C). So the arch-aware
+  trampoline work is *factoring that macro* into an arch include, and it only
+  matters once `svc` (ARM64) is needed → moved to H.7.
 - **H.7+ — ARM64 backend (terminal goal, its own sub-epic).**
   `cmake/toolchain-arm64.cmake`, `src/croi/arch/arm64/` (EL1 boot, VBAR
   vectors + eret, svc syscall, TTBR0/1 4K paging, CNTVCT timer, PSCI, NEON FP),
-  `svc` trampoline template, QEMU `-M virt` (AArch64) boot smoke. Sliced
-  separately once the seams are proven.
+  the `arch/arm64/` `arch_pte.h`, and the syscall-trampoline macro factored to
+  an arch include (`svc` vs `ecall`), QEMU `-M virt` (AArch64) boot smoke.
+  Sliced separately once the seams are proven.
 
 ## 6. Risks / watch-items
 

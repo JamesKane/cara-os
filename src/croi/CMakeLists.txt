@@ -94,7 +94,6 @@ set_source_files_properties(${_user_blob_s} PROPERTIES
 )
 
 add_executable(croi
-    _start.S
     user_program.S
     ${_user_blob_s}
     entry.c
@@ -109,17 +108,10 @@ add_executable(croi
     ramfb.c
     input_pump.c
     carafs_bind.c
-    # Arch HAL backend (epic H, docs/ARCH_HAL.md). RISC-V is the only arch
-    # today; H.6 introduces CARA_ARCH to select arch/<arch>/.
-    arch/riscv64/cpu.c
-    arch/riscv64/timer.c
-    arch/riscv64/firmware.c
-    arch/riscv64/mmu.c
-    arch/riscv64/ctx_switch.S
-    arch/riscv64/context.c
-    arch/riscv64/trap_entry.S
-    arch/riscv64/trap.c
 )
+# Arch HAL backend (epic H, docs/ARCH_HAL.md): the chosen ISA's arch/<arch>/
+# contributes its sources (boot, trap, ctx, mmu, timer, firmware, cpu) to croi.
+add_subdirectory(arch/${CARA_ARCH})
 add_dependencies(croi userhello userexec userintuition clar v36hello libctest runseg shell fputest dhrystone amicalc)
 # Make the Phase 9 aggregated lookup table build alongside croi.elf
 # even though no current code references it — keeps the artefact
