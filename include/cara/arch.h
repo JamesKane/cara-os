@@ -91,4 +91,31 @@ void arch_ctx_switch(u64 *from_int, u64 *to_int, u64 *from_fp, u64 *to_fp);
 void arch_ctx_init_kernel(u64 *saved_int, u64 kstack_top);
 void arch_ctx_init_user(u64 *saved_int, u64 kstack_top);
 
+// ---- Trap + syscall ABI (H.4) ---------------------------------------------
+// The arch entry builds a TrapFrame and calls the portable Croi_TrapDispatch
+// (cara/trap.h), which classifies via these accessors; the syscall dispatch
+// table (syscall.c) reads its args via the syscall-ABI accessors. The
+// TrapFrame layout itself is arch-shaped (cara/trap.h).
+struct TrapFrame;
+
+// Install the trap vector. Call once per hart during early init.
+void arch_trap_init(void);
+
+// Classify a trap. (RISC-V: synchronous ecall-from-U vs supervisor timer
+// interrupt; other arches decode their own cause register.)
+bool arch_trap_is_syscall(const struct TrapFrame *frame);
+bool arch_trap_is_timer(const struct TrapFrame *frame);
+
+// Advance the saved PC past the syscall instruction (so the trap returns
+// after it, not back onto it).
+void arch_trap_advance(struct TrapFrame *frame);
+
+// Dump an unhandled trap and halt.
+CARA_NORETURN void arch_trap_fatal(const struct TrapFrame *frame);
+
+// Syscall ABI: the request number, args 0..5, and where the return goes.
+u64 arch_syscall_num(const struct TrapFrame *frame);
+u64 arch_syscall_arg(const struct TrapFrame *frame, int i);
+void arch_syscall_set_ret(struct TrapFrame *frame, i64 ret);
+
 #endif // CARA_ARCH_H

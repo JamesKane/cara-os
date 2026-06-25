@@ -11,6 +11,7 @@
 // arm below reads the args it cares about and routes to the matching
 // Croi_*_Impl helper from src/croi/exec_lib/.
 
+#include <cara/arch.h>
 #include <cara/asl_lib.h>
 #include <cara/commodities_lib.h>
 #include <cara/device.h>
@@ -118,11 +119,17 @@ static i64 sys_log_write(i64 level, const char *user_tag, const char *user_msg, 
 
 i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
 {
-    i64 num = (i64)frame->x[17]; // a7
-    i64 a0 = (i64)frame->x[10];
-    i64 a1 = (i64)frame->x[11];
-    i64 a2 = (i64)frame->x[12];
-    i64 a3 = (i64)frame->x[13];
+    // Pull the request number + args via the arch syscall-ABI accessors so
+    // this dispatch table stays arch-neutral (cara/arch.h). a4/a5 are used by
+    // the few 5-6-arg LVOs below. The return value goes back via the
+    // dispatcher's arch_syscall_set_ret (trap.c), not here.
+    i64 num = (i64)arch_syscall_num(frame);
+    i64 a0 = (i64)arch_syscall_arg(frame, 0);
+    i64 a1 = (i64)arch_syscall_arg(frame, 1);
+    i64 a2 = (i64)arch_syscall_arg(frame, 2);
+    i64 a3 = (i64)arch_syscall_arg(frame, 3);
+    i64 a4 = (i64)arch_syscall_arg(frame, 4);
+    i64 a5 = (i64)arch_syscall_arg(frame, 5);
 
     switch (num) {
     case SYS_LOG_WRITE:
@@ -222,7 +229,7 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
     // ---- graphics.library (Dath rasteriser) ----
     case SYS_Gfx_AllocBitMap:
         return (i64)(uptr)Croi_Gfx_AllocBitMap_Impl((ULONG)a0, (ULONG)a1, (ULONG)a2, (ULONG)a3,
-                                                    (const struct BitMap *)(uptr)frame->x[14]);
+                                                    (const struct BitMap *)(uptr)a4);
     case SYS_Gfx_FreeBitMap:
         Croi_Gfx_FreeBitMap_Impl((struct BitMap *)(uptr)a0);
         return 0;
@@ -239,8 +246,7 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         Croi_Gfx_Draw_Impl((struct RastPort *)(uptr)a0, (WORD)a1, (WORD)a2);
         return 0;
     case SYS_Gfx_RectFill:
-        Croi_Gfx_RectFill_Impl((struct RastPort *)(uptr)a0, (WORD)a1, (WORD)a2, (WORD)a3,
-                               (WORD)frame->x[14]);
+        Croi_Gfx_RectFill_Impl((struct RastPort *)(uptr)a0, (WORD)a1, (WORD)a2, (WORD)a3, (WORD)a4);
         return 0;
     case SYS_Gfx_ReadPixel:
         return (i64)Croi_Gfx_ReadPixel_Impl((struct RastPort *)(uptr)a0, (WORD)a1, (WORD)a2);
@@ -399,7 +405,7 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return 0;
     case SYS_AddGList:
         return (i64)Croi_AddGList_Impl((struct Window *)(uptr)a0, (struct Gadget *)(uptr)a1,
-                                       (ULONG)a2, (LONG)a3, (struct Requester *)(uptr)frame->x[14]);
+                                       (ULONG)a2, (LONG)a3, (struct Requester *)(uptr)a4);
     case SYS_RemoveGList:
         return (i64)Croi_RemoveGList_Impl((struct Window *)(uptr)a0, (struct Gadget *)(uptr)a1,
                                           (LONG)a2);
@@ -470,7 +476,7 @@ i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
         return 0;
     case SYS_GT_DrawBevelBoxA:
         Croi_GT_DrawBevelBoxA_Impl((struct RastPort *)(uptr)a0, (WORD)a1, (WORD)a2, (WORD)a3,
-                                   (WORD)frame->x[14], (struct TagItem *)(uptr)frame->x[15]);
+                                   (WORD)a4, (struct TagItem *)(uptr)a5);
         return 0;
     case SYS_GT_GetGadgetAttrsA:
         return (i64)Croi_GT_GetGadgetAttrsA_Impl(

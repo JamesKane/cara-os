@@ -95,7 +95,6 @@ set_source_files_properties(${_user_blob_s} PROPERTIES
 
 add_executable(croi
     _start.S
-    trap_entry.S
     user_program.S
     ${_user_blob_s}
     entry.c
@@ -118,6 +117,8 @@ add_executable(croi
     arch/riscv64/mmu.c
     arch/riscv64/ctx_switch.S
     arch/riscv64/context.c
+    arch/riscv64/trap_entry.S
+    arch/riscv64/trap.c
 )
 add_dependencies(croi userhello userexec userintuition clar v36hello libctest runseg shell fputest dhrystone amicalc)
 # Make the Phase 9 aggregated lookup table build alongside croi.elf

@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
-// S-mode trap handling. The trap entry point (croi_trap_entry, in
-// trap_entry.S) saves a TrapFrame on the current stack, calls
-// Croi_TrapDispatch, restores, sret. For Tier 1 the dispatcher only
-// classifies and panics — no async handling yet. Timer (Sstc) and
-// external-interrupt routing (PLIC) plug in later in Epics A.4 and B.
+// S-mode trap handling. The arch trap entry (arch/<arch>/trap_entry.S) saves
+// a TrapFrame on the current stack, calls the portable Croi_TrapDispatch,
+// restores, and returns from trap. Dispatch classifies via the arch
+// accessors (cara/arch.h: arch_trap_is_syscall/is_timer/…) and routes.
+//
+// The vector install (arch_trap_init) lives in cara/arch.h.
 
 #ifndef CARA_TRAP_H
 #define CARA_TRAP_H
 
 #include <cara/types.h>
 
-// Layout must match the offsets used in src/croi/trap_entry.S exactly.
-// Total size: 32*8 + 4*8 = 288 bytes.
+// Arch-shaped saved register frame. This is the RISC-V layout — its field
+// offsets match arch/riscv64/trap_entry.S exactly (32*8 + 4*8 = 288 bytes).
+// Portable code treats it opaquely via the arch_trap_*/arch_syscall_*
+// accessors; a second arch (H.7) defines its own shape.
 struct TrapFrame {
     u64 x[32]; // x[0] is reserved (always 0); x[2] is sp at trap entry
     u64 sepc;
@@ -21,13 +24,9 @@ struct TrapFrame {
     u64 sstatus;
 };
 
-// Install croi_trap_entry into stvec (direct mode). Call once per hart
-// during early init, before anything that could fault is executed.
-void Croi_TrapInit(void);
-
-// Trap dispatch entry called from trap_entry.S. Classifies scause and
-// either handles or panics. [[noreturn]] paths halt; handled paths
-// return so the asm tail can sret.
+// Trap dispatch entry called from the arch trap entry. Routes syscall / timer
+// / fatal via the arch accessors; handled paths return so the asm tail can
+// return from trap, the fatal path halts.
 void Croi_TrapDispatch(struct TrapFrame *frame);
 
 #endif
