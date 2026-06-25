@@ -54,4 +54,24 @@ void arch_timer_arm(u64 deadline_ticks);
 // Disable / clear the timer interrupt source. Idempotent.
 void arch_timer_disarm(void);
 
+// ---- MMU (privileged side) ------------------------------------------------
+// The PTE *encoding* + the generic page-table *walk* are arch-neutral
+// (<cara/arch_pte.h> + src/croi/mm/pt.c); these are the privileged ops that
+// touch the live MMU. (H.2. The U-mode-entry choreography that also sets the
+// page table is H.3.)
+struct PageTable;
+
+// Make `pt` the active address space: write the translation root + fence.
+void arch_mmu_activate(const struct PageTable *pt);
+
+// Full TLB fence (all addresses). For boot-time mapping changes.
+void arch_mmu_fence(void);
+
+// TLB fence for a single virtual address (a targeted invalidation).
+void arch_mmu_fence_va(u64 va);
+
+// The boot page table's root (the one currently active), as an upper-half
+// VA pointer — used to install boot-time leaves into the live table.
+u64 *arch_mmu_boot_root(void);
+
 #endif // CARA_ARCH_H

@@ -174,10 +174,7 @@ struct Task *Sched_Current(void)
 static void sched_activate_as(const struct Task *next)
 {
     if (next && next->user_pt) {
-        u64 satp = Sv39_Satp(next->user_pt);
-        __asm__ volatile("sfence.vma zero, zero" ::: "memory");
-        __asm__ volatile("csrw satp, %0" : : "r"(satp) : "memory");
-        __asm__ volatile("sfence.vma zero, zero" ::: "memory");
+        arch_mmu_activate(next->user_pt);
     }
 }
 

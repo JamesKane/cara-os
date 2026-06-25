@@ -6,6 +6,7 @@
 // and the user-VA 0x4000_0000+ view (mapped into every user task's
 // PT for reading the vec table and executing the trampolines).
 
+#include <cara/arch.h>
 #include <cara/exec_lib_image.h>
 #include <cara/log.h>
 #include <cara/mm.h>
@@ -81,15 +82,11 @@ usize Croi_ExecLib_PrivateSize(void)
 
 [[nodiscard]] int Croi_ExecLib_InstallInBootPT(void)
 {
-    // Read SATP to find the current (boot) PT's root, wrap it in a
-    // PageTable struct, and install the same mapping there. After
-    // this, kmain (which runs with the boot PT) can read+write
-    // 0x4000_0000+ — Croi_MakeLibrary uses this view to populate
-    // struct Library and the vec table.
-    u64 satp;
-    __asm__ volatile("csrr %0, satp" : "=r"(satp));
-    u64 ppn = satp & ((1ull << 44) - 1);
-    u64 *root = (u64 *)Mm_PhysToVirt(ppn << 12);
+    // Find the current (boot) PT's root, wrap it in a PageTable struct, and
+    // install the same mapping there. After this, kmain (which runs with the
+    // boot PT) can read+write 0x4000_0000+ — Croi_MakeLibrary uses this view
+    // to populate struct Library and the vec table.
+    u64 *root = arch_mmu_boot_root();
 
     struct PageTable boot_pt = {
         .root = root,

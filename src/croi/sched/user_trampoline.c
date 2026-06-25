@@ -6,7 +6,7 @@
 // sret's into the user entry. From there on, each U→S→U round-trip
 // goes through trap_entry.S; this trampoline only fires once per task.
 
-#include <cara/mm.h>
+#include <cara/arch.h>
 #include <cara/sched.h>
 #include <cara/types.h>
 
@@ -16,11 +16,10 @@
 {
     struct Task *t = Sched_Current();
 
-    // Switch to the user's page table.
-    u64 satp = Sv39_Satp(t->user_pt);
-    __asm__ volatile("sfence.vma zero, zero" ::: "memory");
-    __asm__ volatile("csrw satp, %0" : : "r"(satp) : "memory");
-    __asm__ volatile("sfence.vma zero, zero" ::: "memory");
+    // Switch to the user's page table (the arch MMU-activate primitive; the
+    // rest of the U-mode entry choreography below is RISC-V-specific and
+    // moves behind the arch in H.3).
+    arch_mmu_activate(t->user_pt);
 
     // sscratch = kstack_top (U-mode invariant). ctx_switch already set
     // this from saved_regs[16] when it dispatched us here, but writing

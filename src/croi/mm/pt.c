@@ -6,6 +6,7 @@
 // allow Page_Map to populate the lower half page-by-page.
 
 #include <cara/alloc.h>
+#include <cara/arch.h>
 #include <cara/mm.h>
 #include <cara/shared.h>
 #include <cara/types.h>
@@ -33,31 +34,31 @@ static void free_pt_page(u64 *page)
     Page_Free(&g_page_alloc, Mm_VirtToPhys(page), 1);
 }
 
-// Build a leaf PTE: PPN goes in bits [53:10], flags in [9:0].
+// Thin forwarders to the arch PTE encoding (<cara/arch_pte.h>) so the walk
+// below reads the same as before while the bit layout lives in the arch.
 static inline u64 make_leaf(u64 pa, u64 flags)
 {
-    return ((pa >> 12) << 10) | flags;
+    return arch_pte_leaf(pa, flags);
 }
 
 static inline u64 make_intermediate(u64 child_pa)
 {
-    return ((child_pa >> 12) << 10) | PTE_V; // V only; no R/W/X => non-leaf
+    return arch_pte_table(child_pa);
 }
 
 static inline u64 *pte_child(u64 pte)
 {
-    u64 child_pa = ((pte >> 10) & 0x0FFFFFFFFFFFull) << 12;
-    return (u64 *)Mm_PhysToVirt(child_pa);
+    return (u64 *)Mm_PhysToVirt(arch_pte_child_pa(pte));
 }
 
 static inline bool pte_present(u64 pte)
 {
-    return (pte & PTE_V) != 0;
+    return arch_pte_valid(pte);
 }
 
 static inline bool pte_is_leaf(u64 pte)
 {
-    return (pte & (PTE_R | PTE_W | PTE_X)) != 0;
+    return arch_pte_is_leaf(pte);
 }
 
 // ASID counter. Starts at 1; ASID 0 is reserved for the boot PT in
@@ -201,7 +202,7 @@ void Croi_DestroyPT(struct PageTable *pt)
 #if defined(__riscv)
 [[nodiscard]] int Croi_Mm_InstallBootPT_1GiBLeaf(u64 va, u64 phys, u64 prot)
 {
-    // 1 GiB alignment required for both VA and PA per Sv39 leaf rules.
+    // 1 GiB alignment required for both VA and PA per the 1 GiB-leaf rules.
     if ((va & ((1ull << 30) - 1)) != 0 || (phys & ((1ull << 30) - 1)) != 0) {
         return CARA_EINVAL;
     }
@@ -209,28 +210,24 @@ void Croi_DestroyPT(struct PageTable *pt)
         return CARA_EINVAL;
     }
 
-    // Find the boot PT root via SATP (matches the pattern in
-    // src/croi/exec_lib/image.c::Croi_ExecLib_InstallInBootPT).
-    u64 satp;
-    __asm__ volatile("csrr %0, satp" : "=r"(satp));
-    u64 ppn = satp & ((1ull << 44) - 1);
-    u64 *root = (u64 *)Mm_PhysToVirt(ppn << 12);
-
+    // The boot PT root + the privileged fence are the arch's (arch_mmu_*);
+    // the leaf composition + walk are the generic encoding above.
+    u64 *root = arch_mmu_boot_root();
     u32 i2 = (u32)((va >> 30) & 0x1FFu);
     if (pte_present(root[i2])) {
         return CARA_EINVAL; // L2 slot already populated
     }
     root[i2] = make_leaf(phys, prot);
 
-    // Sv39 sfence to publish the new leaf to the MMU. va alone is fine
-    // — the new mapping covers exactly that 1 GiB and no more.
-    __asm__ volatile("sfence.vma %0, x0" : : "r"(va) : "memory");
+    // Publish the new leaf to the MMU. va alone is fine — the new mapping
+    // covers exactly that 1 GiB and no more.
+    arch_mmu_fence_va(va);
     return CARA_EOK;
 }
 #else
-// cara_mm builds for both host (unit tests) and the rv64 kernel.
-// The host build can't compile sfence.vma; this function is
-// kernel-only so it's gated out for non-RISC-V targets.
+// cara_mm builds for both host (unit tests) and the rv64 kernel. This op
+// touches the live boot page table (arch_mmu_*), so it is kernel-only;
+// stubbed for the host build (no host caller exercises it).
 [[nodiscard]] int Croi_Mm_InstallBootPT_1GiBLeaf(u64 va, u64 phys, u64 prot)
 {
     (void)va;

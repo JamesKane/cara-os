@@ -8,6 +8,7 @@
 #ifndef CARA_MM_H
 #define CARA_MM_H
 
+#include <cara/arch_pte.h> // arch PTE encoding (PTE_* flags, arch_pte_* ops)
 #include <cara/fdt.h>
 #include <cara/types.h>
 
@@ -88,25 +89,12 @@ struct PageAllocator {
 // the address Page_Alloc returned and `n_pages` must match.
 void Page_Free(struct PageAllocator *pa, u64 phys, u32 n_pages);
 
-// ---- Sv39 page tables ------------------------------------------------------
-
-enum : u64 {
-    PTE_V = 0x001ull,
-    PTE_R = 0x002ull,
-    PTE_W = 0x004ull,
-    PTE_X = 0x008ull,
-    PTE_U = 0x010ull, // user-accessible
-    PTE_G = 0x020ull, // global mapping (kernel half)
-    PTE_A = 0x040ull,
-    PTE_D = 0x080ull,
-};
-
-constexpr u64 PTE_KERNEL_RWX = (PTE_V | PTE_R | PTE_W | PTE_X | PTE_G | PTE_A | PTE_D);
-constexpr u64 PTE_KERNEL_RW = (PTE_V | PTE_R | PTE_W | PTE_G | PTE_A | PTE_D);
-constexpr u64 PTE_USER_RW = (PTE_V | PTE_R | PTE_W | PTE_U | PTE_A | PTE_D);
-constexpr u64 PTE_USER_RX = (PTE_V | PTE_R | PTE_X | PTE_U | PTE_A);
-constexpr u64 PTE_USER_RO = (PTE_V | PTE_R | PTE_U | PTE_A);
-constexpr u64 PTE_USER_RWX = (PTE_V | PTE_R | PTE_W | PTE_X | PTE_U | PTE_A | PTE_D);
+// ---- Page tables -----------------------------------------------------------
+//
+// The PTE flag macros (PTE_*) + the encoding live in <cara/arch_pte.h>
+// (arch-specific, included above); the generic walk (Page_Map below) is
+// arch-neutral. The privileged side (activate / fence / boot-root) is in
+// cara/arch.h's arch_mmu_*.
 
 struct PageTable {
     u64 *root; // upper-half VA pointer to the 4 KiB L2 root

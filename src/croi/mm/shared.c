@@ -4,6 +4,7 @@
 // sfence); gated to the rv64 target in src/croi/mm/CMakeLists.txt.
 
 #include <cara/alloc.h>
+#include <cara/arch.h>
 #include <cara/log.h>
 #include <cara/mm.h>
 #include <cara/shared.h>
@@ -14,19 +15,10 @@ static struct Heap g_shared_heap;        // slab heap over the arena window
 static u64 g_shared_l1_phys;             // the shared L1 subtree page (phys)
 static bool g_shared_up = false;
 
-// Build a non-leaf PTE pointing at a child table (mirror of the static
-// helper in src/croi/mm/pt.c; kept local so pt.c's statics stay private).
+// Non-leaf PTE pointing at a child table (the arch PTE encoding).
 static inline u64 make_intermediate(u64 child_pa)
 {
-    return ((child_pa >> 12) << 10) | PTE_V; // V only, no R/W/X => non-leaf
-}
-
-static u64 *boot_root(void)
-{
-    u64 satp;
-    __asm__ volatile("csrr %0, satp" : "=r"(satp));
-    u64 ppn = satp & ((1ull << 44) - 1);
-    return (u64 *)Mm_PhysToVirt(ppn << 12);
+    return arch_pte_table(child_pa);
 }
 
 [[nodiscard]] int Croi_Shared_InstallMapping(struct PageTable *pt)
@@ -75,7 +67,7 @@ static u64 *boot_root(void)
     //    Page_Map loop makes Page_Map walk into our shared L1 (rather than
     //    allocate its own), so the L0 tables it adds hang off the shared
     //    subtree and are visible in every PT that later installs root[L2].
-    u64 *root = boot_root();
+    u64 *root = arch_mmu_boot_root();
     if (root[CARA_SHARED_L2_INDEX] & PTE_V) {
         LOG_FATAL("shmem", "boot L2[%u] already populated", CARA_SHARED_L2_INDEX);
         return CARA_EINVAL;
@@ -92,7 +84,7 @@ static u64 *boot_root(void)
             return rc;
         }
     }
-    __asm__ volatile("sfence.vma" ::: "memory");
+    arch_mmu_fence();
 
     // 3. A bitmap allocator + slab heap over the arena. The window is
     //    pre-mapped 1:1 with the arena, so the heap's phys→VA is the fixed
