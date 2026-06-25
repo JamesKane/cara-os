@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+4d7e8aa epic-H/H.2    arch HAL — MMU seam (PTE encoding + privileged ops)
 f1d480f epic-H/H.1    arch HAL skeleton + leaf seams (halt/irq/timer/firmware)
 274a603 docs          scope the arch HAL refactor (epic H) — docs/ARCH_HAL.md
 f222597 phase-T/T.5   harden the live launch path — boot to Workbench + shell, launch GUI apps
@@ -1276,10 +1277,19 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   use `arch_console_*`; the scheduler's WFI termini use `arch_halt`. No raw
   RISC-V asm left in the portable callers; rv64 bit-for-bit identical (67
   passed/0 failed).
-- **NEXT: H.2 — the MMU seam** (PTE encode/activate + boot-leaf → `arch/
-  riscv64/mmu.c`; keep the generic Sv39 walk portable). Other deferred
-  options remain: more ports; background launch (`run`/async `CreateNewProc`,
-  dos LVO -498 → also forces layers.library).
+- **H.2 shipped (`4d7e8aa`): the MMU seam.** `include/cara/arch_pte.h` (the
+  Sv39 PTE encoding — `PTE_*` flags + inline `arch_pte_*` ops, pure bit math
+  so it builds host + kernel) + `src/croi/arch/riscv64/mmu.c` (the privileged
+  `arch_mmu_activate`/`fence`/`fence_va`/`boot_root`). The generic page-table
+  walk in `mm/pt.c` is unchanged (its helpers forward to `arch_pte_*`); the
+  `satp`/`sfence` asm is gone from the portable callers (shared.c, image.c,
+  sched.c, user_trampoline.c → `arch_mmu_*`). 67 passed / 0 failed,
+  paging+SASOS-heap tests intact.
+- **NEXT: H.3 — context switch + FP + U-mode-entry seam** (relocate
+  `ctx_switch.S` + the FP save/restore + `user_trampoline.c`'s entry
+  choreography to `arch/riscv64/` behind `arch_ctx_switch` + `arch_enter_user`).
+  Other deferred options remain: more ports; background launch (`run`/async
+  `CreateNewProc`, dos LVO -498 → also forces layers.library).
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
