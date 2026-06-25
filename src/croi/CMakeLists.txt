@@ -103,7 +103,6 @@ add_executable(croi
     time.c
     print.c
     panic.c
-    sbi.c
     string.c
     ns16550.c
     console_input.c
@@ -111,6 +110,11 @@ add_executable(croi
     ramfb.c
     input_pump.c
     carafs_bind.c
+    # Arch HAL backend (epic H, docs/ARCH_HAL.md). RISC-V is the only arch
+    # today; H.6 introduces CARA_ARCH to select arch/<arch>/.
+    arch/riscv64/cpu.c
+    arch/riscv64/timer.c
+    arch/riscv64/firmware.c
 )
 add_dependencies(croi userhello userexec userintuition clar v36hello libctest runseg shell fputest dhrystone amicalc)
 # Make the Phase 9 aggregated lookup table build alongside croi.elf

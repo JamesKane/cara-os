@@ -5,6 +5,7 @@
 // switch trigger. Single hart for now (SMP arrives in Epic H).
 
 #include <cara/alloc.h>
+#include <cara/arch.h>
 #include <cara/exec_lib_image.h>
 #include <cara/kobj.h>
 #include <cara/list.h>
@@ -219,9 +220,7 @@ void Croi_Yield(void)
 {
     struct Task *old = g_current;
     if (!old) {
-        for (;;) {
-            __asm__ volatile("wfi");
-        }
+        arch_halt();
     }
     old->tc_State = TS_REMOVED;
     LOG_DEBUG("schd", "task '%s' exit", old->tc_Node.ln_Name);
@@ -229,9 +228,7 @@ void Croi_Yield(void)
 
     if (MinList_IsEmpty(&g_runq)) {
         LOG_INFO("schd", "no runnable tasks; halting");
-        for (;;) {
-            __asm__ volatile("wfi");
-        }
+        arch_halt();
     }
     struct MinNode *n = MinList_RemHead(&g_runq);
     struct Task *next = node_to_task(n);
@@ -646,9 +643,7 @@ u32 Croi_Wait(u32 mask)
             // those land. For now, panic.
             LOG_FATAL("schd", "Croi_Wait by '%s' with empty runq (deadlock)",
                       g_current->tc_Node.ln_Name);
-            for (;;) {
-                __asm__ volatile("wfi");
-            }
+            arch_halt();
         }
         struct Task *old = g_current;
         MinList_AddTail(&g_sleepers, &old->sched_node);

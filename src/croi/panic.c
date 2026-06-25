@@ -1,26 +1,23 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
-// Croi early-bringup panic and halt. Calls the SBI console directly so
-// it works before any printf backend is wired.
+// Croi early-bringup panic and halt. Uses the arch early firmware console
+// (arch_console_puts) so it works before any printf backend is wired, and
+// arch_halt to hang the hart.
 
-#include "print.h"
-#include "sbi.h"
-
+#include <cara/arch.h>
 #include <cara/types.h>
 
 CARA_NORETURN void Croi_Halt(void)
 {
-    for (;;) {
-        __asm__ volatile("wfi");
-    }
+    arch_halt();
 }
 
 CARA_NORETURN void Croi_Panic(const char *msg)
 {
-    sbi_puts("\nCROI PANIC: ");
+    arch_console_puts("\nCROI PANIC: ");
     if (msg) {
-        sbi_puts(msg);
+        arch_console_puts(msg);
     }
-    sbi_puts("\n");
+    arch_console_puts("\n");
     Croi_Halt();
 }

@@ -6,17 +6,17 @@
 // stay aligned.
 
 #include "print.h"
-#include "sbi.h"
 
 #include <stdarg.h>
 
+#include <cara/arch.h>
 #include <cara/types.h>
 
-static Croi_PutcFn g_putc = sbi_putc;
+static Croi_PutcFn g_putc = arch_console_putc;
 
 void Croi_PrintInstallBackend(Croi_PutcFn put)
 {
-    g_putc = put ? put : sbi_putc;
+    g_putc = put ? put : arch_console_putc;
 }
 
 void Croi_PutByte(char c)

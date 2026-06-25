@@ -7,6 +7,7 @@
 // real silicon would not — the property we're really testing is "Sstc
 // fires, the trap path delivers it, the foreground sees the flag."
 
+#include <cara/arch.h>
 #include <cara/test.h>
 #include <cara/time.h>
 #include <cara/types.h>
@@ -18,7 +19,7 @@ KERNEL_TEST(time_smoke)
     u64 start = Croi_Time_Now();
     Croi_Time_SetDeadline(start + target_ns);
     while (!Croi_Time_DeadlineFired()) {
-        __asm__ volatile("wfi");
+        arch_idle();
     }
     u64 elapsed = Croi_Time_Now() - start;
 
