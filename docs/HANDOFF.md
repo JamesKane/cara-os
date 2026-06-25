@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+2c8e5bb epic-H/H.4    arch HAL — trap + syscall seam
 91b5094 epic-H/H.3    arch HAL — context switch + FP + U-mode-entry seam
 4d7e8aa epic-H/H.2    arch HAL — MMU seam (PTE encoding + privileged ops)
 f1d480f epic-H/H.1    arch HAL skeleton + leaf seams (halt/irq/timer/firmware)
@@ -1292,11 +1293,18 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `arch_ctx_init_kernel`/`arch_ctx_init_user` (the `saved_regs` layout knowledge
   left `sched.c`). `cara_sched` is now just `sched.c`. 67 passed / 0 failed
   (usermode + FP + amiCalc all exercise it).
-- **NEXT: H.4 — trap + syscall seam** (relocate `trap_entry.S`, split `trap.c`
-  into portable dispatch + arch cause-classify, put `stvec` install + the
-  `TrapFrame`/syscall-arg extraction behind `arch_*`; the big syscall dispatch
-  switch stays portable). Other deferred options remain: more ports; background
-  launch (`run`/async `CreateNewProc`, dos LVO -498 → also forces layers.library).
+- **H.4 shipped (`2c8e5bb`): trap + syscall seam.** `trap_entry.S` → `arch/
+  riscv64/`; new `arch/riscv64/trap.c` (scause classify, the syscall ABI
+  accessors `arch_syscall_num`/`arg`/`set_ret`, `stvec` install, the fatal
+  dump). `trap.c` is now a slim portable `Croi_TrapDispatch` over the accessors;
+  `syscall.c`'s dispatch table is unchanged but reads its args via the
+  accessors (no hard-coded RISC-V arg registers). 67 passed / 0 failed.
+- **NEXT: H.5 — boot seam** (relocate `_start.S` to `arch/riscv64/` behind the
+  arch; `croi_entry` stays the portable C entry the arch boot tail-calls).
+  Then H.6 = `CARA_ARCH` build var + arch-aware lvo-gen trampoline templates +
+  generalise `ARCHITECTURE.md`/`PRINCIPLES.md`; then H.7+ the ARM64 backend.
+  Other deferred options remain: more ports; background launch (`run`/async
+  `CreateNewProc`, dos LVO -498 → also forces layers.library).
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
