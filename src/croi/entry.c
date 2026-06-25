@@ -136,18 +136,17 @@ extern const usize commodities_lib_vec_count;
 extern void *expansion_lib_vec[];
 extern const usize expansion_lib_vec_count;
 
-// Clar (the Phase 1 Workbench Gleas) embedded in the .user_elf section
-// (src/croi/CMakeLists.txt user_blob.S). Spawned as the foreground task
-// in the live-demo path once a framebuffer + HID are up.
-extern char __clar_elf_start[];
-extern char __clar_elf_end[];
-
-// CaraShell + dhrystone embeds (T.3.3): the boot console shell and a
-// command to seed into C/ so `dhrystone` resolves at the prompt.
+// Embedded U-mode programs in the .user_elf section (src/croi/CMakeLists.txt
+// user_blob.S). The live launch path (T.5) brings up the console Shell (and,
+// when a framebuffer is present, the Workbench screen) and seeds the
+// launchable commands into C/ — `dhrystone` (console) and `amicalc` (GUI).
+// Clar is exercised by KERNEL_TEST(clar_smoke), not auto-run at boot.
 extern char __shell_elf_start[];
 extern char __shell_elf_end[];
 extern char __dhrystone_elf_start[];
 extern char __dhrystone_elf_end[];
+extern char __amicalc_elf_start[];
+extern char __amicalc_elf_end[];
 
 // Kernel-image extents materialised into upper-half rodata by the
 // linker script's .kernel_extents — see croi.lds. We can't reach the
@@ -995,17 +994,25 @@ static void console_putc(char c)
     // ---- Run the in-kernel test suite. ----
     Test_RunAll();
 
-    // ---- Stage B live demo. If a framebuffer is up (e.g. QEMU ramfb or
-    //      a board's simple-framebuffer), open the Workbench desktop and
-    //      run Clar as the foreground Gleas, fed by a kernel input-pump
-    //      task polling the HID controller. The headless smoke has no
-    //      framebuffer and falls straight through to Halt, so the test
-    //      gate is unaffected. The in-kernel tests reset Leargas state,
-    //      so we bring the desktop up fresh here.
-    if (g_fb_present) {
+    // ---- The live launch path (T.5). If a framebuffer is up (QEMU ramfb or
+    //      a board's simple-framebuffer) and the Startup-Sequence asked for
+    //      the Workbench, bring up the Workbench screen + HID pointer + the
+    //      input-pump task, then fall through to the console Shell — so a GUI
+    //      app launched from the prompt (e.g. `amicalc`) opens on the
+    //      Workbench and the mouse drives it. Headless (no framebuffer) the
+    //      Shell runs alone (console apps only). The Clar desktop is exercised
+    //      by KERNEL_TEST(clar_smoke); the live boot is now a Workbench you
+    //      launch apps onto from the shell. Input routers are armed at early
+    //      init (above); re-arm them here in case the in-kernel tests moved
+    //      them, and reset Leargas state for a fresh desktop.
+    if (g_fb_present && boot_wants_wb) {
         Leargas_Input_Reset();
         Leargas_Focus_Reset();
         Leargas_Gadget_Reset();
+        Leargas_SetKeyRouter(Leargas_IDCMP_RouteKey);
+        Leargas_SetGadgetRouter(Leargas_IDCMP_PostGadgetUp);
+        Leargas_SetMouseButtonRouter(Leargas_IDCMP_PostMouseButtons);
+        Leargas_SetCloseWindowRouter(Leargas_IDCMP_PostCloseWindow);
 
         DathColor bg = (g_fb.format == DATH_FMT_RGB565) ? Dath_RGB565(0x10, 0x20, 0x40)
                                                         : Dath_RGB(0x10, 0x20, 0x40);
@@ -1016,48 +1023,40 @@ static void console_putc(char c)
 
         Leargas_SetDisplayFramebuffer(&g_fb); // L5.6: OpenScreen opens here
         g_screen = Leargas_OpenScreen(&g_fb, "Workbench", bg);
-        bool demo_up = g_screen != nullptr &&
-                       Dath_AllocBitmap(&g_pointer_save, leargas_pointer_arrow.width,
-                                        leargas_pointer_arrow.height, g_fb.format) == CARA_EOK &&
-                       Leargas_Pointer_Init(&g_pointer, &g_fb, &g_pointer_save,
-                                            &leargas_pointer_arrow, white, ptr_outline,
-                                            (i32)g_fb.width / 2, (i32)g_fb.height / 2) == CARA_EOK;
-
-        if (demo_up && g_xhci_probed && boot_wants_wb) {
+        bool wb_up = g_screen != nullptr &&
+                     Dath_AllocBitmap(&g_pointer_save, leargas_pointer_arrow.width,
+                                      leargas_pointer_arrow.height, g_fb.format) == CARA_EOK &&
+                     Leargas_Pointer_Init(&g_pointer, &g_fb, &g_pointer_save,
+                                          &leargas_pointer_arrow, white, ptr_outline,
+                                          (i32)g_fb.width / 2, (i32)g_fb.height / 2) == CARA_EOK;
+        if (wb_up) {
             g_leargas_up = true;
-            // Input-pump task + Clar run at the same priority so Croi_Yield
-            // round-robins between them; kmain drops below both and idles.
-            static struct InputPumpCfg pump_cfg;
-            pump_cfg.xh = &g_xhci;
-            pump_cfg.pointer = &g_pointer;
-            (void)Croi_SpawnKernelTask("inputd", 5, Croi_InputPump_Task, &pump_cfg);
-
-            usize clar_size = (usize)(__clar_elf_end - __clar_elf_start);
-            struct Task *clar = Croi_SpawnUserTaskFromElf("clar", 5, __clar_elf_start, clar_size);
-            if (clar) {
-                LOG_INFO("boot", "Clar desktop up; input-pump polling HID");
-                Croi_TaskSetSelfPriority(-100);
-                for (;;) {
-                    Croi_Yield();
-                }
+            if (g_xhci_probed) {
+                static struct InputPumpCfg pump_cfg;
+                pump_cfg.xh = &g_xhci;
+                pump_cfg.pointer = &g_pointer;
+                (void)Croi_SpawnKernelTask("inputd", 5, Croi_InputPump_Task, &pump_cfg);
+                LOG_INFO("boot", "Workbench up + HID input-pump; launch GUI apps from the shell");
+            } else {
+                LOG_INFO("boot",
+                         "Workbench up (no HID controller); launch GUI apps from the shell");
             }
-            LOG_WARN("boot", "spawn Clar failed; halting");
         } else {
-            LOG_WARN("boot", "live demo unavailable (screen/pointer/HID absent); halting");
+            LOG_WARN("boot", "Workbench bring-up failed; console shell only");
         }
     }
 
-    // ---- Console boot Shell (T.3.3, docs/PORTS.md §6). On the headless /
-    //      no-framebuffer path (the QEMU smoke and a real serial console),
-    //      bring up CaraShell: it reads typed commands and dispatches them
-    //      via LoadSeg + RunCommand. Seed C/dhrystone so `dhrystone`
-    //      resolves at the prompt. In the headless smoke no input ever
-    //      arrives, so the shell blocks at its prompt (yielding) until the
-    //      harness timeout — the test gate (printed by Test_RunAll above) is
-    //      already satisfied, so this does not affect it. The framebuffer
-    //      path above never returns when the Workbench comes up.
+    // ---- Console boot Shell (T.3.3 / T.5, docs/PORTS.md §6). Always runs:
+    //      it reads typed commands and dispatches them via LoadSeg +
+    //      RunCommand. Seed the launchable commands into C/ — C/dhrystone
+    //      (console) and C/amicalc (GUI, opens on the Workbench above). In the
+    //      headless smoke no input ever arrives, so the shell blocks at its
+    //      prompt (yielding) until the harness timeout; the test gate is
+    //      already satisfied by Test_RunAll, so this does not affect it.
     Croi_Boot_SeedCommand("dhrystone", 9, __dhrystone_elf_start,
                           (usize)(__dhrystone_elf_end - __dhrystone_elf_start));
+    Croi_Boot_SeedCommand("amicalc", 7, __amicalc_elf_start,
+                          (usize)(__amicalc_elf_end - __amicalc_elf_start));
     usize shell_size = (usize)(__shell_elf_end - __shell_elf_start);
     struct Task *shell = Croi_SpawnUserTaskFromElf("shell", 5, __shell_elf_start, shell_size);
     if (shell) {
