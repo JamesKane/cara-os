@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+91b5094 epic-H/H.3    arch HAL — context switch + FP + U-mode-entry seam
 4d7e8aa epic-H/H.2    arch HAL — MMU seam (PTE encoding + privileged ops)
 f1d480f epic-H/H.1    arch HAL skeleton + leaf seams (halt/irq/timer/firmware)
 274a603 docs          scope the arch HAL refactor (epic H) — docs/ARCH_HAL.md
@@ -1285,11 +1286,17 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `satp`/`sfence` asm is gone from the portable callers (shared.c, image.c,
   sched.c, user_trampoline.c → `arch_mmu_*`). 67 passed / 0 failed,
   paging+SASOS-heap tests intact.
-- **NEXT: H.3 — context switch + FP + U-mode-entry seam** (relocate
-  `ctx_switch.S` + the FP save/restore + `user_trampoline.c`'s entry
-  choreography to `arch/riscv64/` behind `arch_ctx_switch` + `arch_enter_user`).
-  Other deferred options remain: more ports; background launch (`run`/async
-  `CreateNewProc`, dos LVO -498 → also forces layers.library).
+- **H.3 shipped (`91b5094`): context switch + FP + U-mode-entry seam.**
+  `ctx_switch.S` moved to `arch/riscv64/` (`croi_ctx_switch` → `arch_ctx_switch`);
+  new `arch/riscv64/context.c` (ex `user_trampoline.c`) holds the U-mode entry +
+  `arch_ctx_init_kernel`/`arch_ctx_init_user` (the `saved_regs` layout knowledge
+  left `sched.c`). `cara_sched` is now just `sched.c`. 67 passed / 0 failed
+  (usermode + FP + amiCalc all exercise it).
+- **NEXT: H.4 — trap + syscall seam** (relocate `trap_entry.S`, split `trap.c`
+  into portable dispatch + arch cause-classify, put `stvec` install + the
+  `TrapFrame`/syscall-arg extraction behind `arch_*`; the big syscall dispatch
+  switch stays portable). Other deferred options remain: more ports; background
+  launch (`run`/async `CreateNewProc`, dos LVO -498 → also forces layers.library).
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
