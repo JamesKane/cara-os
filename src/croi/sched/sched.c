@@ -16,9 +16,9 @@
 #include <cara/types.h>
 #include <dos/dosextens.h> // struct Process — U-mode Tasks live at pr_Task
 
-extern void croi_ctx_switch(u64 *from_int, u64 *to_int, u64 *from_fp, u64 *to_fp);
-extern void task_trampoline(void);
-extern void user_task_trampoline(void);
+// Context switch + first-dispatch setup are the arch's (cara/arch.h:
+// arch_ctx_switch / arch_ctx_init_kernel / arch_ctx_init_user). Sched_Trampoline
+// is the portable kernel-task entry the arch's task_trampoline forwards into.
 void Sched_Trampoline(void);
 
 static struct Task *g_current = nullptr;
@@ -149,12 +149,9 @@ struct Task *Sched_Current(void)
         return nullptr;
     }
 
-    // saved_regs layout: [0]=ra, [1]=sp, [2]=gp, [3]=tp, [4..15]=s0..s11
     u64 sp_top = (u64)(uptr)t->kstack + CARA_TASK_KSTACK_SIZE;
     sp_top &= ~15ull; // 16-byte aligned
-    t->saved_regs[0] = (u64)(uptr)task_trampoline;
-    t->saved_regs[1] = sp_top;
-    // gp/tp left zero; s-regs left zero.
+    arch_ctx_init_kernel(t->saved_regs, sp_top);
 
     runq_add(t);
     LOG_DEBUG("schd", "spawn '%s' pri=%d kstack=0x%llx", t->tc_Node.ln_Name, (int)t->tc_Node.ln_Pri,
@@ -209,7 +206,7 @@ void Croi_Yield(void)
     }
     g_current = next;
     sched_activate_as(next);
-    croi_ctx_switch(old ? old->saved_regs : nullptr, next->saved_regs, old ? old->fp_save : nullptr,
+    arch_ctx_switch(old ? old->saved_regs : nullptr, next->saved_regs, old ? old->fp_save : nullptr,
                     next->fp_save);
 }
 
@@ -235,7 +232,7 @@ void Croi_Yield(void)
     // We pass the dying task's saved_regs as the from buffer; ctx_switch
     // will write into it but no one reads it again.
     sched_activate_as(next);
-    croi_ctx_switch(old->saved_regs, next->saved_regs, old->fp_save, next->fp_save);
+    arch_ctx_switch(old->saved_regs, next->saved_regs, old->fp_save, next->fp_save);
     __builtin_unreachable();
 }
 
@@ -387,9 +384,7 @@ void Croi_Enable(void)
     // that a user-origin trap swaps onto the kernel stack).
     u64 sp_top = (u64)(uptr)t->kstack + CARA_TASK_KSTACK_SIZE;
     sp_top &= ~15ull;
-    t->saved_regs[0] = (u64)(uptr)user_task_trampoline;
-    t->saved_regs[1] = sp_top;
-    t->saved_regs[16] = sp_top; // sscratch
+    arch_ctx_init_user(t->saved_regs, sp_top);
 
     runq_add(t);
     LOG_DEBUG("schd", "spawn user '%s' pri=%d entry=0x%llx sp_top=0x%llx", t->tc_Node.ln_Name,
@@ -518,9 +513,7 @@ void Croi_Enable(void)
 
     u64 sp_top = (u64)(uptr)t->kstack + CARA_TASK_KSTACK_SIZE;
     sp_top &= ~15ull;
-    t->saved_regs[0] = (u64)(uptr)user_task_trampoline;
-    t->saved_regs[1] = sp_top;
-    t->saved_regs[16] = sp_top; // sscratch
+    arch_ctx_init_user(t->saved_regs, sp_top);
 
     runq_add(t);
     LOG_DEBUG("schd", "spawn user-proc '%s' pri=%d entry=0x%llx a0=0x%llx", t->tc_Node.ln_Name,
@@ -650,7 +643,7 @@ u32 Croi_Wait(u32 mask)
         next->tc_State = TS_RUN;
         g_current = next;
         sched_activate_as(next);
-        croi_ctx_switch(old->saved_regs, next->saved_regs, old->fp_save, next->fp_save);
+        arch_ctx_switch(old->saved_regs, next->saved_regs, old->fp_save, next->fp_save);
         // resume here when re-scheduled — loop and re-check sigrecvd
     }
 }

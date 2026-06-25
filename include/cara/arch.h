@@ -74,4 +74,21 @@ void arch_mmu_fence_va(u64 va);
 // VA pointer — used to install boot-time leaves into the live table.
 u64 *arch_mmu_boot_root(void);
 
+// ---- Context switch + first-dispatch (H.3) --------------------------------
+// The portable scheduler drives these; the RISC-V register layout (the
+// saved_int/saved_fp areas in struct Task) is the arch's. saved_int is
+// TASK_NSAVED u64s, saved_fp is the FP file; their shapes are arch-defined.
+
+// Switch the live integer + FP register context from one task to another.
+// `from_int`/`from_fp` may be nullptr for the very first switch on a hart.
+void arch_ctx_switch(u64 *from_int, u64 *to_int, u64 *from_fp, u64 *to_fp);
+
+// Prime a freshly spawned task's saved register area so the first
+// arch_ctx_switch into it lands correctly: a kernel task resumes in its entry
+// trampoline (→ Sched_Trampoline → entry_fn); a U-mode task resumes in the
+// U-mode entry path. `kstack_top` is the (16-byte-aligned) top of its kernel
+// stack. The FP save area is assumed already zeroed (fresh task).
+void arch_ctx_init_kernel(u64 *saved_int, u64 kstack_top);
+void arch_ctx_init_user(u64 *saved_int, u64 kstack_top);
+
 #endif // CARA_ARCH_H

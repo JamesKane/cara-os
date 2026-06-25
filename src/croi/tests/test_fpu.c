@@ -4,7 +4,7 @@
 // context switches. Spawns the `fputest` Gleas, which accumulates in
 // `double` across many Delay()-driven yields and exits 0 iff the result is
 // exact. Meanwhile this runner hammers the FPU from the *kernel* side
-// (kacc) between yields, so if croi_ctx_switch failed to save/restore the
+// (kacc) between yields, so if arch_ctx_switch failed to save/restore the
 // FP register file, the two would corrupt each other and fputest would exit
 // non-zero. Proving both: (a) U-mode FP is enabled (sstatus.FS), and (b) the
 // FP file round-trips across switches. The substrate the amiCalc port needs.
@@ -29,7 +29,7 @@ KERNEL_TEST(fpu_umode)
     TEST_ASSERT(ctx, t != nullptr, "Croi_SpawnUserTaskFromElf(fputest) failed");
 
     // Kernel-side FP pressure: touch the FPU between every switch so a
-    // missing FP save/restore in croi_ctx_switch would clobber fputest's
+    // missing FP save/restore in arch_ctx_switch would clobber fputest's
     // registers (and vice versa). Match fputest's priority (5) so the two
     // round-robin and genuinely interleave their FP contexts through
     // ctx_switch on every switch. `volatile` keeps it real, not folded.

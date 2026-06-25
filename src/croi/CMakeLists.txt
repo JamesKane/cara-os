@@ -116,6 +116,8 @@ add_executable(croi
     arch/riscv64/timer.c
     arch/riscv64/firmware.c
     arch/riscv64/mmu.c
+    arch/riscv64/ctx_switch.S
+    arch/riscv64/context.c
 )
 add_dependencies(croi userhello userexec userintuition clar v36hello libctest runseg shell fputest dhrystone amicalc)
 # Make the Phase 9 aggregated lookup table build alongside croi.elf

@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
-// Voluntary kernel-thread context switch.
+// RISC-V voluntary context switch — the arch_ctx_switch seam (epic H, H.3;
+// relocated here from src/croi/sched/). The portable scheduler
+// (src/croi/sched/sched.c) calls it; arch/riscv64/context.c supplies the
+// matching first-dispatch setup (arch_ctx_init_kernel/user) + the U-mode
+// entry (user_task_trampoline).
 //
-//   void croi_ctx_switch(u64 *from_int, u64 *to_int, u64 *from_fp, u64 *to_fp)
+//   void arch_ctx_switch(u64 *from_int, u64 *to_int, u64 *from_fp, u64 *to_fp)
 //     a0 = 17-u64 integer save area for the outgoing context
 //          (nullptr for the very first switch on a hart → skip save)
 //     a1 = 17-u64 integer save area to load the incoming context from
@@ -11,7 +15,7 @@
 //
 // Integer side: save ra / sp / gp / tp / s0..s11 (the callee-saved subset)
 // plus sscratch. Caller-saved integer registers are clobbered by the call
-// to croi_ctx_switch, so the compiler already spilled what it needs.
+// to arch_ctx_switch, so the compiler already spilled what it needs.
 //
 // FP side (T.4.1): the kernel is soft-float, so a U-mode task's FP state is
 // NOT in the trap frame — it lives in the hardware FP registers while the
@@ -20,15 +24,15 @@
 // second FP-using task would clobber the first's registers. Requires
 // sstatus.FS != Off, which _start.S sets at boot and keeps set.
 //
-// task_trampoline is the initial `ra` for a freshly spawned task. The
-// scheduler hands control to it; it forwards into Sched_Trampoline (C)
-// which calls entry_fn(entry_arg) and then Croi_TaskExit.
+// task_trampoline is the initial `ra` for a freshly spawned kernel task
+// (set by arch_ctx_init_kernel). The scheduler hands control to it; it
+// forwards into Sched_Trampoline (C) which calls entry_fn then Croi_TaskExit.
 
 .section .text, "ax"
 .balign 4
-.globl croi_ctx_switch
-.type  croi_ctx_switch, @function
-croi_ctx_switch:
+.globl arch_ctx_switch
+.type  arch_ctx_switch, @function
+arch_ctx_switch:
     beqz    a0, .Lload                      // first switch: skip save
 
     sd      ra,    0(a0)
@@ -145,7 +149,7 @@ croi_ctx_switch:
     fscsr   t0
 
     ret
-.size   croi_ctx_switch, . - croi_ctx_switch
+.size   arch_ctx_switch, . - arch_ctx_switch
 
 
 .balign 4
