@@ -79,6 +79,14 @@ static u16 g_next_asid = 1;
     }
     pt->asid = g_next_asid++;
 
+#if defined(CARA_ARCH_ARM64)
+    // AArch64 splits the address space across two roots: per-task tables are the
+    // TTBR0 (user/low) root only, while the kernel upper half lives in the
+    // fixed, shared TTBR1 (set up once at boot). So a per-task root starts
+    // empty — there is no kernel-half to clone here; arch_mmu_activate only
+    // swaps TTBR0 and leaves TTBR1 alone. (Contrast Sv39 below, which has a
+    // single root covering both halves.)
+#else
     // Kernel upper half = a full lower-4 GiB direct map, so kernel driver
     // code (which runs in whatever task's PT happens to be active) can
     // reach device MMIO regardless of the current task. Four 1 GiB leaves:
@@ -93,6 +101,7 @@ static u16 g_next_asid = 1;
     pt->root[257] = make_leaf(0x40000000ull, PTE_KERNEL_RW);
     pt->root[258] = make_leaf(0x80000000ull, PTE_KERNEL_RWX);
     pt->root[259] = make_leaf(0xC0000000ull, PTE_KERNEL_RW);
+#endif
 
     return pt;
 }

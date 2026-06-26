@@ -157,15 +157,27 @@ so each slice is small and the gate is real.
   (echo) + `Croi_Time_OnTimerTrap` (stub) until `cara_syscall`/`cara_time` are
   linked in H.7.4 — delete it then.
 - **H.7.4 — per-task address spaces + context switch + FP + enter U-mode.**
-  This is where the page-table *walk* finally runs on AArch64, so it also
-  carries the H.7.2b deferral: teach the generic walk the level→leaf/table rule
-  (e.g. `arch_pte_is_table(pte, level)`), make `Page_Map`/`Croi_NewKernelPT`
-  correct for AArch64, and implement `arch_mmu_activate/fence/fence_va/boot_root`
-  (TTBR0 for the user half, `TLBI`/`DSB`/`ISB`; note arm64 has TTBR0+TTBR1, not
-  one `satp` — `Sv39_Satp` in `mm.h` is RISC-V-specific and may need an arch
-  hook). Then `ctx_switch.S` (callee-saved + sp + tpidr), NEON v0–v31 +
-  fpcr/fpsr behind `CPACR_EL1`, `context.c` (`arch_ctx_init_*` + the EL0 `eret`
-  trampoline). Bring in `cara_sched`.
+  Split into sub-slices (each green):
+  - **H.7.4a — per-task page tables + `arch_mmu_*` (DONE).** `arch/arm64/mmu.c`:
+    `arch_mmu_activate` (swap `TTBR0_EL1` + ASID; the kernel keeps running out of
+    the fixed `TTBR1`), `arch_mmu_fence`/`fence_va` (`TLBI`), `arch_mmu_boot_root`
+    (TTBR1). `Croi_NewKernelPT` is arch-gated: the AArch64 per-task root is the
+    TTBR0 (user/low) root only — empty, since the kernel half is the shared
+    TTBR1 (no Sv39-style kernel-half clone). The generic walk (`pt.c`) runs
+    **unchanged** — validated by a `Page_Map` + `arch_mmu_activate` round-trip
+    (write via TTBR0, read back via TTBR0 and the TTBR1 direct map). The
+    "level-aware leaf" worry from H.7.2b resolved itself: the walk only queries
+    `arch_pte_is_leaf` at upper levels (block detection), where per-task entries
+    are always tables, so the bits-only test is correct (note in
+    `arch/arm64/arch_pte.h`). The PL011 console moved to its TTBR1 alias so it
+    survives TTBR0 switches.
+  - **H.7.4b — context switch.** `arch/arm64/ctx_switch.S` (`arch_ctx_switch`:
+    callee-saved x19–x30 + sp + tpidr) + `arch/arm64/context.c`
+    (`arch_ctx_init_kernel`). Bring in `cara_sched`; prove a kernel→kernel yield.
+  - **H.7.4c — FP + enter-U-mode + real syscall.** NEON v0–v31 + fpcr/fpsr
+    behind `CPACR_EL1`; `arch_ctx_init_user` + the EL0 `eret` trampoline (set
+    TTBR0/SPSR_EL1=EL0t/ELR_EL1); delete `trap_demo.c` and link `cara_syscall` +
+    `cara_time` (the real `Croi_Syscall_Dispatch`/`Croi_Time_OnTimerTrap`).
 - **H.7.5 — timer + IRQ + PSCI.** Generic timer (`CNTV_*`), GIC IRQ path,
   PSCI halt/off; wire `arch_timer_*` + `arch_irq_*` + the scheduler tick.
 - **H.7.6 — syscall trampolines + first U-mode program.** Factor

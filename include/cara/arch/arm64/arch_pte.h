@@ -8,19 +8,21 @@
 // shared with Sv39. The privileged side (TTBR/TLBI) lives in
 // src/croi/arch/arm64/mmu.c behind arch_mmu_* (cara/arch.h).
 //
-// ⚠ ONE OPEN SEAM (reconciled when Page_Map actually runs on AArch64 — H.7.4,
-// with the scheduler / user address spaces). AArch64 encodes leaf-vs-table BY
-// LEVEL, not by the descriptor bits alone:
+// NOTE on the bits-only arch_pte_is_leaf (validated by the H.7.4a Page_Map
+// round-trip). AArch64 encodes leaf-vs-table BY LEVEL, not by bits alone:
 //   - L0/L1/L2: bits[1:0] = 0b01 → block (a leaf); 0b11 → table (points down)
 //   - L3:       bits[1:0] = 0b11 → page (a leaf)   ; 0b01 → reserved/invalid
-// So a page (L3 leaf) and a table (L1/L2) share bits 0b11 and are only told
-// apart by the level. The generic walk currently asks arch_pte_is_leaf(pte)
-// with no level (a bits-only test that works for Sv39 and for AArch64 L1/L2
-// blocks but is ambiguous at L3). Until H.7.4 teaches the walk the level (e.g.
-// arch_pte_is_table(pte, level)), Page_Map / Croi_NewKernelPT are NOT yet
-// correct on AArch64 — and nothing calls them here: H.7.2b uses only the page
-// *allocator* + physmap (which never touch this encoding). The boot page tables
-// are hand-built block descriptors in arch/arm64/_start.S, not this walk.
+// So a page (L3 leaf) and a table (L1/L2) share bits 0b11. This is fine for the
+// generic 4 KiB walk in pt.c because that walk only ever queries
+// arch_pte_is_leaf at the *upper* levels (to refuse overwriting a 1 GiB/2 MiB
+// block), where per-task entries are always tables (the walk never creates
+// blocks); at the leaf (L3) level it writes/checks presence directly and never
+// calls is_leaf. So is_leaf is implemented as the L1/L2 block test (0b01) and
+// the walk is correct. Code that block-detects an arbitrary descriptor at L3
+// (e.g. future huge-page support, or walking the boot table's 1 GiB blocks)
+// would need a level-aware test (arch_pte_is_table(pte, level)); add it then.
+// The boot page tables are hand-built 1 GiB block descriptors in
+// arch/arm64/_start.S, separate from this walk.
 
 #ifndef CARA_ARCH_ARM64_PTE_H
 #define CARA_ARCH_ARM64_PTE_H

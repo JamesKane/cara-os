@@ -63,6 +63,12 @@ if ! grep -qF "trap: svc ok" "${LOG}"; then
     echo "smoke_qemu_arm64: FAIL: svc trap round-trip did not complete" >&2
     fail=1
 fi
+# Proof per-task page tables work: a Page_Map'd page activated via TTBR0 and
+# round-tripped through both TTBR0 and the TTBR1 direct map.
+if ! grep -qF "pagetable: map ok" "${LOG}"; then
+    echo "smoke_qemu_arm64: FAIL: per-task page-table round-trip did not complete" >&2
+    fail=1
+fi
 
 if [[ ${fail} -ne 0 ]]; then
     echo "----- boot stdio -----" >&2
@@ -71,4 +77,4 @@ if [[ ${fail} -ne 0 ]]; then
     exit 1
 fi
 
-echo "smoke_qemu_arm64: ok (paging + FDT + mm + svc traps)"
+echo "smoke_qemu_arm64: ok (paging + FDT + mm + svc traps + per-task PT)"

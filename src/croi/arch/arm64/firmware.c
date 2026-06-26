@@ -14,7 +14,14 @@
 #include <cara/types.h>
 
 // PL011 registers (ARM PrimeCell UART, 32-bit, word-indexed from the base).
-static volatile u32 *const pl011 = (volatile u32 *)0x09000000UL;
+// Reached through the kernel upper-half direct map (TTBR1), NOT the low
+// identity address: once per-task page tables switch TTBR0 (H.7.4) the low
+// alias is no longer mapped, but the kernel half (TTBR1) is fixed, so the
+// console keeps working in any address space. (Phys 0x09000000 +
+// KERNEL_VA_OFFSET; the FDT-driven UART driver supersedes this early console.)
+#define PL011_PHYS 0x09000000ull
+#define CARA_KERNEL_VA_OFFSET 0xFFFFFFC000000000ull
+static volatile u32 *const pl011 = (volatile u32 *)(uptr)(PL011_PHYS + CARA_KERNEL_VA_OFFSET);
 #define PL011_DR (0x000 / 4)    // data register
 #define PL011_FR (0x018 / 4)    // flag register
 #define PL011_FR_TXFF (1u << 5) // transmit FIFO full

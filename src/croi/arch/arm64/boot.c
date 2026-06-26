@@ -162,6 +162,47 @@ CARA_NORETURN void arm64_kernel_main(u64 dtb_phys)
         }
     }
 
-    arch_console_puts("CaraOS arm64 boot: ok (paged + mm + traps)\n");
+    // ---- Per-task page tables (H.7.4a). Build a fresh page table, map a page
+    //      into its TTBR0 (user/low) half via the generic walk, activate it,
+    //      and round-trip a value: write through the user VA (resolved by the
+    //      new TTBR0) and read it back through both the user VA and the kernel
+    //      direct map (TTBR1) — proving the walk + activate land on the same
+    //      physical page, and that switching TTBR0 leaves the kernel (TTBR1)
+    //      running (we keep printing afterwards via the console's TTBR1 alias).
+    {
+        struct PageTable *pt = Croi_NewKernelPT();
+        if (!pt) {
+            arch_console_puts("arm64 boot: FATAL: Croi_NewKernelPT failed\n");
+            arch_halt();
+        }
+        u64 test_va = 0x10000000ull; // user/low half (TTBR0)
+        u64 test_pa = Page_Alloc(&g_page_alloc, 1);
+        if (test_pa == 0) {
+            arch_console_puts("arm64 boot: FATAL: Page_Alloc (PT test) failed\n");
+            arch_halt();
+        }
+        rc = Page_Map(pt, test_va, test_pa, PTE_KERNEL_RW);
+        if (rc != CARA_EOK) {
+            put_line("arm64 boot: FATAL: Page_Map rc = ", (u64)(i64)rc);
+            arch_halt();
+        }
+        arch_mmu_activate(pt);
+
+        const u64 pattern = 0xCAFEBABEDEADBEEFull;
+        *(volatile u64 *)(uptr)test_va = pattern;
+        u64 via_ttbr0 = *(volatile u64 *)(uptr)test_va;
+        u64 via_ttbr1 = *(volatile u64 *)Mm_PhysToVirt(test_pa);
+        put_line("arm64 boot: PT va             = ", test_va);
+        put_line("arm64 boot: PT read (TTBR0)   = ", via_ttbr0);
+        put_line("arm64 boot: PT read (TTBR1)   = ", via_ttbr1);
+        if (via_ttbr0 == pattern && via_ttbr1 == pattern) {
+            arch_console_puts("arm64 boot: pagetable: map ok\n");
+        } else {
+            arch_console_puts("arm64 boot: FATAL: page-table round-trip mismatch\n");
+            arch_halt();
+        }
+    }
+
+    arch_console_puts("CaraOS arm64 boot: ok (paged + mm + traps + pt)\n");
     arch_halt();
 }
