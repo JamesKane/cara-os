@@ -6,12 +6,13 @@
 # than a static library, so the boot entry (_start) lands in croi without
 # archive-ordering surprises.
 #
-# H.7.1 is boot-to-print only: _start brings the CPU to a known EL1 state and
-# calls a boot stub that writes a banner to the PL011 console, then halts. The
-# trap / ctx / mmu / timer seams arrive in later H.7.x slices.
+# H.7.2 brings up stage-1 paging: _start builds the boot tables, enables the
+# MMU, and branches to the upper-half _high_entry, which calls the C entry
+# (running at SASOS upper-half VAs). The trap / ctx / timer / cara_mm-runtime
+# seams arrive in later H.7.x slices.
 target_sources(croi PRIVATE
-    _start.S       # boot: EL1 bring-up, stack, BSS zero, call arm64_boot_main
+    _start.S       # boot: EL1 bring-up, stage-1 boot PT, MMU on, jump upper half
     firmware.c     # arch_console_putc/puts (PL011 early console)
     cpu.c          # arch_halt / arch_idle / arch_irq_enable/disable
-    boot.c         # arm64_boot_main: H.7.1 banner + halt (bring-up stub)
+    boot.c         # arm64_kernel_main: H.7.2 upper-half banner + halt (stub)
 )

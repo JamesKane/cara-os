@@ -113,10 +113,29 @@ so each slice is small and the gate is real.
   stub that prints a banner and halts. Flat low-half link (MMU off). Boots under
   `qemu-system-aarch64 -M virt` and prints the banner (new `smoke_qemu_arm64`).
   *No portable kernel yet.* **(this slice)**
-- **H.7.2 — MMU + paging + reach `croi_entry`.** arm64 `arch_pte.h` (make the
-  include `CARA_ARCH`-selected); boot stage-1 PT (TTBR0 identity-low + TTBR1
-  upper-half); enable MMU; jump high; bring in `cara_mm` for AArch64 and land in
-  a portable `croi_entry` skeleton (FDT parse + mm init). `arch_mmu_*`.
+- **H.7.2 — stage-1 paging bring-up (DONE).** Boot stage-1 tables built in
+  `_start.S` (two 4 KiB roots, one 1 GiB block descriptor each: TTBR0
+  identity-low + TTBR1 upper-half — the AArch64 analogue of the RISC-V boot PT's
+  1 GiB Sv39 blocks), `MAIR`/`TCR` (T0SZ=T1SZ=25, 4 KiB granule), enable MMU
+  (`SCTLR_EL1.M|C|I`), branch to the upper-half `_high_entry` → C entry running
+  at SASOS upper-half VAs. The dual-map linker script (`kernel.lds`) mirrors
+  `arch/riscv64/croi.lds`. Proven by the kernel printing its own upper-half code
+  address.
+  *Re-sequencing note:* the `arch_pte.h` split + `arch_mmu_*` + `cara_mm`
+  runtime were folded forward into H.7.2b (below), not done here. AArch64 encodes
+  block-vs-page **by level** (block `0b01` at L1/L2, page `0b11` at L3), whereas
+  Sv39 (and the current generic walk in `pt.c`) decide leaf-vs-table from the
+  PTE **bits alone**. Reconciling that is a genuine seam refinement that belongs
+  *with* the runtime that exercises it, not with the self-contained boot
+  bring-up — so the boot tables here are hand-built block descriptors and the mm
+  integration is its own slice.
+- **H.7.2b — `cara_mm` runtime + `arch_pte.h` split + reach `croi_entry`.** Make
+  `include/cara/arch_pte.h` `CARA_ARCH`-selected (host + rv64 keep the Sv39
+  variant by default; add an AArch64 stage-1 variant). Teach the generic walk
+  the level → leaf/table rule (pass the level, or an `arch_pte_is_table(pte,
+  level)`), bring `cara_mm` + `cara_fdt` into the AArch64 link, implement
+  `arch_mmu_activate/fence/fence_va/boot_root`, and land in a portable
+  `croi_entry` skeleton (FDT parse + mm init).
 - **H.7.3 — trap + syscall.** `VBAR_EL1` vectors, `trap_entry.S` save/restore,
   `ESR` decode, the AArch64 `TrapFrame`; `arch_trap_*` + `arch_syscall_*`; wire
   the portable `Croi_TrapDispatch` + syscall table.
