@@ -20,6 +20,7 @@
 #include <cara/arch.h>
 #include <cara/fdt.h>
 #include <cara/mm.h>
+#include <cara/trap.h> // struct TrapFrame (for the demo Croi_Syscall_Dispatch)
 #include <cara/types.h>
 #include <exec/tasks.h> // TASK_NSAVED / TASK_NFPSAVE (saved-area sizes)
 
@@ -58,6 +59,67 @@ static void ctx_demo_worker(void)
     // and reloads g_ctx_main, so main resumes right after its switch call.
     arch_ctx_switch(g_ctx_work, g_ctx_main, g_fp_work, g_fp_main);
     arch_halt(); // not reached in this one-shot demo
+}
+
+// ---- H.7.4d enter-U-mode (EL0) round-trip demo ----------------------------
+// Build a user page table mapping an EL0 stub + stack, eret to EL0, and let the
+// stub svc back. The "exit" syscall handler switches back to the kernel boot
+// flow saved before the excursion — so this validates enter-U-mode + return
+// without the scheduler. (arch_ctx_init_user / user_task_trampoline read
+// Sched_Current and arrive with the scheduler integration.)
+#define DEMO_SYS_EXIT 0xE0ull
+#define DEMO_USER_EXIT_CODE 0x55ull
+#define DEMO_USER_CODE_VA 0x0000000000400000ull
+#define DEMO_USER_STACK_VA 0x0000000000500000ull
+
+extern const u8 arm64_el0_stub[];     // EL0 stub bytes (arch/arm64/ctx_switch.S)
+extern const u8 arm64_el0_stub_end[]; // end marker
+
+static u64 g_kernel_resume[TASK_NSAVED]; // boot flow to resume after EL0
+static u64 g_kernel_resume_fp[TASK_NFPSAVE];
+static u64 g_enter_ctx[TASK_NSAVED]; // runs enter_el0_fn (does the eret)
+static u64 g_enter_fp[TASK_NFPSAVE];
+static u64 g_exit_throwaway[TASK_NSAVED]; // save area for the exit switch (unused)
+static u64 g_exit_throwaway_fp[TASK_NFPSAVE];
+static u8 g_enter_stack[8192] __attribute__((aligned(16)));
+static struct PageTable *g_user_pt;
+static volatile u64 g_user_exit_code;
+static volatile bool g_user_exited;
+
+// Demo syscall dispatcher. The portable Croi_TrapDispatch (src/croi/trap.c)
+// calls this on every svc. (Stands in for cara_syscall's real table-driven
+// Croi_Syscall_Dispatch until the scheduler integration.)
+i64 Croi_Syscall_Dispatch(struct TrapFrame *frame);
+i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
+{
+    u64 num = arch_syscall_num(frame);
+    u64 a0 = arch_syscall_arg(frame, 0);
+    if (num == DEMO_SYS_EXIT) {
+        g_user_exit_code = a0;
+        g_user_exited = true;
+        // Resume the kernel boot flow saved before entering EL0; this abandons
+        // the trap frame on the EL1 stack (fine for the one-shot demo) and
+        // never returns to the trap-return path.
+        arch_ctx_switch(g_exit_throwaway, g_kernel_resume, g_exit_throwaway_fp, g_kernel_resume_fp);
+    }
+    return (i64)(num + a0); // H.7.3 EL1 svc echo (num + arg0)
+}
+
+// Runs in g_enter_ctx: switch to the user address space and eret to EL0.
+CARA_NORETURN static void enter_el0_fn(void)
+{
+    arch_mmu_activate(g_user_pt);
+    u64 ustack_top = DEMO_USER_STACK_VA + CARA_PAGE_SIZE;
+    // SPSR_EL1: M[4:0]=0 (EL0t), DAIF all masked (no IRQ source until H.7.5).
+    __asm__ volatile("msr sp_el0, %[usp]\n\t"
+                     "msr elr_el1, %[entry]\n\t"
+                     "msr spsr_el1, %[spsr]\n\t"
+                     "isb\n\t"
+                     "eret\n"
+                     :
+                     : [usp] "r"(ustack_top), [entry] "r"(DEMO_USER_CODE_VA), [spsr] "r"(0x3c0ull)
+                     : "memory");
+    __builtin_unreachable();
 }
 
 // QEMU `-M virt` (aarch64) RAM base + kernel load address (see kernel.lds).
@@ -271,6 +333,50 @@ CARA_NORETURN void arm64_kernel_main(u64 dtb_phys)
         }
     }
 
-    arch_console_puts("CaraOS arm64 boot: ok (paged + mm + traps + pt + ctx + fp)\n");
+    // ---- Enter U-mode (H.7.4d). Build a user PT mapping an EL0 stub + stack,
+    //      eret to EL0, and let the stub svc back. The exit-svc handler
+    //      (Croi_Syscall_Dispatch) switches back to the boot flow saved here.
+    {
+        g_user_pt = Croi_NewKernelPT();
+        u64 code_pa = Page_Alloc(&g_page_alloc, 1);
+        u64 stack_pa = Page_Alloc(&g_page_alloc, 1);
+        if (!g_user_pt || code_pa == 0 || stack_pa == 0) {
+            arch_console_puts("arm64 boot: FATAL: U-mode PT/page alloc failed\n");
+            arch_halt();
+        }
+        // Copy the EL0 stub into the code page (via the kernel direct map), then
+        // make it visible to instruction fetch (clean D, invalidate I).
+        u8 *code = (u8 *)Mm_PhysToVirt(code_pa);
+        usize stub_len = (usize)(arm64_el0_stub_end - arm64_el0_stub);
+        for (usize i = 0; i < stub_len; i++) {
+            code[i] = arm64_el0_stub[i];
+        }
+        __asm__ volatile("dc cvau, %0\n\tdsb ish\n\tic iallu\n\tdsb ish\n\tisb"
+                         :
+                         : "r"(code)
+                         : "memory");
+        if (Page_Map(g_user_pt, DEMO_USER_CODE_VA, code_pa, PTE_USER_RX) != CARA_EOK ||
+            Page_Map(g_user_pt, DEMO_USER_STACK_VA, stack_pa, PTE_USER_RW) != CARA_EOK) {
+            arch_console_puts("arm64 boot: FATAL: U-mode Page_Map failed\n");
+            arch_halt();
+        }
+
+        u64 etop = ((u64)(uptr)g_enter_stack + sizeof g_enter_stack) & ~15ull;
+        g_enter_ctx[ARM64_SR_X30] = (u64)(uptr)&enter_el0_fn;
+        g_enter_ctx[ARM64_SR_SP] = etop;
+        g_enter_ctx[ARM64_SR_TPIDR] = 0;
+        arch_console_puts("arm64 boot: entering EL0 user mode...\n");
+        arch_ctx_switch(g_kernel_resume, g_enter_ctx, g_kernel_resume_fp, g_enter_fp);
+        // Resumes here after the EL0 stub's exit-svc switches back.
+        put_line("arm64 boot: user exit code   = ", g_user_exit_code);
+        if (g_user_exited && g_user_exit_code == DEMO_USER_EXIT_CODE) {
+            arch_console_puts("arm64 boot: enter-U-mode: ok\n");
+        } else {
+            arch_console_puts("arm64 boot: FATAL: U-mode round-trip mismatch\n");
+            arch_halt();
+        }
+    }
+
+    arch_console_puts("CaraOS arm64 boot: ok (paged + mm + traps + pt + ctx + fp + EL0)\n");
     arch_halt();
 }

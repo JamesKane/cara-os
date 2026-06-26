@@ -191,14 +191,20 @@ so each slice is small and the gate is real.
     the FP instructions assemble despite the kernel's `-mgeneral-regs-only`).
     Validated by the ctx demo: seed v0, switch out to a context that clobbers it,
     switch back, v0 restored ("fp: preserved ok").
-  - **H.7.4d — enter-U-mode (EL0).** The EL0 `eret` entry: build a user PT
-    mapping an EL0 stub + stack, `arch_mmu_activate` it, set
-    SPSR_EL1=EL0t/ELR_EL1/sp_el0, `eret` to EL0; the stub `svc`s back (the
-    "Lower EL AArch64" vector). Prove it standalone with the `arch_ctx_switch`
-    bracket (save the kernel context, run the EL0 excursion, the exit-svc handler
-    switches back) — no scheduler needed. `arch_ctx_init_user` /
-    `user_task_trampoline` (which read `Sched_Current`) + deleting `trap_demo.c`
-    + the real `cara_syscall`/`cara_time` wait for the scheduler integration.
+  - **H.7.4d — enter-U-mode (EL0) (DONE).** A user PT (empty TTBR0 root) maps an
+    EL0 stub (`PTE_USER_RX`) + stack (`PTE_USER_RW`); the kernel copies the stub
+    in (D-clean + I-invalidate for fetch coherency), `arch_mmu_activate`s it,
+    sets SPSR_EL1=EL0t / ELR_EL1 / sp_el0, and `eret`s to EL0. The stub `svc`s
+    the demo "exit" (the "Lower EL AArch64" sync vector — already handled by
+    `trap_entry.S`); the demo `Croi_Syscall_Dispatch` recognises it and switches
+    back to the boot flow saved before the excursion (the `arch_ctx_switch`
+    bracket — no scheduler). Verified: EL1→EL0→EL1 round-trip, exit code 0x55
+    returned. `arch_ctx_init_user` / `user_task_trampoline` (which read
+    `Sched_Current`) + deleting `trap_demo.c` + the real `cara_syscall`/`cara_time`
+    wait for the scheduler integration.
+  - **H.7.4 is COMPLETE** — per-task address spaces, context switch, FP, and the
+    EL1↔EL0 privilege round-trip all work on AArch64, validated standalone
+    ahead of the scheduler.
 - **H.7.5 — timer + IRQ + PSCI.** Generic timer (`CNTV_*`), GIC IRQ path,
   PSCI halt/off; wire `arch_timer_*` + `arch_irq_*` + the scheduler tick.
 - **H.7.6 — syscall trampolines + first U-mode program.** Factor

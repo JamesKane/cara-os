@@ -126,3 +126,21 @@ arm64_fp_read_v0:                   // → x0 = v0.d[0]
     fmov    x0, d0
     ret
 .size   arm64_fp_read_v0, . - arm64_fp_read_v0
+
+
+// EL0 stub for the H.7.4d enter-U-mode demo (boot.c). Position-independent
+// (immediates + a PC-relative branch) so the kernel can copy these bytes into a
+// user page and eret to them at EL0: it issues the demo "exit" syscall
+// (x8 = 0xE0, x0 = 0x55 exit code) and then spins if it is ever resumed.
+.balign 4
+.globl arm64_el0_stub
+.type  arm64_el0_stub, @function
+arm64_el0_stub:
+    mov     x0, #0x55               // exit code
+    mov     x8, #0xE0               // DEMO_SYS_EXIT
+    svc     #0
+.Lel0_spin:
+    b       .Lel0_spin
+.globl arm64_el0_stub_end
+arm64_el0_stub_end:
+.size   arm64_el0_stub, . - arm64_el0_stub

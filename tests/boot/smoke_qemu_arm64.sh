@@ -79,6 +79,11 @@ if ! grep -qF "fp: preserved ok" "${LOG}"; then
     echo "smoke_qemu_arm64: FAIL: FP not preserved across context switch" >&2
     fail=1
 fi
+# Proof enter-U-mode works: eret to EL0, the stub svc'd back, exit code returned.
+if ! grep -qF "enter-U-mode: ok" "${LOG}"; then
+    echo "smoke_qemu_arm64: FAIL: EL0 enter/return round-trip did not complete" >&2
+    fail=1
+fi
 
 if [[ ${fail} -ne 0 ]]; then
     echo "----- boot stdio -----" >&2
@@ -87,4 +92,4 @@ if [[ ${fail} -ne 0 ]]; then
     exit 1
 fi
 
-echo "smoke_qemu_arm64: ok (paging + FDT + mm + svc traps + per-task PT + ctxsw + fp)"
+echo "smoke_qemu_arm64: ok (paging + FDT + mm + traps + per-task PT + ctxsw + fp + EL0)"
