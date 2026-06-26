@@ -42,9 +42,17 @@ static u64 g_fp_work[TASK_NFPSAVE];
 static u8 g_work_stack[8192] __attribute__((aligned(16)));
 static volatile int g_ctx_state;
 
+// NEON poke/peek (arch/arm64/ctx_switch.S) — set/read v0.d[0] from integer-only
+// C, to prove arch_ctx_switch round-trips the FP file (H.7.4c).
+extern void arm64_fp_write_v0(u64 v);
+extern u64 arm64_fp_read_v0(void);
+
 static void ctx_demo_worker(void)
 {
     g_ctx_state = 2;
+    // Clobber v0 in this context; arch_ctx_switch must save it here and restore
+    // the main context's value when it switches back.
+    arm64_fp_write_v0(0x5A5A5A5A5A5A5A5Aull);
     arch_console_puts("arm64 boot: ctxsw: running in second context\n");
     // Switch back to the main context: arch_ctx_switch saves us into g_ctx_work
     // and reloads g_ctx_main, so main resumes right after its switch call.
@@ -241,17 +249,28 @@ CARA_NORETURN void arm64_kernel_main(u64 dtb_phys)
         g_ctx_work[ARM64_SR_SP] = wtop;
         g_ctx_work[ARM64_SR_TPIDR] = 0;
         g_ctx_state = 1;
+        // Seed v0 so the round-trip can prove the NEON file is preserved across
+        // the switch (the worker clobbers v0 with a different value).
+        arm64_fp_write_v0(0xA5A5A5A5A5A5A5A5ull);
         arch_console_puts("arm64 boot: ctxsw: switching to second context\n");
         arch_ctx_switch(g_ctx_main, g_ctx_work, g_fp_main, g_fp_work);
         // Resumes here when the worker switches back.
+        u64 v0 = arm64_fp_read_v0();
         if (g_ctx_state == 2) {
             arch_console_puts("arm64 boot: ctxsw: round-trip ok\n");
         } else {
             arch_console_puts("arm64 boot: FATAL: ctx round-trip mismatch\n");
             arch_halt();
         }
+        put_line("arm64 boot: fp v0 after switch = ", v0);
+        if (v0 == 0xA5A5A5A5A5A5A5A5ull) {
+            arch_console_puts("arm64 boot: fp: preserved ok\n");
+        } else {
+            arch_console_puts("arm64 boot: FATAL: fp not preserved across switch\n");
+            arch_halt();
+        }
     }
 
-    arch_console_puts("CaraOS arm64 boot: ok (paged + mm + traps + pt + ctx)\n");
+    arch_console_puts("CaraOS arm64 boot: ok (paged + mm + traps + pt + ctx + fp)\n");
     arch_halt();
 }

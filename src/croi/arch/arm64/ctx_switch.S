@@ -20,10 +20,16 @@
 // Save-area layout (matches struct Task.saved_regs, CARA_ARCH_ARM64):
 //   [0..11] x19..x30 @ 0..88, [12] sp @ 96, [13] tpidr_el1 @ 104.
 //
-// FP (NEON v0..v31 + fpcr/fpsr) is NOT yet saved here — kernel tasks are
-// integer-only (-mgeneral-regs-only), so a kernel→kernel switch needs no FP
-// round-trip. U-mode FP save/restore (and CPACR_EL1) arrive with enter-U-mode
-// in H.7.4c, at which point x2/x3 are consumed.
+// FP side (H.7.4c): the kernel is integer-only, but a U-mode task's NEON state
+// lives in the hardware FP registers while it is trapped in the kernel, so we
+// round-trip the *whole* file (v0..v31 + fpcr/fpsr) on every switch — without
+// it a second FP-using task would clobber the first's registers. Requires
+// CPACR_EL1.FPEN != 0 (set in _start.S). FP save-area layout (matches struct
+// Task.fp_save, TASK_NFPSAVE=66): q0..q31 @ 0..496, fpcr @ 512, fpsr @ 520.
+
+// FP/SIMD instructions (stp/ldp q, fpcr/fpsr) must be accepted by the
+// assembler even though the kernel compiles -mgeneral-regs-only.
+.arch armv8-a
 
 .section .text, "ax"
 .balign 4
@@ -43,6 +49,28 @@ arch_ctx_switch:
     mrs     x9, tpidr_el1
     str     x9, [x0, #104]
 
+    // Save the outgoing NEON file to x2 (= from_fp).
+    stp     q0, q1,   [x2, #0]
+    stp     q2, q3,   [x2, #32]
+    stp     q4, q5,   [x2, #64]
+    stp     q6, q7,   [x2, #96]
+    stp     q8, q9,   [x2, #128]
+    stp     q10, q11, [x2, #160]
+    stp     q12, q13, [x2, #192]
+    stp     q14, q15, [x2, #224]
+    stp     q16, q17, [x2, #256]
+    stp     q18, q19, [x2, #288]
+    stp     q20, q21, [x2, #320]
+    stp     q22, q23, [x2, #352]
+    stp     q24, q25, [x2, #384]
+    stp     q26, q27, [x2, #416]
+    stp     q28, q29, [x2, #448]
+    stp     q30, q31, [x2, #480]
+    mrs     x9, fpcr
+    str     x9, [x2, #512]
+    mrs     x9, fpsr
+    str     x9, [x2, #520]
+
 .Lload:
     ldp     x19, x20, [x1, #0]
     ldp     x21, x22, [x1, #16]
@@ -55,5 +83,46 @@ arch_ctx_switch:
     ldr     x9, [x1, #104]
     msr     tpidr_el1, x9
 
+    // Restore the incoming NEON file from x3 (= to_fp).
+    ldp     q0, q1,   [x3, #0]
+    ldp     q2, q3,   [x3, #32]
+    ldp     q4, q5,   [x3, #64]
+    ldp     q6, q7,   [x3, #96]
+    ldp     q8, q9,   [x3, #128]
+    ldp     q10, q11, [x3, #160]
+    ldp     q12, q13, [x3, #192]
+    ldp     q14, q15, [x3, #224]
+    ldp     q16, q17, [x3, #256]
+    ldp     q18, q19, [x3, #288]
+    ldp     q20, q21, [x3, #320]
+    ldp     q22, q23, [x3, #352]
+    ldp     q24, q25, [x3, #384]
+    ldp     q26, q27, [x3, #416]
+    ldp     q28, q29, [x3, #448]
+    ldp     q30, q31, [x3, #480]
+    ldr     x9, [x3, #512]
+    msr     fpcr, x9
+    ldr     x9, [x3, #520]
+    msr     fpsr, x9
+
     ret
 .size   arch_ctx_switch, . - arch_ctx_switch
+
+
+// Tiny NEON poke/peek for the H.7.4c FP-preservation test (boot.c). The kernel
+// is integer-only, so these let C set/read a NEON reg without emitting FP in C.
+.balign 4
+.globl arm64_fp_write_v0
+.type  arm64_fp_write_v0, @function
+arm64_fp_write_v0:                  // (u64 x0) → v0.d[0] = x0
+    fmov    d0, x0
+    ret
+.size   arm64_fp_write_v0, . - arm64_fp_write_v0
+
+.balign 4
+.globl arm64_fp_read_v0
+.type  arm64_fp_read_v0, @function
+arm64_fp_read_v0:                   // → x0 = v0.d[0]
+    fmov    x0, d0
+    ret
+.size   arm64_fp_read_v0, . - arm64_fp_read_v0

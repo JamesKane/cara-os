@@ -76,6 +76,14 @@ _start:
     eret
 
 .Lat_el1:
+    // Enable FP/SIMD at EL1 and EL0 (CPACR_EL1.FPEN = 0b11, no trap) so the
+    // NEON register file save/restore in arch_ctx_switch and U-mode FP apps
+    // don't take a trapped-access exception. (The kernel itself is
+    // integer-only, -mgeneral-regs-only, but ctx_switch.S touches v0..v31.)
+    mov     x0, #(3 << 20)
+    msr     cpacr_el1, x0
+    isb
+
     // ---- Build the two boot stage-1 root tables (MMU still off) -------
     // Zero both 4 KiB tables (NOLOAD → garbage on entry).
     adr     x0, _boot_ttbr0

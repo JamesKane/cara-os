@@ -74,6 +74,11 @@ if ! grep -qF "ctxsw: round-trip ok" "${LOG}"; then
     echo "smoke_qemu_arm64: FAIL: context-switch round-trip did not complete" >&2
     fail=1
 fi
+# Proof the NEON file is saved/restored across a switch (and FP is enabled).
+if ! grep -qF "fp: preserved ok" "${LOG}"; then
+    echo "smoke_qemu_arm64: FAIL: FP not preserved across context switch" >&2
+    fail=1
+fi
 
 if [[ ${fail} -ne 0 ]]; then
     echo "----- boot stdio -----" >&2
@@ -82,4 +87,4 @@ if [[ ${fail} -ne 0 ]]; then
     exit 1
 fi
 
-echo "smoke_qemu_arm64: ok (paging + FDT + mm + svc traps + per-task PT + ctxsw)"
+echo "smoke_qemu_arm64: ok (paging + FDT + mm + svc traps + per-task PT + ctxsw + fp)"
