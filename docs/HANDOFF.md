@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+3546263 epic-H/H.7.2  ARM64 backend — stage-1 paging bring-up (upper half)
 bac3233 epic-H/H.7.1  ARM64 backend — toolchain + boot-to-print
 f91509a epic-H/H.6    arch HAL — CARA_ARCH build selection + boot relocation + docs
 2c8e5bb epic-H/H.4    arch HAL — trap + syscall seam
@@ -1328,17 +1329,34 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   Boots under `qemu-system-aarch64 -M virt -cpu cortex-a72` and prints the
   banner; new `smoke_qemu_arm64` (gated on `CARA_ARM64_BUILD_DIR`). rv64 green;
   host ctest 32/32; format clean.
-- **NEXT: H.7.2 — MMU + paging + reach `croi_entry`.** Make
-  `include/cara/arch_pte.h` `CARA_ARCH`-selected (an arm64 variant: AArch64
-  stage-1 descriptors AP/AF/UXN/PXN/nG/attr-index; must still compile on host,
-  so pure inline); build a boot stage-1 PT (TTBR0 identity-low + TTBR1
-  upper-half, `TCR_EL1.T0SZ/T1SZ=25` for 39-bit halves = the Sv39 equivalent);
-  enable MMU (`SCTLR_EL1.M`), jump to the upper half, bring `cara_mm` in for
-  AArch64, and land in a portable `croi_entry` skeleton (FDT parse + mm init).
-  `arch_mmu_activate/fence/fence_va/boot_root`. Then H.7.3 trap+syscall (VBAR),
-  H.7.4 ctx+FP+enter-U-mode (eret), H.7.5 timer+IRQ+PSCI, H.7.6 svc
-  trampolines+first U-mode, H.7.7+ full kernel+libs+app. Other deferred options
-  remain: more ports; background launch (`run`/async `CreateNewProc`).
+- **H.7.2 shipped (`3546263`): stage-1 paging bring-up.** `_start.S` builds two
+  4 KiB boot roots with one 1 GiB block descriptor each (TTBR0 identity-low +
+  TTBR1 upper-half — the AArch64 analogue of the RISC-V boot PT's 1 GiB Sv39
+  blocks; TTBR1 index 257 = L1 index of `KERNEL_VA_OFFSET+0x40000000` under
+  T1SZ=25), programs `MAIR`/`TCR` (T0SZ=T1SZ=25, 4 KiB granule)/`TTBR0`/`TTBR1`,
+  enables the MMU (`SCTLR_EL1.M|C|I`), and branches to the upper-half
+  `_high_entry` → C entry running at SASOS upper-half VAs. Dual-map `kernel.lds`
+  (mirrors `croi.lds`). Proven by printing its own upper-half code address
+  (`0xffffffc0…`); the smoke now asserts that. PL011 console still works via the
+  TTBR0 device map. rv64 green; ctest 32/32.
+  *Re-sequencing:* the `arch_pte.h` split + `arch_mmu_*` + `cara_mm` runtime
+  were **not** done here — they moved to H.7.2b. AArch64 encodes block-vs-page
+  **by level** (block `0b01` at L1/L2 vs page `0b11` at L3), but the generic
+  walk in `pt.c` decides leaf-vs-table from PTE bits alone; that reconciliation
+  belongs with the runtime that exercises it. So the boot tables are
+  self-contained hand-built block descriptors.
+- **NEXT: H.7.2b — `cara_mm` runtime + `arch_pte.h` split + reach `croi_entry`.**
+  Make `include/cara/arch_pte.h` `CARA_ARCH`-selected (host + rv64 default to the
+  Sv39 variant; add an AArch64 stage-1 variant: AP/AF/UXN/PXN/nG/attr-index);
+  teach the generic walk the level→leaf/table rule (pass the level, or an
+  `arch_pte_is_table(pte, level)`); bring `cara_mm` + `cara_fdt` into the AArch64
+  link; implement `arch_mmu_activate/fence/fence_va/boot_root`; land in a
+  portable `croi_entry` skeleton (FDT parse + mm init). NB the arm64 build had
+  `x0=0` (no DTB) from QEMU's ELF `-kernel` path — resolve DTB acquisition here
+  (QEMU drops the DTB at a fixed RAM offset for `-kernel`; or use a fixed probe).
+  Then H.7.3 trap+syscall (VBAR), H.7.4 ctx+FP+enter-U-mode (eret), H.7.5
+  timer+IRQ+PSCI, H.7.6 svc trampolines+first U-mode, H.7.7+ full kernel+libs+app.
+  Other deferred options remain: more ports; background launch.
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
