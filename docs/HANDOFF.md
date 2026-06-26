@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+f3d0afc epic-H/H.7.4b ARM64 backend — context-switch primitive (arch_ctx_switch)
 78591fc epic-H/H.7.4a ARM64 backend — per-task page tables + arch_mmu_*
 e8033ef epic-H/H.7.3  ARM64 backend — trap + syscall seam (VBAR + svc)
 0f06295 epic-H/H.7.2b ARM64 backend — cara_mm/cara_fdt runtime + arch_pte.h split
@@ -1383,14 +1384,26 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   tables). PL011 console moved to its TTBR1 alias so it survives TTBR0 switches.
   Validated by a `Page_Map` + activate round-trip (write via TTBR0, read via
   TTBR0 + the TTBR1 direct map). rv64 green (shared pt.c/arch_pte.h); ctest 32/32.
-- **NEXT: H.7.4b — context switch.** `arch/arm64/ctx_switch.S` (`arch_ctx_switch`:
-  callee-saved x19–x30 + sp + tpidr_el1) + `arch/arm64/context.c`
-  (`arch_ctx_init_kernel` priming a fresh kernel task's saved regs). Bring in
-  `cara_sched`; prove a kernel→kernel yield. Then **H.7.4c** — NEON FP (v0–v31 +
-  fpcr/fpsr behind `CPACR_EL1`), `arch_ctx_init_user` + the EL0 `eret`
-  trampoline, delete `trap_demo.c` + link `cara_syscall` + `cara_time`. Then
-  H.7.5 timer+IRQ+PSCI; H.7.6 svc trampolines + first U-mode; H.7.7+ full
-  kernel+libs+app. Other deferred options remain: more ports; background launch.
+- **H.7.4b shipped (`f3d0afc`): context-switch primitive.** `arch/arm64/
+  ctx_switch.S` `arch_ctx_switch` saves/restores callee-saved x19–x30 (incl.
+  x29=FP/x30=LR) + sp + tpidr_el1; `ret` lands in the incoming context's x30.
+  `struct Task` saved areas (`exec/tasks.h`) are now `CARA_ARCH`-selected (arm64
+  `TASK_NSAVED=16`/`TASK_NFPSAVE=66`; RISC-V 17/33 unchanged). Validated by a
+  standalone two-context round-trip. FP deferred to H.7.4c. The full `cara_sched`
+  is **not** linked yet — it pulls the SASOS shared heap (`shared.c`, RISC-V-only),
+  `cara_log`, and `cara_exec_lib_image`; that integration is a dedicated later
+  slice. rv64 green (shared `exec/tasks.h`); ctest 32/32.
+- **NEXT: H.7.4c — FP + enter-U-mode.** NEON v0–v31 + fpcr/fpsr save/restore in
+  `arch_ctx_switch` behind `CPACR_EL1`; `arch/arm64/context.c` with
+  `arch_ctx_init_kernel`/`arch_ctx_init_user` + the EL0 `eret` trampoline (set
+  TTBR0 via `arch_mmu_activate` / SPSR_EL1=EL0t / ELR_EL1=user entry); a
+  `task_trampoline`. This needs a landing point — likely a minimal arm64 entry
+  to EL0 that does an `svc` back, *or* fold into the `cara_sched` integration.
+  Then delete `trap_demo.c` and link the real `cara_syscall` + `cara_time`.
+  After H.7.4: H.7.5 timer+IRQ+PSCI; H.7.6 svc trampolines + first U-mode;
+  H.7.7+ full kernel+libs+app (incl. porting the SASOS shared heap `shared.c`
+  + `cara_log` so `cara_sched` links). Other deferred options remain: more
+  ports; background launch.
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
