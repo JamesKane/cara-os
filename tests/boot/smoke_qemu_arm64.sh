@@ -2,12 +2,13 @@
 # SPDX-License-Identifier: BSD-2-Clause
 #
 # Boot smoke test for the AArch64 croi via QEMU's -kernel handoff (epic H.7,
-# docs/ARM64.md). H.7.2 brings up stage-1 paging: the kernel reaches EL1,
-# enables the MMU, runs in the SASOS upper half, and prints its own code address
-# (which must carry the 0xffffffc0_ upper-half prefix) before halting. This
-# checks the banner appears AND that the printed address is upper-half — i.e.
-# the MMU really is on. As later H.7.x slices reach the in-kernel test runner,
-# this grows toward the rv64 smoke's "0 failed" assertion.
+# docs/ARM64.md). H.7.2 brought up stage-1 paging (kernel runs in the SASOS
+# upper half); H.7.2b parses the real device tree and initialises the physical
+# memory manager (page allocator + heap) through the shared cara_fdt/cara_mm
+# code. This checks the banner appears, that the printed code address is
+# upper-half (MMU on), and that mm init reached the "mm up" milestone. As later
+# H.7.x slices reach the in-kernel test runner, this grows toward the rv64
+# smoke's "0 failed" assertion.
 #
 # Args:
 #   $1  qemu-system-aarch64 binary
@@ -49,6 +50,11 @@ if ! grep -qiE "arm64_kernel_main @ 0xffffffc0" "${LOG}"; then
     echo "smoke_qemu_arm64: FAIL: code address is not upper-half (MMU not on?)" >&2
     fail=1
 fi
+# Proof the portable FDT + mm path ran (parsed the DTB, inited the allocator).
+if ! grep -qF "mm up" "${LOG}"; then
+    echo "smoke_qemu_arm64: FAIL: mm bring-up did not complete" >&2
+    fail=1
+fi
 
 if [[ ${fail} -ne 0 ]]; then
     echo "----- boot stdio -----" >&2
@@ -57,4 +63,4 @@ if [[ ${fail} -ne 0 ]]; then
     exit 1
 fi
 
-echo "smoke_qemu_arm64: ok (EL1 boot + stage-1 paging + upper-half exec)"
+echo "smoke_qemu_arm64: ok (paging + FDT + page allocator + heap)"

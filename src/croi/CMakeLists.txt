@@ -12,11 +12,15 @@
 # build below is untouched.
 if(CARA_ARCH STREQUAL "arm64")
     set(_croi_lds_arm64 "${CMAKE_CURRENT_SOURCE_DIR}/arch/arm64/kernel.lds")
-    add_executable(croi)
+    add_executable(croi
+        string.c   # freestanding mem* the compiler emits + cara_mm needs
+    )
     add_subdirectory(arch/arm64)   # contributes _start.S / firmware.c / cpu.c / boot.c
     target_link_libraries(croi PRIVATE
         cara_kernel_flags
         cara_headers
+        cara_fdt   # H.7.2b: DTB parse
+        cara_mm    # H.7.2b: physmap + page allocator
     )
     target_link_options(croi PRIVATE
         -nostdlib

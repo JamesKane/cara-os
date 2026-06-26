@@ -129,19 +129,32 @@ so each slice is small and the gate is real.
   *with* the runtime that exercises it, not with the self-contained boot
   bring-up — so the boot tables here are hand-built block descriptors and the mm
   integration is its own slice.
-- **H.7.2b — `cara_mm` runtime + `arch_pte.h` split + reach `croi_entry`.** Make
-  `include/cara/arch_pte.h` `CARA_ARCH`-selected (host + rv64 keep the Sv39
-  variant by default; add an AArch64 stage-1 variant). Teach the generic walk
-  the level → leaf/table rule (pass the level, or an `arch_pte_is_table(pte,
-  level)`), bring `cara_mm` + `cara_fdt` into the AArch64 link, implement
-  `arch_mmu_activate/fence/fence_va/boot_root`, and land in a portable
-  `croi_entry` skeleton (FDT parse + mm init).
+- **H.7.2b — `cara_mm` runtime (allocator) + `arch_pte.h` split + FDT parse
+  (DONE).** `include/cara/arch_pte.h` is now a `CARA_ARCH` dispatcher over
+  `cara/arch/{riscv64,arm64}/arch_pte.h` (host + rv64 default to Sv39 with no
+  flag churn; the arm64 kernel flags define `CARA_ARCH_ARM64`). `cara_fdt` +
+  `cara_mm` are in the AArch64 link, and the arm64 entry parses the real QEMU
+  device tree (discovered at RAM base, since the ELF `-kernel` path leaves
+  `x0=0`), builds the `PhysMap`, and inits the page allocator + heap — all
+  through the SAME shared code the RISC-V kernel uses (256 MiB seen, allocator +
+  `Croi_Alloc` round-trip verified). The smoke asserts the "mm up" milestone.
+  *Still deferred to H.7.4 (the consumer):* the generic-walk level→leaf/table
+  reconciliation + `Page_Map`/`Croi_NewKernelPT` correctness + `arch_mmu_*`.
+  H.7.2b uses only the allocator + physmap, which never touch the PTE encoding,
+  so nothing exercises the walk yet. (`arch/arm64/arch_pte.h` documents the gap.)
 - **H.7.3 — trap + syscall.** `VBAR_EL1` vectors, `trap_entry.S` save/restore,
   `ESR` decode, the AArch64 `TrapFrame`; `arch_trap_*` + `arch_syscall_*`; wire
   the portable `Croi_TrapDispatch` + syscall table.
-- **H.7.4 — context switch + FP + enter U-mode.** `ctx_switch.S` (callee-saved +
-  sp + tpidr), NEON v0–v31 + fpcr/fpsr behind `CPACR_EL1`, `context.c`
-  (`arch_ctx_init_*` + the EL0 `eret` trampoline). Bring in `cara_sched`.
+- **H.7.4 — per-task address spaces + context switch + FP + enter U-mode.**
+  This is where the page-table *walk* finally runs on AArch64, so it also
+  carries the H.7.2b deferral: teach the generic walk the level→leaf/table rule
+  (e.g. `arch_pte_is_table(pte, level)`), make `Page_Map`/`Croi_NewKernelPT`
+  correct for AArch64, and implement `arch_mmu_activate/fence/fence_va/boot_root`
+  (TTBR0 for the user half, `TLBI`/`DSB`/`ISB`; note arm64 has TTBR0+TTBR1, not
+  one `satp` — `Sv39_Satp` in `mm.h` is RISC-V-specific and may need an arch
+  hook). Then `ctx_switch.S` (callee-saved + sp + tpidr), NEON v0–v31 +
+  fpcr/fpsr behind `CPACR_EL1`, `context.c` (`arch_ctx_init_*` + the EL0 `eret`
+  trampoline). Bring in `cara_sched`.
 - **H.7.5 — timer + IRQ + PSCI.** Generic timer (`CNTV_*`), GIC IRQ path,
   PSCI halt/off; wire `arch_timer_*` + `arch_irq_*` + the scheduler tick.
 - **H.7.6 — syscall trampolines + first U-mode program.** Factor

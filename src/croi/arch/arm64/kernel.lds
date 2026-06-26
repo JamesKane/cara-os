@@ -96,6 +96,14 @@ SECTIONS
         __boot_stack_top = .;
     } > RAM_VIRT AT > RAM_PHYS :data
 
+    /* Upper-half VA of the end of the kernel image. The C entry converts it
+     * via Mm_VirtToPhys to get the kernel's physical end for the FDT carve-out
+     * (Mm_PhysMapFromFdt) — the low-phys end symbol can't be PC-relative
+     * reached from upper-half code (39-bit gap), but this upper-half symbol
+     * can, and its phys = VA - KERNEL_VA_OFFSET. */
+    . = ALIGN(4K);
+    __kernel_end_virt = .;
+
     /DISCARD/ : {
         *(.note .note.*)
         *(.comment)

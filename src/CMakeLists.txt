@@ -20,7 +20,7 @@ if(CARA_TARGET STREQUAL "riscv64" AND CARA_ARCH STREQUAL "arm64")
         -fno-stack-protector
         -fno-builtin
         -mgeneral-regs-only        # integer-only S-mode codegen (no FP/SIMD)
-        -mcmodel=small             # flat low-half link for H.7.1 (MMU off)
+        -mcmodel=small             # PC-relative (adrp) intra-image refs
         -march=${CARA_ARM64_KERNEL_ARCH}
         -Wall
         -Wextra
@@ -30,7 +30,16 @@ if(CARA_TARGET STREQUAL "riscv64" AND CARA_ARCH STREQUAL "arm64")
         -fno-common
         -fstrict-aliasing
     )
-    target_compile_definitions(cara_kernel_flags INTERFACE CARA_FREESTANDING=1)
+    target_compile_definitions(cara_kernel_flags INTERFACE
+        CARA_FREESTANDING=1
+        CARA_ARCH_ARM64=1          # selects the AArch64 <cara/arch_pte.h> variant
+    )
+    # H.7.2b brings the portable FDT parser + physical memory manager into the
+    # AArch64 link so the arm64 entry can parse the real DTB + init the page
+    # allocator through the SAME shared code the RISC-V kernel uses. The wider
+    # kernel (sched, libraries, devices, userland) is enabled by later slices.
+    add_subdirectory(croi/fdt)
+    add_subdirectory(croi/mm)
     add_subdirectory(croi)
     return()
 endif()
