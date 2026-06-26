@@ -205,8 +205,18 @@ so each slice is small and the gate is real.
   - **H.7.4 is COMPLETE** — per-task address spaces, context switch, FP, and the
     EL1↔EL0 privilege round-trip all work on AArch64, validated standalone
     ahead of the scheduler.
-- **H.7.5 — timer + IRQ + PSCI.** Generic timer (`CNTV_*`), GIC IRQ path,
-  PSCI halt/off; wire `arch_timer_*` + `arch_irq_*` + the scheduler tick.
+- **H.7.5 — timer + IRQ + PSCI (DONE).** `arch/arm64/timer.c`: `arch_timer_*`
+  over `CNTVCT_EL0`/`CNTV_CVAL_EL0`/`CNTV_CTL_EL0`; GICv2 bring-up (distributor +
+  CPU interface + the virtual-timer PPI 27) + `arm64_irq_dispatch` (IAR ack →
+  service → EOIR). `arch/arm64/psci.c`: `SYSTEM_OFF` over the FDT-advertised
+  conduit (HVC/SMC). The trap common path now branches by `kind`: IRQs go to the
+  arch GIC handler, synchronous traps stay on the portable `Croi_TrapDispatch`
+  (the clean AArch64 split — IRQ vs sync are different vectors, unlike RISC-V's
+  unified cause). Validated: a periodic CNTV timer fires, is taken + acked
+  through the GIC (5 ticks), and the kernel powers off cleanly via PSCI (QEMU
+  exits 0 — the smoke no longer waits out the timeout). `arch_irq_enable/disable`
+  (DAIF) were already present from H.7.1. The timer IRQ will drive the scheduler
+  tick (`Croi_Time_OnTimerTrap`) once the scheduler is ported.
 - **H.7.6 — syscall trampolines + first U-mode program.** Factor
   `CARA_SYSCALL_TRAMPOLINE` to an arch include (`svc`); run a first U-mode
   program on ARM64.

@@ -48,6 +48,14 @@ static volatile int g_ctx_state;
 extern void arm64_fp_write_v0(u64 v);
 extern u64 arm64_fp_read_v0(void);
 
+// Timer + GIC + PSCI (arch/arm64/timer.c, psci.c, H.7.5).
+extern void arm64_gic_init(void);
+extern u64 arm64_timer_freq(void);
+extern void arm64_timer_periodic_start(u64 period);
+extern u64 arm64_timer_count(void);
+extern void arm64_psci_init(bool use_hvc);
+CARA_NORETURN extern void arm64_psci_system_off(void);
+
 static void ctx_demo_worker(void)
 {
     g_ctx_state = 2;
@@ -192,6 +200,19 @@ CARA_NORETURN void arm64_kernel_main(u64 dtb_phys)
     }
     put_line("arm64 boot: DTB @ ", dtb);
     put_line("arm64 boot: DTB totalsize = ", fdt.totalsize);
+
+    // PSCI conduit from the FDT /psci "method" ("hvc" → HVC, else SMC).
+    {
+        u32 psci_node;
+        bool use_hvc = true;
+        if (Fdt_ResolvePath(&fdt, "/psci", &psci_node) == CARA_EOK) {
+            const char *method = Fdt_PropStr(&fdt, psci_node, "method");
+            if (method) {
+                use_hvc = (method[0] == 'h');
+            }
+        }
+        arm64_psci_init(use_hvc);
+    }
 
     // ---- Physical memory map (carve out kernel image + DTB). ----
     u64 kphys_start = ARM64_KERNEL_PHYS_BASE;
@@ -377,6 +398,28 @@ CARA_NORETURN void arm64_kernel_main(u64 dtb_phys)
         }
     }
 
-    arch_console_puts("CaraOS arm64 boot: ok (paged + mm + traps + pt + ctx + fp + EL0)\n");
-    arch_halt();
+    // ---- Timer + IRQ (H.7.5). Bring up the GIC, start a periodic virtual
+    //      timer, unmask IRQs, and wfi until a handful of timer interrupts have
+    //      been taken + acknowledged through the GIC (arm64_irq_dispatch).
+    {
+        arm64_gic_init();
+        u64 freq = arm64_timer_freq();
+        put_line("arm64 boot: timer freq (Hz)   = ", freq);
+        u64 period = freq ? freq / 100 : 100000; // ~10 ms
+        arm64_timer_periodic_start(period);
+        arch_irq_enable();
+        while (arm64_timer_count() < 5) {
+            __asm__ volatile("wfi");
+        }
+        arch_irq_disable();
+        arch_timer_disarm();
+        put_line("arm64 boot: timer ticks        = ", arm64_timer_count());
+        arch_console_puts("arm64 boot: timer: ticks ok\n");
+    }
+
+    arch_console_puts("CaraOS arm64 boot: ok (paged + mm + traps + pt + ctx + fp + EL0 + irq)\n");
+
+    // Clean power-off via PSCI (QEMU exits) — the AArch64 counterpart of SBI
+    // SYSTEM_RESET. Falls back to a wfi park inside if the firmware ignores it.
+    arm64_psci_system_off();
 }

@@ -9,6 +9,9 @@
 #          shared cara_fdt/cara_mm code ("mm up").
 #   H.7.3  trap + syscall — an svc round-trips through VBAR_EL1 + the portable
 #          Croi_TrapDispatch ("trap: svc ok").
+#   H.7.4  per-task page tables, context switch, FP, and the EL1<->EL0 round-trip.
+#   H.7.5  timer + GICv2 IRQ ("timer: ticks ok") + a clean PSCI power-off (so the
+#          kernel exits QEMU instead of waiting for the timeout).
 # As later H.7.x slices reach the in-kernel test runner, this grows toward the
 # rv64 smoke's "0 failed" assertion.
 #
@@ -84,6 +87,11 @@ if ! grep -qF "enter-U-mode: ok" "${LOG}"; then
     echo "smoke_qemu_arm64: FAIL: EL0 enter/return round-trip did not complete" >&2
     fail=1
 fi
+# Proof the timer + GIC IRQ path works: periodic CNTV interrupts were taken/acked.
+if ! grep -qF "timer: ticks ok" "${LOG}"; then
+    echo "smoke_qemu_arm64: FAIL: timer/IRQ ticks did not arrive" >&2
+    fail=1
+fi
 
 if [[ ${fail} -ne 0 ]]; then
     echo "----- boot stdio -----" >&2
@@ -92,4 +100,4 @@ if [[ ${fail} -ne 0 ]]; then
     exit 1
 fi
 
-echo "smoke_qemu_arm64: ok (paging + FDT + mm + traps + per-task PT + ctxsw + fp + EL0)"
+echo "smoke_qemu_arm64: ok (paging + FDT + mm + traps + PT + ctxsw + fp + EL0 + timer/IRQ + PSCI)"

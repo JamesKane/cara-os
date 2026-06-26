@@ -108,8 +108,18 @@ arm64_trap_common:
 .Lsp_done:
     str     x13,      [sp, #248]
 
+    // Dispatch by kind: IRQs go to the arch GIC handler (arm64_irq_dispatch),
+    // synchronous traps (syscalls / faults) to the portable Croi_TrapDispatch.
+    // AArch64 keeps these paths separate (unlike RISC-V's unified cause).
     mov     x0, sp
+    ldr     x1, [sp, #280]          // frame->kind
+    cmp     x1, #1                  // TRAP_KIND_IRQ
+    b.ne    .Lsync
+    bl      arm64_irq_dispatch
+    b       .Lrestore
+.Lsync:
     bl      Croi_TrapDispatch
+.Lrestore:
 
     // ---- Restore ----
     ldr     x10, [sp, #256]

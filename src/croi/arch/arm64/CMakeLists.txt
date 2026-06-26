@@ -19,5 +19,7 @@ target_sources(croi PRIVATE
     trap.c         # ESR classify + syscall ABI + arch_trap_init/fatal (H.7.3)
     trap_demo.c    # TEMPORARY demo dispatch deps — removed in H.7.4c
     mmu.c          # arch_mmu_activate/fence/fence_va/boot_root (TTBR0/1, H.7.4a)
-    ctx_switch.S   # arch_ctx_switch (callee-saved + sp + tpidr, H.7.4b)
+    ctx_switch.S   # arch_ctx_switch + FP + EL0 stub (H.7.4b/c/d)
+    timer.c        # arch_timer_* (CNTV) + GICv2 + IRQ dispatch (H.7.5)
+    psci.c         # PSCI power-off (H.7.5)
 )
