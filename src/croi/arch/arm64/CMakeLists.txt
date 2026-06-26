@@ -17,6 +17,7 @@ target_sources(croi PRIVATE
     boot.c         # arm64_kernel_main: FDT + mm + svc + page-table demo (stub)
     trap_entry.S   # VBAR_EL1 vectors + save/restore → Croi_TrapDispatch (H.7.3)
     trap.c         # ESR classify + syscall ABI + arch_trap_init/fatal (H.7.3)
-    trap_demo.c    # TEMPORARY demo dispatch deps — removed in H.7.4(c)
+    trap_demo.c    # TEMPORARY demo dispatch deps — removed in H.7.4c
     mmu.c          # arch_mmu_activate/fence/fence_va/boot_root (TTBR0/1, H.7.4a)
+    ctx_switch.S   # arch_ctx_switch (callee-saved + sp + tpidr, H.7.4b)
 )

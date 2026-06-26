@@ -171,9 +171,20 @@ so each slice is small and the gate is real.
     are always tables, so the bits-only test is correct (note in
     `arch/arm64/arch_pte.h`). The PL011 console moved to its TTBR1 alias so it
     survives TTBR0 switches.
-  - **H.7.4b — context switch.** `arch/arm64/ctx_switch.S` (`arch_ctx_switch`:
-    callee-saved x19–x30 + sp + tpidr) + `arch/arm64/context.c`
-    (`arch_ctx_init_kernel`). Bring in `cara_sched`; prove a kernel→kernel yield.
+  - **H.7.4b — context-switch primitive (DONE).** `arch/arm64/ctx_switch.S`
+    `arch_ctx_switch` saves/restores the callee-saved set (x19–x30, incl.
+    x29=FP / x30=LR), sp, and tpidr_el1; `ret` lands in the incoming context's
+    saved x30. `struct Task`'s saved areas (`exec/tasks.h`) are now
+    `CARA_ARCH`-selected (arm64: `TASK_NSAVED=16`, `TASK_NFPSAVE=66` for NEON
+    v0–v31; RISC-V 17/33 unchanged). Validated by a standalone two-context
+    round-trip (switch out to a second context primed by hand, it switches back).
+    FP save/restore is deferred to H.7.4c (kernel tasks are integer-only).
+    *Scheduler note:* the full `cara_sched` is NOT linked yet — it pulls the
+    SASOS shared heap (`shared.c`, RISC-V-only so far), `cara_log`, and
+    `cara_exec_lib_image` via its user-spawn paths. So the `arch_ctx_init_kernel/
+    user` + `task_trampoline` + real-scheduler integration come in a dedicated
+    later slice once those subsystems are ported (the hand-prime in the demo is
+    exactly what `arch_ctx_init_kernel` will do).
   - **H.7.4c — FP + enter-U-mode + real syscall.** NEON v0–v31 + fpcr/fpsr
     behind `CPACR_EL1`; `arch_ctx_init_user` + the EL0 `eret` trampoline (set
     TTBR0/SPSR_EL1=EL0t/ELR_EL1); delete `trap_demo.c` and link `cara_syscall` +

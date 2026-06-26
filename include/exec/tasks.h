@@ -30,11 +30,21 @@
 #define CARA_TASK_KSTACK_SIZE 16384u
 #define CARA_TASK_HANDLE_TABLE_CAP 32
 
-// 16 callee-saved registers we round-trip across a voluntary yield:
-//   [0]=ra, [1]=sp, [2]=gp, [3]=tp, [4..15]=s0..s11
-//   [16]=sscratch (kernel-mode invariant 0 for S-mode tasks; user-task
-//        kstack_top for U-mode tasks)
+// Callee-saved integer + FP register areas round-tripped across a voluntary
+// yield. Both shapes are arch-defined (match arch/<arch>/ctx_switch.S); sized
+// per CARA_ARCH (one ISA per build image).
+#if defined(CARA_ARCH_ARM64)
+// AArch64: [0..11]=x19..x30, [12]=sp, [13]=tpidr_el1, [14..15] spare.
+#define TASK_NSAVED 16
+// FP: v0..v31 (128-bit → 2 u64 each = 64) + fpcr + fpsr.
+#define TASK_NFPSAVE 66
+#else
+// RISC-V Sv39: [0]=ra, [1]=sp, [2]=gp, [3]=tp, [4..15]=s0..s11, [16]=sscratch
+// (kernel-mode invariant 0 for S-mode tasks; user-task kstack_top for U-mode).
 #define TASK_NSAVED 17
+// FP: f0..f31 at [0..31], fcsr at [32].
+#define TASK_NFPSAVE 33
+#endif
 
 // V36+ tc_State constants (exec/tasks.i verbatim).
 #define TS_INVALID 0
@@ -88,7 +98,7 @@ struct Task {
     // switch round-trips it here so a U-mode FP app (amiCalc) survives a
     // switch to any other task. Zero-initialised → a fresh task starts with
     // a clean FP file.
-    u64 fp_save[33];
+    u64 fp_save[TASK_NFPSAVE];
     void *kstack;
     usize kstack_size;
     void (*entry_fn)(void *);

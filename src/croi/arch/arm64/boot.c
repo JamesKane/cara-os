@@ -21,8 +21,36 @@
 #include <cara/fdt.h>
 #include <cara/mm.h>
 #include <cara/types.h>
+#include <exec/tasks.h> // TASK_NSAVED / TASK_NFPSAVE (saved-area sizes)
 
 CARA_NORETURN void arm64_kernel_main(u64 dtb_phys);
+
+// ---- H.7.4b context-switch round-trip demo --------------------------------
+// Validates the arch_ctx_switch primitive (the asm register save/restore) by
+// switching this context out to a second one and back. The second context is
+// primed by hand — exactly what arch_ctx_init_kernel will do once the portable
+// scheduler is ported (cara_sched pulls in the SASOS shared heap + log, not yet
+// on arm64), so this proves the layout + the switch in isolation.
+//
+// saved_regs indices match arch/arm64/ctx_switch.S: x30(LR)=11, sp=12, tpidr=13.
+enum { ARM64_SR_X30 = 11, ARM64_SR_SP = 12, ARM64_SR_TPIDR = 13 };
+
+static u64 g_ctx_main[TASK_NSAVED];
+static u64 g_ctx_work[TASK_NSAVED];
+static u64 g_fp_main[TASK_NFPSAVE];
+static u64 g_fp_work[TASK_NFPSAVE];
+static u8 g_work_stack[8192] __attribute__((aligned(16)));
+static volatile int g_ctx_state;
+
+static void ctx_demo_worker(void)
+{
+    g_ctx_state = 2;
+    arch_console_puts("arm64 boot: ctxsw: running in second context\n");
+    // Switch back to the main context: arch_ctx_switch saves us into g_ctx_work
+    // and reloads g_ctx_main, so main resumes right after its switch call.
+    arch_ctx_switch(g_ctx_work, g_ctx_main, g_fp_work, g_fp_main);
+    arch_halt(); // not reached in this one-shot demo
+}
 
 // QEMU `-M virt` (aarch64) RAM base + kernel load address (see kernel.lds).
 // These match what _start.S already assumes (the boot block descriptors map
@@ -203,6 +231,27 @@ CARA_NORETURN void arm64_kernel_main(u64 dtb_phys)
         }
     }
 
-    arch_console_puts("CaraOS arm64 boot: ok (paged + mm + traps + pt)\n");
+    // ---- Context switch (H.7.4b). Prime a second context to start at
+    //      ctx_demo_worker on its own stack, switch to it, and let it switch
+    //      back — proving arch_ctx_switch round-trips the callee-saved set,
+    //      sp, and tpidr correctly.
+    {
+        u64 wtop = ((u64)(uptr)g_work_stack + sizeof g_work_stack) & ~15ull;
+        g_ctx_work[ARM64_SR_X30] = (u64)(uptr)&ctx_demo_worker;
+        g_ctx_work[ARM64_SR_SP] = wtop;
+        g_ctx_work[ARM64_SR_TPIDR] = 0;
+        g_ctx_state = 1;
+        arch_console_puts("arm64 boot: ctxsw: switching to second context\n");
+        arch_ctx_switch(g_ctx_main, g_ctx_work, g_fp_main, g_fp_work);
+        // Resumes here when the worker switches back.
+        if (g_ctx_state == 2) {
+            arch_console_puts("arm64 boot: ctxsw: round-trip ok\n");
+        } else {
+            arch_console_puts("arm64 boot: FATAL: ctx round-trip mismatch\n");
+            arch_halt();
+        }
+    }
+
+    arch_console_puts("CaraOS arm64 boot: ok (paged + mm + traps + pt + ctx)\n");
     arch_halt();
 }
