@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+f91509a epic-H/H.6    arch HAL — CARA_ARCH build selection + boot relocation + docs
 2c8e5bb epic-H/H.4    arch HAL — trap + syscall seam
 91b5094 epic-H/H.3    arch HAL — context switch + FP + U-mode-entry seam
 4d7e8aa epic-H/H.2    arch HAL — MMU seam (PTE encoding + privileged ops)
@@ -1299,12 +1300,22 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   dump). `trap.c` is now a slim portable `Croi_TrapDispatch` over the accessors;
   `syscall.c`'s dispatch table is unchanged but reads its args via the
   accessors (no hard-coded RISC-V arg registers). 67 passed / 0 failed.
-- **NEXT: H.5 — boot seam** (relocate `_start.S` to `arch/riscv64/` behind the
-  arch; `croi_entry` stays the portable C entry the arch boot tail-calls).
-  Then H.6 = `CARA_ARCH` build var + arch-aware lvo-gen trampoline templates +
-  generalise `ARCHITECTURE.md`/`PRINCIPLES.md`; then H.7+ the ARM64 backend.
-  Other deferred options remain: more ports; background launch (`run`/async
-  `CreateNewProc`, dos LVO -498 → also forces layers.library).
+- **H.5 + H.6 shipped (`f91509a`): `CARA_ARCH` build + boot relocation + docs.**
+  `_start.S` relocated to `arch/riscv64/` (H.5 folded in), so `arch/riscv64/`
+  is the complete backend; new `CARA_ARCH` cache var selects it
+  (`add_subdirectory(arch/${CARA_ARCH})` → `target_sources(croi …)`);
+  `ARCHITECTURE.md` + `PRINCIPLES.md` generalised (RISC-V primary; HAL opens
+  ARM64; QEMU-first per-arch). Correction: the syscall trampolines are
+  hand-written `.S` (not lvo-gen), so their arch-factoring moved to H.7. 67/0.
+- **The arch carve-out (H.1–H.6) is COMPLETE** — every RISC-V internal sits
+  behind `cara/arch.h` + `cara/arch_pte.h` in `src/croi/arch/riscv64/`,
+  selected by `CARA_ARCH`, RISC-V green throughout.
+- **NEXT: H.7 — the ARM64 (AArch64) backend** (terminal goal, multi-slice;
+  where the boundary gets validated): `cmake/toolchain-arm64.cmake`,
+  `src/croi/arch/arm64/` (EL1 boot, VBAR/eret, svc, TTBR0/1 4K paging + an
+  arm64 `arch_pte.h`, CNTVCT timer, PSCI, NEON FP, PL011), the `svc` trampoline
+  include, a `qemu-system-aarch64 -M virt` boot smoke. Other deferred options
+  remain: more ports; background launch (`run`/async `CreateNewProc`).
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
