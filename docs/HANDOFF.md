@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+78591fc epic-H/H.7.4a ARM64 backend — per-task page tables + arch_mmu_*
 e8033ef epic-H/H.7.3  ARM64 backend — trap + syscall seam (VBAR + svc)
 0f06295 epic-H/H.7.2b ARM64 backend — cara_mm/cara_fdt runtime + arch_pte.h split
 3546263 epic-H/H.7.2  ARM64 backend — stage-1 paging bring-up (upper half)
@@ -1371,16 +1372,23 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   leaves `ELR` already past itself so `arch_trap_advance` is a no-op. Temporary
   `arch/arm64/trap_demo.c` stands in for `Croi_Syscall_Dispatch`/
   `Croi_Time_OnTimerTrap` until H.7.4. rv64 green (shared trap.h); ctest 32/32.
-- **NEXT: H.7.4 — per-task address spaces + ctx + FP + enter-U-mode** (the big
-  one; brings in `cara_sched` and carries the H.7.2b walk deferral). Teach the
-  generic walk the level→leaf/table rule (`arch_pte_is_table(pte, level)`), make
-  `Page_Map`/`Croi_NewKernelPT` correct for AArch64, implement
-  `arch_mmu_activate/fence/fence_va/boot_root` (arm64 has TTBR0+TTBR1, not one
-  `satp` — `Sv39_Satp` in `mm.h` is RISC-V-specific → likely an arch hook).
-  Then `arch/arm64/ctx_switch.S` (callee-saved x19–x30 + sp + tpidr), NEON
-  v0–v31 + fpcr/fpsr behind `CPACR_EL1`, `arch/arm64/context.c` (`arch_ctx_init_*`
-  + the EL0 `eret` trampoline). Delete `trap_demo.c` and link `cara_syscall` +
-  `cara_time` (the real `Croi_Syscall_Dispatch`/`Croi_Time_OnTimerTrap`). Then
+- **H.7.4a shipped (`78591fc`): per-task page tables + `arch_mmu_*`.**
+  `arch/arm64/mmu.c` — `arch_mmu_activate` swaps `TTBR0_EL1` (+ ASID) and leaves
+  the fixed kernel `TTBR1` alone (kernel keeps running across the switch);
+  `arch_mmu_fence`/`fence_va` = `TLBI`; `arch_mmu_boot_root` = TTBR1.
+  `Croi_NewKernelPT` arch-gated: AArch64 per-task root = the TTBR0 (user/low)
+  root only, empty (kernel half is the shared TTBR1). **The generic walk runs
+  unchanged** — the H.7.2b "level-aware leaf" worry resolved itself (the walk
+  only queries `is_leaf` at upper levels, where per-task entries are always
+  tables). PL011 console moved to its TTBR1 alias so it survives TTBR0 switches.
+  Validated by a `Page_Map` + activate round-trip (write via TTBR0, read via
+  TTBR0 + the TTBR1 direct map). rv64 green (shared pt.c/arch_pte.h); ctest 32/32.
+- **NEXT: H.7.4b — context switch.** `arch/arm64/ctx_switch.S` (`arch_ctx_switch`:
+  callee-saved x19–x30 + sp + tpidr_el1) + `arch/arm64/context.c`
+  (`arch_ctx_init_kernel` priming a fresh kernel task's saved regs). Bring in
+  `cara_sched`; prove a kernel→kernel yield. Then **H.7.4c** — NEON FP (v0–v31 +
+  fpcr/fpsr behind `CPACR_EL1`), `arch_ctx_init_user` + the EL0 `eret`
+  trampoline, delete `trap_demo.c` + link `cara_syscall` + `cara_time`. Then
   H.7.5 timer+IRQ+PSCI; H.7.6 svc trampolines + first U-mode; H.7.7+ full
   kernel+libs+app. Other deferred options remain: more ports; background launch.
 - **Deferred (tracked) substrate an app may force forward:** the input-
