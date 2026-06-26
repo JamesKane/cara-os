@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+f181040 epic-H/H.7.4c ARM64 backend — FP / NEON context (CPACR + v0–v31 save)
 f3d0afc epic-H/H.7.4b ARM64 backend — context-switch primitive (arch_ctx_switch)
 78591fc epic-H/H.7.4a ARM64 backend — per-task page tables + arch_mmu_*
 e8033ef epic-H/H.7.3  ARM64 backend — trap + syscall seam (VBAR + svc)
@@ -1393,17 +1394,25 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   is **not** linked yet — it pulls the SASOS shared heap (`shared.c`, RISC-V-only),
   `cara_log`, and `cara_exec_lib_image`; that integration is a dedicated later
   slice. rv64 green (shared `exec/tasks.h`); ctest 32/32.
-- **NEXT: H.7.4c — FP + enter-U-mode.** NEON v0–v31 + fpcr/fpsr save/restore in
-  `arch_ctx_switch` behind `CPACR_EL1`; `arch/arm64/context.c` with
-  `arch_ctx_init_kernel`/`arch_ctx_init_user` + the EL0 `eret` trampoline (set
-  TTBR0 via `arch_mmu_activate` / SPSR_EL1=EL0t / ELR_EL1=user entry); a
-  `task_trampoline`. This needs a landing point — likely a minimal arm64 entry
-  to EL0 that does an `svc` back, *or* fold into the `cara_sched` integration.
-  Then delete `trap_demo.c` and link the real `cara_syscall` + `cara_time`.
-  After H.7.4: H.7.5 timer+IRQ+PSCI; H.7.6 svc trampolines + first U-mode;
-  H.7.7+ full kernel+libs+app (incl. porting the SASOS shared heap `shared.c`
-  + `cara_log` so `cara_sched` links). Other deferred options remain: more
-  ports; background launch.
+- **H.7.4c shipped (`f181040`): FP / NEON context.** `_start.S` enables FP/SIMD
+  (`CPACR_EL1.FPEN=0b11`); `arch_ctx_switch` round-trips the whole NEON file
+  (q0–q31 + fpcr/fpsr) every switch (`.arch armv8-a` so it assembles under
+  `-mgeneral-regs-only`). Validated by seeding v0, clobbering it in the second
+  context, and confirming restore ("fp: preserved ok"). Only arm64 files
+  changed; rv64 unaffected; ctest 32/32.
+- **NEXT: H.7.4d — enter-U-mode (EL0).** Build a user PT mapping an EL0 stub +
+  stack, `arch_mmu_activate` it, set SPSR_EL1=EL0t / ELR_EL1 / sp_el0, `eret` to
+  EL0; the stub `svc`s back (the "Lower EL AArch64" sync vector — already handled
+  by `trap_entry.S`/`Croi_TrapDispatch`). Prove it standalone with the
+  `arch_ctx_switch` bracket: switch from the boot flow into an "enter" context
+  that erets to EL0; the exit-svc handler (`Croi_Syscall_Dispatch` demo) switches
+  back to the saved boot context — no scheduler. `arch_ctx_init_user` /
+  `user_task_trampoline` (which read `Sched_Current`) + deleting `trap_demo.c` +
+  the real `cara_syscall`/`cara_time` wait for the scheduler integration.
+  After H.7.4: H.7.5 timer+IRQ+PSCI; H.7.6 svc trampolines + first real U-mode;
+  H.7.7+ full kernel+libs+app (incl. porting the SASOS shared heap `shared.c` +
+  `cara_log` so `cara_sched` links). Other deferred options: more ports;
+  background launch.
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
