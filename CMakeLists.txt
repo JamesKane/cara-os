@@ -29,12 +29,13 @@ message(STATUS "CaraOS target: ${CARA_TARGET}")
 
 # CARA_ARCH selects which ISA backend the kernel links from
 # src/croi/arch/<arch>/ (the HAL — docs/ARCH_HAL.md, epic H). One ISA per
-# build image, like CARA_TARGET; riscv64 is the only backend today.
+# build image, like CARA_TARGET. riscv64 is the primary, fully-built backend;
+# arm64 (docs/ARM64.md, epic H.7) is being brought up incrementally.
 set(CARA_ARCH "riscv64" CACHE STRING "Cara kernel ISA backend (arch/<arch>/)")
-set_property(CACHE CARA_ARCH PROPERTY STRINGS riscv64)
-if(NOT CARA_ARCH STREQUAL "riscv64")
+set_property(CACHE CARA_ARCH PROPERTY STRINGS riscv64 arm64)
+if(NOT CARA_ARCH STREQUAL "riscv64" AND NOT CARA_ARCH STREQUAL "arm64")
     message(FATAL_ERROR
-        "CARA_ARCH must be 'riscv64' (the only backend today); got '${CARA_ARCH}'.")
+        "CARA_ARCH must be 'riscv64' or 'arm64'; got '${CARA_ARCH}'.")
 endif()
 if(CARA_TARGET STREQUAL "riscv64")
     message(STATUS "CaraOS kernel arch: ${CARA_ARCH}")

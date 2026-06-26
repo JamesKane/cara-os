@@ -6,6 +6,41 @@
 # unset the test is skipped at runtime.
 
 find_program(CARA_QEMU_RISCV64 qemu-system-riscv64)
+find_program(CARA_QEMU_AARCH64 qemu-system-aarch64)
+
+# --- ARM64 boot smoke (epic H.7, docs/ARM64.md) ------------------------------
+# The arm64 croi.elf is produced by a separate CARA_ARCH=arm64 build dir
+# (build-arm64); its path is provided via CARA_ARM64_BUILD_DIR. Independent of
+# the rv64 smoke below so either can be wired up on its own.
+if(CARA_QEMU_AARCH64)
+    set(CARA_ARM64_BUILD_DIR "" CACHE PATH
+        "Path to the matching CARA_ARCH=arm64 build dir holding croi.elf")
+    set(_kernel_arm64 "${CARA_ARM64_BUILD_DIR}/src/croi/croi.elf")
+
+    add_custom_target(qemu-virt-kernel-arm64
+        COMMAND ${CARA_QEMU_AARCH64}
+            -M virt -cpu cortex-a72 -m 256 -nographic
+            -kernel ${_kernel_arm64}
+        USES_TERMINAL
+        VERBATIM
+        COMMENT "Booting Croi under qemu-system-aarch64 -M virt -kernel")
+
+    if(CARA_ARM64_BUILD_DIR)
+        add_test(NAME smoke_qemu_arm64
+            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/smoke_qemu_arm64.sh
+                    ${CARA_QEMU_AARCH64} ${_kernel_arm64})
+        set_tests_properties(smoke_qemu_arm64 PROPERTIES
+            TIMEOUT 30
+            SKIP_RETURN_CODE 77)
+    else()
+        message(STATUS
+            "CARA_ARM64_BUILD_DIR not set; smoke_qemu_arm64 ctest disabled. "
+            "Configure with -DCARA_ARM64_BUILD_DIR=<path> to enable.")
+    endif()
+else()
+    message(STATUS
+        "qemu-system-aarch64 not found; arm64 boot smoke will be skipped.")
+endif()
 
 if(NOT CARA_QEMU_RISCV64)
     message(STATUS

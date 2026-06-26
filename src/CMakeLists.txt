@@ -4,6 +4,37 @@
 # build for either target. The FDT parser is the canonical example: it
 # compiles unchanged into the kernel image and into host unit tests.
 
+# --- ARM64 bring-up (epic H.7, docs/ARM64.md) --------------------------------
+# The arm64 kernel backend is being brought up incrementally. Until a slice
+# proves the portable kernel compiles + runs for AArch64, an arm64 kernel build
+# (CARA_TARGET=riscv64 + CARA_ARCH=arm64) links only the minimal arch backend +
+# boot stub: it descends into croi (which builds the minimal arm64 image via
+# arch/arm64) and nothing else. The shared/portable libs + userland are enabled
+# slice-by-slice as later H.7.x slices need them. This early return keeps the
+# slice small and the host/rv64 builds untouched.
+if(CARA_TARGET STREQUAL "riscv64" AND CARA_ARCH STREQUAL "arm64")
+    add_library(cara_kernel_flags INTERFACE)
+    target_compile_options(cara_kernel_flags INTERFACE
+        -ffreestanding
+        -nostdlibinc
+        -fno-stack-protector
+        -fno-builtin
+        -mgeneral-regs-only        # integer-only S-mode codegen (no FP/SIMD)
+        -mcmodel=small             # flat low-half link for H.7.1 (MMU off)
+        -march=${CARA_ARM64_KERNEL_ARCH}
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wshadow
+        -Werror
+        -fno-common
+        -fstrict-aliasing
+    )
+    target_compile_definitions(cara_kernel_flags INTERFACE CARA_FREESTANDING=1)
+    add_subdirectory(croi)
+    return()
+endif()
+
 if(CARA_TARGET STREQUAL "riscv64")
     # Common flags for any code linked into freestanding RV64 binaries
     # (croi.elf, splanc.efi). Freestanding, soft-float, medany code model.

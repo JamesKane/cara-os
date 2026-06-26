@@ -3,6 +3,36 @@
 # croi: the CaraOS microkernel ELF. Built only when CARA_TARGET=riscv64;
 # parent src/CMakeLists.txt gates this directory and provides
 # cara_kernel_flags.
+
+# --- ARM64 bring-up (epic H.7, docs/ARM64.md) --------------------------------
+# H.7.1: a *minimal* croi.elf for AArch64 — just the arch/arm64 backend (boot,
+# PL011 console, halt) + a boot stub that prints a banner and halts. No
+# portable kernel yet; it grows as later H.7.x slices fill in the seams. Flat
+# low-half link (MMU still off). This branch returns early so the full rv64
+# build below is untouched.
+if(CARA_ARCH STREQUAL "arm64")
+    set(_croi_lds_arm64 "${CMAKE_CURRENT_SOURCE_DIR}/arch/arm64/kernel.lds")
+    add_executable(croi)
+    add_subdirectory(arch/arm64)   # contributes _start.S / firmware.c / cpu.c / boot.c
+    target_link_libraries(croi PRIVATE
+        cara_kernel_flags
+        cara_headers
+    )
+    target_link_options(croi PRIVATE
+        -nostdlib
+        -fuse-ld=${CARA_ARM64_LDLLD_PATH}
+        -Wl,-T,${_croi_lds_arm64}
+        -Wl,--build-id=none
+    )
+    set_target_properties(croi PROPERTIES
+        LINK_DEPENDS ${_croi_lds_arm64}
+        LINKER_LANGUAGE C
+        SUFFIX ".elf"
+        OUTPUT_NAME "croi"
+    )
+    return()
+endif()
+
 set(_croi_lds "${CMAKE_CURRENT_SOURCE_DIR}/croi.lds")
 
 set(_user_blob_s "${CMAKE_CURRENT_BINARY_DIR}/user_blob.S")
