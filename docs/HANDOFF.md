@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+7443052 epic-H/H.7.5  ARM64 backend — timer + GIC IRQ + PSCI
 828a2f4 epic-H/H.7.4d ARM64 backend — enter-U-mode (EL0); H.7.4 complete
 f181040 epic-H/H.7.4c ARM64 backend — FP / NEON context (CPACR + v0–v31 save)
 f3d0afc epic-H/H.7.4b ARM64 backend — context-switch primitive (arch_ctx_switch)
@@ -1410,17 +1411,30 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   exit code 0x55. `trap_demo.c` shrank to the `Croi_Time_OnTimerTrap` stub. rv64
   unaffected; ctest 32/32. **Per-task ASes + ctx + FP + EL1↔EL0 round-trip all
   work on AArch64.**
-- **NEXT: H.7.5 — timer + IRQ + PSCI.** Generic timer (`CNTVCT_EL0`/`CNTV_CVAL_
-  EL0`/`CNTV_CTL_EL0`) behind `arch_timer_ticks/arm/disarm`; the GIC (v2 on QEMU
-  virt) IRQ path so a timer interrupt is taken (the IRQ vector tags the frame
-  `kind=irq` — wire `arch_trap_is_timer` to it + the GIC); `arch_irq_enable/
-  disable` already exist (DAIF). PSCI `SYSTEM_OFF`/`CPU_OFF` for `arch_halt`-ish
-  power. Prove a periodic timer tick fires + is acknowledged. Then H.7.6 factor
-  `CARA_SYSCALL_TRAMPOLINE` to an arch include (`svc`) + first real U-mode prog;
-  H.7.7+ full kernel: port the SASOS shared heap (`shared.c`, TTBR-based) +
+- **H.7.5 shipped (`7443052`): timer + GIC IRQ + PSCI.** `arch/arm64/timer.c` —
+  `arch_timer_*` over `CNTVCT`/`CNTV_CVAL`/`CNTV_CTL`, GICv2 bring-up + the
+  virtual-timer PPI 27 + `arm64_irq_dispatch` (IAR→service→EOIR). `trap_entry.S`
+  now branches the common path by `kind`: IRQs → the arch GIC handler, sync →
+  the portable `Croi_TrapDispatch`. `arch/arm64/psci.c` — `SYSTEM_OFF` over the
+  FDT conduit (HVC/SMC). Verified: 5 periodic CNTV IRQs serviced through the GIC,
+  clean PSCI power-off (QEMU exits 0 — the arm64 smoke runs in ~1s). rv64
+  unaffected; ctest 32/32.
+- **The full HAL surface now works on AArch64** — boot/paging, FDT+mm, traps,
+  per-task PT, ctx switch, FP, EL1↔EL0, and timer/IRQ — all validated standalone
+  in `boot.c` ahead of the scheduler.
+- **NEXT: H.7.6 — syscall trampolines + first real U-mode program.** Factor the
+  `CARA_SYSCALL_TRAMPOLINE` macro (the per-LVO hand-written `.S`, `li a7,N;
+  ecall; ret` on RISC-V) into a `CARA_ARCH`-selected arch include so AArch64 gets
+  `mov x8,#N; svc #0; ret`; run a first real U-mode program through it.
+  *Reality check:* a "real" U-mode program needs `cara_syscall` (the syscall
+  table) + likely `cara_sched`, which still needs the SASOS shared heap
+  (`shared.c`, TTBR-based) + `cara_log` ported to arm64. So H.7.6 may first be
+  the trampoline-macro factoring (self-contained, validated by the existing EL0
+  demo issuing a trampoline-built svc), with the full U-mode program following
+  the scheduler/shared-heap port (H.7.7+). H.7.7+ full kernel: port `shared.c` +
   `cara_log` + `exec_lib_image` so `cara_sched` links, then libs+app, an arm64
-  in-kernel test runner, boot-smoke parity, and `croi.lds` →
-  `CARA_ARCH`-selected. Other deferred options: more ports; background launch.
+  in-kernel test runner, boot-smoke parity, and `croi.lds` → `CARA_ARCH`-selected.
+  Other deferred options: more ports; background launch.
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
