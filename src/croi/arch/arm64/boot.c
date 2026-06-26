@@ -48,6 +48,10 @@ static volatile int g_ctx_state;
 extern void arm64_fp_write_v0(u64 v);
 extern u64 arm64_fp_read_v0(void);
 
+// Demo syscall trampoline built by the factored CARA_SYSCALL_TRAMPOLINE macro
+// (arch/arm64/trampoline_demo.S, H.7.6) — sets x8 and svc's.
+extern u64 Cara_DemoEchoTrampoline(u64 arg);
+
 // Timer + GIC + PSCI (arch/arm64/timer.c, psci.c, H.7.5).
 extern void arm64_gic_init(void);
 extern u64 arm64_timer_freq(void);
@@ -269,12 +273,13 @@ CARA_NORETURN void arm64_kernel_main(u64 dtb_phys)
     //      x8 = 0x42, x0 = 0x100 and expect x0 = 0x142 on return.
     arch_trap_init();
     {
-        register u64 r8 __asm__("x8") = 0x42ull;
-        register u64 r0 __asm__("x0") = 0x100ull;
-        __asm__ volatile("svc #0" : "+r"(r0) : "r"(r8) : "memory");
-        put_line("arm64 boot: svc returned    = ", r0);
-        if (r0 == 0x142ull) {
-            arch_console_puts("arm64 boot: trap: svc ok\n");
+        // Issue the demo syscall through the factored CARA_SYSCALL_TRAMPOLINE
+        // (arch/arm64/trampoline_demo.S): it sets x8 = 0x42 and svc's; the demo
+        // dispatcher echoes num + arg0, so 0x100 → 0x142.
+        u64 r = Cara_DemoEchoTrampoline(0x100ull);
+        put_line("arm64 boot: svc returned    = ", r);
+        if (r == 0x142ull) {
+            arch_console_puts("arm64 boot: trap: svc ok (via trampoline)\n");
         } else {
             arch_console_puts("arm64 boot: FATAL: svc round-trip mismatch\n");
             arch_halt();

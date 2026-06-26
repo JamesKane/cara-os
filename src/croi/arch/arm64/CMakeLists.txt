@@ -22,4 +22,5 @@ target_sources(croi PRIVATE
     ctx_switch.S   # arch_ctx_switch + FP + EL0 stub (H.7.4b/c/d)
     timer.c        # arch_timer_* (CNTV) + GICv2 + IRQ dispatch (H.7.5)
     psci.c         # PSCI power-off (H.7.5)
+    trampoline_demo.S # TEMPORARY: validate the factored svc trampoline (H.7.6)
 )

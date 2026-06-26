@@ -217,9 +217,16 @@ so each slice is small and the gate is real.
   exits 0 — the smoke no longer waits out the timeout). `arch_irq_enable/disable`
   (DAIF) were already present from H.7.1. The timer IRQ will drive the scheduler
   tick (`Croi_Time_OnTimerTrap`) once the scheduler is ported.
-- **H.7.6 — syscall trampolines + first U-mode program.** Factor
-  `CARA_SYSCALL_TRAMPOLINE` to an arch include (`svc`); run a first U-mode
-  program on ARM64.
+- **H.7.6 — syscall trampolines (DONE).** The per-LVO `CARA_SYSCALL_TRAMPOLINE`
+  macro (hand-written `.S`, duplicated across the 12 per-library `trampolines.S`)
+  is now a `CARA_ARCH`-selected include, `<cara/arch/syscall_trampoline.inc>`
+  (a dispatcher + `riscv64`/`arm64` variants; `.inc` so it stays out of the
+  `*.h` clang-format glob). RISC-V emits `li a7,N; ecall; ret`; AArch64 emits
+  `mov x8,#N; svc #0; ret`. All 12 `trampolines.S` include it instead of
+  defining the macro inline — rv64 output is byte-identical (still green). The
+  AArch64 variant is validated by a demo trampoline (`trampoline_demo.S`) the
+  svc demo calls (round-trips to 0x142). *First real U-mode program* needs the
+  syscall table + scheduler, so it rides with H.7.7+ (below).
 - **H.7.7+ — full portable kernel + libraries + a real app.** Enable the
   remaining shared libs + userland for AArch64, an arm64 in-kernel test runner,
   and boot-smoke parity (banner + `0 failed`). Port `croi.lds` cleanly to a

@@ -18,15 +18,7 @@
 
 #include <cara/sysno.h>
 
-.macro CARA_SYSCALL_TRAMPOLINE name, num
-    .global \name
-    .type   \name, @function
-    \name:
-        li      a7, \num
-        ecall
-        ret
-    .size   \name, . - \name
-.endm
+#include <cara/arch/syscall_trampoline.inc>
 
 // `.lib_text.exec` is the section the linker places at the
 // 0x4000_0000 library RX page (C7). On hosts where the linker script

@@ -8,15 +8,7 @@
 
 #include <cara/sysno.h>
 
-.macro CARA_SYSCALL_TRAMPOLINE name, num
-    .global \name
-    .type   \name, @function
-    \name:
-        li      a7, \num
-        ecall
-        ret
-    .size   \name, . - \name
-.endm
+#include <cara/arch/syscall_trampoline.inc>
 
 .section .lib_text.asl, "ax"
 .balign 4
