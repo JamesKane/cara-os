@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+0f06295 epic-H/H.7.2b ARM64 backend — cara_mm/cara_fdt runtime + arch_pte.h split
 3546263 epic-H/H.7.2  ARM64 backend — stage-1 paging bring-up (upper half)
 bac3233 epic-H/H.7.1  ARM64 backend — toolchain + boot-to-print
 f91509a epic-H/H.6    arch HAL — CARA_ARCH build selection + boot relocation + docs
@@ -1345,18 +1346,28 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   walk in `pt.c` decides leaf-vs-table from PTE bits alone; that reconciliation
   belongs with the runtime that exercises it. So the boot tables are
   self-contained hand-built block descriptors.
-- **NEXT: H.7.2b — `cara_mm` runtime + `arch_pte.h` split + reach `croi_entry`.**
-  Make `include/cara/arch_pte.h` `CARA_ARCH`-selected (host + rv64 default to the
-  Sv39 variant; add an AArch64 stage-1 variant: AP/AF/UXN/PXN/nG/attr-index);
-  teach the generic walk the level→leaf/table rule (pass the level, or an
-  `arch_pte_is_table(pte, level)`); bring `cara_mm` + `cara_fdt` into the AArch64
-  link; implement `arch_mmu_activate/fence/fence_va/boot_root`; land in a
-  portable `croi_entry` skeleton (FDT parse + mm init). NB the arm64 build had
-  `x0=0` (no DTB) from QEMU's ELF `-kernel` path — resolve DTB acquisition here
-  (QEMU drops the DTB at a fixed RAM offset for `-kernel`; or use a fixed probe).
-  Then H.7.3 trap+syscall (VBAR), H.7.4 ctx+FP+enter-U-mode (eret), H.7.5
-  timer+IRQ+PSCI, H.7.6 svc trampolines+first U-mode, H.7.7+ full kernel+libs+app.
-  Other deferred options remain: more ports; background launch.
+- **H.7.2b shipped (`0f06295`): `cara_mm`/`cara_fdt` runtime + `arch_pte.h`
+  split.** `include/cara/arch_pte.h` is now a `CARA_ARCH` dispatcher over
+  `cara/arch/{riscv64,arm64}/arch_pte.h` (host + rv64 default to Sv39 — no flag
+  churn; arm64 kernel flags define `CARA_ARCH_ARM64`). The arm64 entry parses
+  the real DTB (found at RAM base — QEMU's ELF `-kernel` left `x0=0`, so it
+  scans), builds the `PhysMap`, and inits the page allocator + heap through the
+  shared `cara_fdt`/`cara_mm` code (256 MiB, 65251 free pages, `Croi_Alloc`
+  round-trip — all verified). `mm/CMakeLists` now uses `cara_kernel_flags` for
+  any kernel TARGET and gates `shared.c` to `CARA_ARCH=riscv64`. smoke asserts
+  "mm up". rv64 rebuilt clean (shared header); ctest 32/32.
+  *Deferred to H.7.4 (the consumer):* the generic-walk level→leaf/table
+  reconciliation + `Page_Map`/`Croi_NewKernelPT` correctness + `arch_mmu_*`.
+  H.7.2b uses only the allocator + physmap, which never touch the PTE encoding.
+- **NEXT: H.7.3 — trap + syscall.** `VBAR_EL1` 16-entry vector table +
+  `trap_entry.S` save/restore into an AArch64 `struct TrapFrame`, `ESR_EL1.EC`
+  decode (`arch_trap_is_syscall`/`is_timer`), the `svc` syscall ABI (x8=num,
+  x0–x5 args, x0=ret, ELR unchanged) via `arch_syscall_*`, `arch_trap_init`
+  (set `VBAR_EL1`) + `arch_trap_fatal`. Wire the portable `Croi_TrapDispatch` +
+  syscall table. (H.7.4 then does per-task page tables + the walk reconciliation
+  + `arch_mmu_*` + ctx/FP/enter-U-mode; H.7.5 timer+IRQ+PSCI; H.7.6 svc
+  trampolines + first U-mode; H.7.7+ full kernel+libs+app.) Other deferred
+  options remain: more ports; background launch.
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
