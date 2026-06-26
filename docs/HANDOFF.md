@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+bac3233 epic-H/H.7.1  ARM64 backend — toolchain + boot-to-print
 f91509a epic-H/H.6    arch HAL — CARA_ARCH build selection + boot relocation + docs
 2c8e5bb epic-H/H.4    arch HAL — trap + syscall seam
 91b5094 epic-H/H.3    arch HAL — context switch + FP + U-mode-entry seam
@@ -1310,11 +1311,33 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
 - **The arch carve-out (H.1–H.6) is COMPLETE** — every RISC-V internal sits
   behind `cara/arch.h` + `cara/arch_pte.h` in `src/croi/arch/riscv64/`,
   selected by `CARA_ARCH`, RISC-V green throughout.
-- **NEXT: H.7 — the ARM64 (AArch64) backend** (terminal goal, multi-slice;
-  where the boundary gets validated): `cmake/toolchain-arm64.cmake`,
-  `src/croi/arch/arm64/` (EL1 boot, VBAR/eret, svc, TTBR0/1 4K paging + an
-  arm64 `arch_pte.h`, CNTVCT timer, PSCI, NEON FP, PL011), the `svc` trampoline
-  include, a `qemu-system-aarch64 -M virt` boot smoke. Other deferred options
+- **H.7 — the ARM64 backend — STARTED.** Scoped in `docs/ARM64.md` (the H.7
+  sub-epic: seam-by-seam RISC-V→AArch64 + slice plan H.7.1–H.7.7). It grows a
+  *minimal* arm64 `croi` outward from boot, RISC-V green throughout; an arm64
+  build is `CARA_TARGET=riscv64 -DCARA_ARCH=arm64
+  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-arm64.cmake` in a third dir
+  `build-arm64`.
+- **H.7.1 shipped (`bac3233`): toolchain + boot-to-print.** `toolchain-arm64.cmake`
+  (aarch64-unknown-elf clang/lld, integer-only `-mgeneral-regs-only`);
+  `CARA_ARCH=arm64` accepted; `src/` + `src/croi/` early-return to a minimal
+  croi (only `arch/arm64/`) so the slice is small + host/rv64 untouched.
+  `arch/arm64/`: `_start.S` (EL2→EL1 drop, SP, BSS, call stub), `firmware.c`
+  (PL011 @ 0x09000000 early console — the SBI analogue, FDT driver supersedes
+  later), `cpu.c` (`arch_halt`/`idle`/`irq` via DAIF), `boot.c` (banner+halt
+  bring-up stub), `kernel.lds` (flat low-half, MMU off, load 0x40200000).
+  Boots under `qemu-system-aarch64 -M virt -cpu cortex-a72` and prints the
+  banner; new `smoke_qemu_arm64` (gated on `CARA_ARM64_BUILD_DIR`). rv64 green;
+  host ctest 32/32; format clean.
+- **NEXT: H.7.2 — MMU + paging + reach `croi_entry`.** Make
+  `include/cara/arch_pte.h` `CARA_ARCH`-selected (an arm64 variant: AArch64
+  stage-1 descriptors AP/AF/UXN/PXN/nG/attr-index; must still compile on host,
+  so pure inline); build a boot stage-1 PT (TTBR0 identity-low + TTBR1
+  upper-half, `TCR_EL1.T0SZ/T1SZ=25` for 39-bit halves = the Sv39 equivalent);
+  enable MMU (`SCTLR_EL1.M`), jump to the upper half, bring `cara_mm` in for
+  AArch64, and land in a portable `croi_entry` skeleton (FDT parse + mm init).
+  `arch_mmu_activate/fence/fence_va/boot_root`. Then H.7.3 trap+syscall (VBAR),
+  H.7.4 ctx+FP+enter-U-mode (eret), H.7.5 timer+IRQ+PSCI, H.7.6 svc
+  trampolines+first U-mode, H.7.7+ full kernel+libs+app. Other deferred options
   remain: more ports; background launch (`run`/async `CreateNewProc`).
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
