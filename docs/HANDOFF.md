@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+30a9eaf epic-H/H.7.6  ARM64 backend — factor syscall-trampoline macro (svc)
 7443052 epic-H/H.7.5  ARM64 backend — timer + GIC IRQ + PSCI
 828a2f4 epic-H/H.7.4d ARM64 backend — enter-U-mode (EL0); H.7.4 complete
 f181040 epic-H/H.7.4c ARM64 backend — FP / NEON context (CPACR + v0–v31 save)
@@ -1422,19 +1423,26 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
 - **The full HAL surface now works on AArch64** — boot/paging, FDT+mm, traps,
   per-task PT, ctx switch, FP, EL1↔EL0, and timer/IRQ — all validated standalone
   in `boot.c` ahead of the scheduler.
-- **NEXT: H.7.6 — syscall trampolines + first real U-mode program.** Factor the
-  `CARA_SYSCALL_TRAMPOLINE` macro (the per-LVO hand-written `.S`, `li a7,N;
-  ecall; ret` on RISC-V) into a `CARA_ARCH`-selected arch include so AArch64 gets
-  `mov x8,#N; svc #0; ret`; run a first real U-mode program through it.
-  *Reality check:* a "real" U-mode program needs `cara_syscall` (the syscall
-  table) + likely `cara_sched`, which still needs the SASOS shared heap
-  (`shared.c`, TTBR-based) + `cara_log` ported to arm64. So H.7.6 may first be
-  the trampoline-macro factoring (self-contained, validated by the existing EL0
-  demo issuing a trampoline-built svc), with the full U-mode program following
-  the scheduler/shared-heap port (H.7.7+). H.7.7+ full kernel: port `shared.c` +
-  `cara_log` + `exec_lib_image` so `cara_sched` links, then libs+app, an arm64
-  in-kernel test runner, boot-smoke parity, and `croi.lds` → `CARA_ARCH`-selected.
-  Other deferred options: more ports; background launch.
+- **H.7.6 shipped (`30a9eaf`): syscall-trampoline macro factored.** The per-LVO
+  `CARA_SYSCALL_TRAMPOLINE` macro (was duplicated in all 12 `trampolines.S`) is
+  now `<cara/arch/syscall_trampoline.inc>` — a `CARA_ARCH` dispatcher +
+  `riscv64`/`arm64` variants (`.inc` so it dodges the `*.h` clang-format glob).
+  rv64 byte-identical (green); arm64 emits `mov x8,#N; svc #0; ret`, validated by
+  a demo trampoline the svc demo calls.
+- **NEXT: H.7.7 — full kernel: port the scheduler's blockers + bring up real
+  U-mode.** The big remaining gap is that `cara_sched` (and the syscall table
+  `cara_syscall`) don't link on arm64 because of: (1) the SASOS shared heap
+  `shared.c` (RISC-V-only — uses `satp`/`sfence`; needs an AArch64 TTBR-based
+  equivalent + an `arch_*` hook or a `CARA_ARCH` split), (2) `cara_log`
+  (`LOG_*`), and (3) `cara_exec_lib_image` (the `0x4000_0000` library region the
+  spawn paths install). Port those, then link `cara_sched` + `cara_syscall`,
+  wire `arch_ctx_init_kernel/user` + `user_task_trampoline` (via `Sched_Current`)
+  + `task_trampoline`, delete the temporary `trap_demo.c` + `trampoline_demo.S` +
+  the boot.c demos, and reach the real `croi_entry` path (or an arm64 equivalent)
+  that spawns a U-mode task. Likely several slices (shared-heap port; sched/
+  syscall link + first real U-mode prog; then libs+app + an arm64 in-kernel test
+  runner + boot-smoke parity + `croi.lds` → `CARA_ARCH`-selected). Other deferred
+  options: more ports; background launch.
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
