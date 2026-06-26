@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+e8033ef epic-H/H.7.3  ARM64 backend — trap + syscall seam (VBAR + svc)
 0f06295 epic-H/H.7.2b ARM64 backend — cara_mm/cara_fdt runtime + arch_pte.h split
 3546263 epic-H/H.7.2  ARM64 backend — stage-1 paging bring-up (upper half)
 bac3233 epic-H/H.7.1  ARM64 backend — toolchain + boot-to-print
@@ -1359,15 +1360,29 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   *Deferred to H.7.4 (the consumer):* the generic-walk level→leaf/table
   reconciliation + `Page_Map`/`Croi_NewKernelPT` correctness + `arch_mmu_*`.
   H.7.2b uses only the allocator + physmap, which never touch the PTE encoding.
-- **NEXT: H.7.3 — trap + syscall.** `VBAR_EL1` 16-entry vector table +
-  `trap_entry.S` save/restore into an AArch64 `struct TrapFrame`, `ESR_EL1.EC`
-  decode (`arch_trap_is_syscall`/`is_timer`), the `svc` syscall ABI (x8=num,
-  x0–x5 args, x0=ret, ELR unchanged) via `arch_syscall_*`, `arch_trap_init`
-  (set `VBAR_EL1`) + `arch_trap_fatal`. Wire the portable `Croi_TrapDispatch` +
-  syscall table. (H.7.4 then does per-task page tables + the walk reconciliation
-  + `arch_mmu_*` + ctx/FP/enter-U-mode; H.7.5 timer+IRQ+PSCI; H.7.6 svc
-  trampolines + first U-mode; H.7.7+ full kernel+libs+app.) Other deferred
-  options remain: more ports; background launch.
+- **H.7.3 shipped (`e8033ef`): trap + syscall seam.** `cara/trap.h`'s
+  `struct TrapFrame` is `CARA_ARCH`-selected (AArch64: x0–x30 + sp/elr/spsr/esr +
+  synthetic `kind`, 288 B). `arch/arm64/trap_entry.S` = 16-entry `VBAR_EL1` table
+  + common save/restore + `eret`; `arch/arm64/trap.c` = `ESR_EL1.EC` classify
+  (svc EC 0x15), the svc ABI (x8/x0–x5/x0), `VBAR_EL1` install, EC-decoded
+  fatal. The **portable** `Croi_TrapDispatch` (`src/croi/trap.c`) is linked
+  unchanged and drives it; an `svc` from EL1 round-trips (returns 0x142). Two
+  AArch64 specifics: IRQ-vs-sync is told by *vector* (the `kind` tag), and `svc`
+  leaves `ELR` already past itself so `arch_trap_advance` is a no-op. Temporary
+  `arch/arm64/trap_demo.c` stands in for `Croi_Syscall_Dispatch`/
+  `Croi_Time_OnTimerTrap` until H.7.4. rv64 green (shared trap.h); ctest 32/32.
+- **NEXT: H.7.4 — per-task address spaces + ctx + FP + enter-U-mode** (the big
+  one; brings in `cara_sched` and carries the H.7.2b walk deferral). Teach the
+  generic walk the level→leaf/table rule (`arch_pte_is_table(pte, level)`), make
+  `Page_Map`/`Croi_NewKernelPT` correct for AArch64, implement
+  `arch_mmu_activate/fence/fence_va/boot_root` (arm64 has TTBR0+TTBR1, not one
+  `satp` — `Sv39_Satp` in `mm.h` is RISC-V-specific → likely an arch hook).
+  Then `arch/arm64/ctx_switch.S` (callee-saved x19–x30 + sp + tpidr), NEON
+  v0–v31 + fpcr/fpsr behind `CPACR_EL1`, `arch/arm64/context.c` (`arch_ctx_init_*`
+  + the EL0 `eret` trampoline). Delete `trap_demo.c` and link `cara_syscall` +
+  `cara_time` (the real `Croi_Syscall_Dispatch`/`Croi_Time_OnTimerTrap`). Then
+  H.7.5 timer+IRQ+PSCI; H.7.6 svc trampolines + first U-mode; H.7.7+ full
+  kernel+libs+app. Other deferred options remain: more ports; background launch.
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
