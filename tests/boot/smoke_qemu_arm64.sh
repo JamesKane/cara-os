@@ -2,13 +2,15 @@
 # SPDX-License-Identifier: BSD-2-Clause
 #
 # Boot smoke test for the AArch64 croi via QEMU's -kernel handoff (epic H.7,
-# docs/ARM64.md). H.7.2 brought up stage-1 paging (kernel runs in the SASOS
-# upper half); H.7.2b parses the real device tree and initialises the physical
-# memory manager (page allocator + heap) through the shared cara_fdt/cara_mm
-# code. This checks the banner appears, that the printed code address is
-# upper-half (MMU on), and that mm init reached the "mm up" milestone. As later
-# H.7.x slices reach the in-kernel test runner, this grows toward the rv64
-# smoke's "0 failed" assertion.
+# docs/ARM64.md). Progressively asserts what each slice reaches:
+#   H.7.2  stage-1 paging — the kernel runs in the SASOS upper half (its printed
+#          code address carries the 0xffffffc0_ prefix).
+#   H.7.2b FDT parse + physical memory manager (page allocator + heap) via the
+#          shared cara_fdt/cara_mm code ("mm up").
+#   H.7.3  trap + syscall — an svc round-trips through VBAR_EL1 + the portable
+#          Croi_TrapDispatch ("trap: svc ok").
+# As later H.7.x slices reach the in-kernel test runner, this grows toward the
+# rv64 smoke's "0 failed" assertion.
 #
 # Args:
 #   $1  qemu-system-aarch64 binary
@@ -50,9 +52,15 @@ if ! grep -qiE "arm64_kernel_main @ 0xffffffc0" "${LOG}"; then
     echo "smoke_qemu_arm64: FAIL: code address is not upper-half (MMU not on?)" >&2
     fail=1
 fi
-# Proof the portable FDT + mm path ran (parsed the DTB, inited the allocator).
-if ! grep -qF "mm up" "${LOG}"; then
+# Proof the portable FDT + mm path ran: the page allocator + heap came up.
+if ! grep -qF "free pages" "${LOG}" || ! grep -qF "Croi_Alloc(128)" "${LOG}"; then
     echo "smoke_qemu_arm64: FAIL: mm bring-up did not complete" >&2
+    fail=1
+fi
+# Proof the trap + syscall path works: an svc round-tripped through VBAR_EL1 +
+# the portable Croi_TrapDispatch and returned the expected value.
+if ! grep -qF "trap: svc ok" "${LOG}"; then
+    echo "smoke_qemu_arm64: FAIL: svc trap round-trip did not complete" >&2
     fail=1
 fi
 
@@ -63,4 +71,4 @@ if [[ ${fail} -ne 0 ]]; then
     exit 1
 fi
 
-echo "smoke_qemu_arm64: ok (paging + FDT + page allocator + heap)"
+echo "smoke_qemu_arm64: ok (paging + FDT + mm + svc traps)"

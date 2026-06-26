@@ -14,6 +14,7 @@ if(CARA_ARCH STREQUAL "arm64")
     set(_croi_lds_arm64 "${CMAKE_CURRENT_SOURCE_DIR}/arch/arm64/kernel.lds")
     add_executable(croi
         string.c   # freestanding mem* the compiler emits + cara_mm needs
+        trap.c     # H.7.3: the portable Croi_TrapDispatch (arch-neutral)
     )
     add_subdirectory(arch/arm64)   # contributes _start.S / firmware.c / cpu.c / boot.c
     target_link_libraries(croi PRIVATE

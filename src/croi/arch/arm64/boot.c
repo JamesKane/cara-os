@@ -143,6 +143,25 @@ CARA_NORETURN void arm64_kernel_main(u64 dtb_phys)
     }
     put_line("arm64 boot: Croi_Alloc(128)  = ", (u64)(uptr)blk);
 
-    arch_console_puts("CaraOS arm64 boot: ok (paged + mm up)\n");
+    // ---- Trap + syscall path (H.7.3). Install VBAR_EL1, then issue an svc
+    //      from EL1 and check the round-trip: the vector saves a TrapFrame, the
+    //      portable Croi_TrapDispatch classifies it (ESR.EC = SVC) and routes
+    //      to the (temporary) demo dispatch, which returns x8 + x0. We pass
+    //      x8 = 0x42, x0 = 0x100 and expect x0 = 0x142 on return.
+    arch_trap_init();
+    {
+        register u64 r8 __asm__("x8") = 0x42ull;
+        register u64 r0 __asm__("x0") = 0x100ull;
+        __asm__ volatile("svc #0" : "+r"(r0) : "r"(r8) : "memory");
+        put_line("arm64 boot: svc returned    = ", r0);
+        if (r0 == 0x142ull) {
+            arch_console_puts("arm64 boot: trap: svc ok\n");
+        } else {
+            arch_console_puts("arm64 boot: FATAL: svc round-trip mismatch\n");
+            arch_halt();
+        }
+    }
+
+    arch_console_puts("CaraOS arm64 boot: ok (paged + mm + traps)\n");
     arch_halt();
 }

@@ -142,9 +142,20 @@ so each slice is small and the gate is real.
   reconciliation + `Page_Map`/`Croi_NewKernelPT` correctness + `arch_mmu_*`.
   H.7.2b uses only the allocator + physmap, which never touch the PTE encoding,
   so nothing exercises the walk yet. (`arch/arm64/arch_pte.h` documents the gap.)
-- **H.7.3 — trap + syscall.** `VBAR_EL1` vectors, `trap_entry.S` save/restore,
-  `ESR` decode, the AArch64 `TrapFrame`; `arch_trap_*` + `arch_syscall_*`; wire
-  the portable `Croi_TrapDispatch` + syscall table.
+- **H.7.3 — trap + syscall (DONE).** `cara/trap.h`'s `struct TrapFrame` is now
+  `CARA_ARCH`-selected (AArch64 variant: x0–x30 + sp/elr/spsr/esr + a synthetic
+  `kind`, 288 B). `arch/arm64/trap_entry.S` is the 16-entry `VBAR_EL1` table +
+  common save/restore + `eret`; `arch/arm64/trap.c` does `ESR_EL1.EC` classify
+  (`arch_trap_is_syscall` = sync vector + EC 0x15), the svc ABI (`arch_syscall_*`
+  = x8 num / x0–x5 args / x0 ret), `arch_trap_init` (`VBAR_EL1`), and an
+  EC-decoded `arch_trap_fatal`. The **portable** `Croi_TrapDispatch`
+  (`src/croi/trap.c`) is linked unchanged and drives it. Verified by issuing an
+  `svc` from EL1 and checking the round-trip. Two AArch64 specifics handled: an
+  IRQ is told from a sync trap by *vector* (the `kind` tag), not a cause bit; and
+  `svc` leaves `ELR` already past itself, so `arch_trap_advance` is a no-op.
+  *Temporary:* `arch/arm64/trap_demo.c` stands in for `Croi_Syscall_Dispatch`
+  (echo) + `Croi_Time_OnTimerTrap` (stub) until `cara_syscall`/`cara_time` are
+  linked in H.7.4 — delete it then.
 - **H.7.4 — per-task address spaces + context switch + FP + enter U-mode.**
   This is where the page-table *walk* finally runs on AArch64, so it also
   carries the H.7.2b deferral: teach the generic walk the level→leaf/table rule

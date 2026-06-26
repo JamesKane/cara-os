@@ -14,5 +14,8 @@ target_sources(croi PRIVATE
     _start.S       # boot: EL1 bring-up, stage-1 boot PT, MMU on, jump upper half
     firmware.c     # arch_console_putc/puts (PL011 early console)
     cpu.c          # arch_halt / arch_idle / arch_irq_enable/disable
-    boot.c         # arm64_kernel_main: H.7.2 upper-half banner + halt (stub)
+    boot.c         # arm64_kernel_main: FDT + mm bring-up + svc demo (stub)
+    trap_entry.S   # VBAR_EL1 vectors + save/restore → Croi_TrapDispatch (H.7.3)
+    trap.c         # ESR classify + syscall ABI + arch_trap_init/fatal (H.7.3)
+    trap_demo.c    # TEMPORARY demo dispatch deps — removed in H.7.4
 )
