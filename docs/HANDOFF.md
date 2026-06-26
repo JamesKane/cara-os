@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+828a2f4 epic-H/H.7.4d ARM64 backend — enter-U-mode (EL0); H.7.4 complete
 f181040 epic-H/H.7.4c ARM64 backend — FP / NEON context (CPACR + v0–v31 save)
 f3d0afc epic-H/H.7.4b ARM64 backend — context-switch primitive (arch_ctx_switch)
 78591fc epic-H/H.7.4a ARM64 backend — per-task page tables + arch_mmu_*
@@ -1400,19 +1401,26 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `-mgeneral-regs-only`). Validated by seeding v0, clobbering it in the second
   context, and confirming restore ("fp: preserved ok"). Only arm64 files
   changed; rv64 unaffected; ctest 32/32.
-- **NEXT: H.7.4d — enter-U-mode (EL0).** Build a user PT mapping an EL0 stub +
-  stack, `arch_mmu_activate` it, set SPSR_EL1=EL0t / ELR_EL1 / sp_el0, `eret` to
-  EL0; the stub `svc`s back (the "Lower EL AArch64" sync vector — already handled
-  by `trap_entry.S`/`Croi_TrapDispatch`). Prove it standalone with the
-  `arch_ctx_switch` bracket: switch from the boot flow into an "enter" context
-  that erets to EL0; the exit-svc handler (`Croi_Syscall_Dispatch` demo) switches
-  back to the saved boot context — no scheduler. `arch_ctx_init_user` /
-  `user_task_trampoline` (which read `Sched_Current`) + deleting `trap_demo.c` +
-  the real `cara_syscall`/`cara_time` wait for the scheduler integration.
-  After H.7.4: H.7.5 timer+IRQ+PSCI; H.7.6 svc trampolines + first real U-mode;
-  H.7.7+ full kernel+libs+app (incl. porting the SASOS shared heap `shared.c` +
-  `cara_log` so `cara_sched` links). Other deferred options: more ports;
-  background launch.
+- **H.7.4d shipped (`828a2f4`): enter-U-mode (EL0) — H.7.4 COMPLETE.** A user PT
+  (empty TTBR0 root) maps an EL0 stub (`PTE_USER_RX`) + stack; the kernel copies
+  the stub in (D-clean + I-invalidate), `arch_mmu_activate`s it, sets
+  SPSR_EL1=EL0t/ELR_EL1/sp_el0 and `eret`s to EL0; the stub `svc`s the demo exit;
+  `Croi_Syscall_Dispatch` (now in `boot.c`) recognises it and `arch_ctx_switch`es
+  back to the saved boot flow (the bracket — no scheduler). Verified EL1→EL0→EL1,
+  exit code 0x55. `trap_demo.c` shrank to the `Croi_Time_OnTimerTrap` stub. rv64
+  unaffected; ctest 32/32. **Per-task ASes + ctx + FP + EL1↔EL0 round-trip all
+  work on AArch64.**
+- **NEXT: H.7.5 — timer + IRQ + PSCI.** Generic timer (`CNTVCT_EL0`/`CNTV_CVAL_
+  EL0`/`CNTV_CTL_EL0`) behind `arch_timer_ticks/arm/disarm`; the GIC (v2 on QEMU
+  virt) IRQ path so a timer interrupt is taken (the IRQ vector tags the frame
+  `kind=irq` — wire `arch_trap_is_timer` to it + the GIC); `arch_irq_enable/
+  disable` already exist (DAIF). PSCI `SYSTEM_OFF`/`CPU_OFF` for `arch_halt`-ish
+  power. Prove a periodic timer tick fires + is acknowledged. Then H.7.6 factor
+  `CARA_SYSCALL_TRAMPOLINE` to an arch include (`svc`) + first real U-mode prog;
+  H.7.7+ full kernel: port the SASOS shared heap (`shared.c`, TTBR-based) +
+  `cara_log` + `exec_lib_image` so `cara_sched` links, then libs+app, an arm64
+  in-kernel test runner, boot-smoke parity, and `croi.lds` →
+  `CARA_ARCH`-selected. Other deferred options: more ports; background launch.
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
