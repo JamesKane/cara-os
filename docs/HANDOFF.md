@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+c081a96 epic-H/H.7.7c ARM64 backend — SASOS shared heap (shared.c)
 598673e epic-H/H.7.7b ARM64 backend — cara_log (structured logging)
 c9a0c2d epic-H/H.7.7a ARM64 backend — portable cara_time layer
 30a9eaf epic-H/H.7.6  ARM64 backend — factor syscall-trampoline macro (svc)
@@ -1439,15 +1440,25 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   - **H.7.7b shipped (`598673e`): `cara_log`.** `log.c` linked; NS16550 sink
     gated RISC-V-only; arm64 registers a PL011 `LogSink`. `LOG_INFO` reaches the
     console ("arm64 logging up"). rv64 unaffected; ctest 32/32.
-  - **NEXT: H.7.7c — SASOS shared heap (`shared.c`).** Un-gate `shared.c` in
-    `mm/CMakeLists` for arm64 (it's HAL-portable: uses `arch_mmu_boot_root`/
-    `arch_mmu_fence`/`arch_pte_*`). The one arm64 fix: the SASOS region is a
-    low/TTBR0 VA, so `Heap_InitArena` writing to `CARA_SHARED_VA_BASE` faults
-    unless the active TTBR0 maps it — so under `#if CARA_ARCH_ARM64`, after the
-    arena `Page_Map` loop (which uses `arch_mmu_boot_root` [TTBR1] as scratch to
-    populate the shared L1 — fine), build + `arch_mmu_activate` a kernel PT with
-    `root[CARA_SHARED_L2_INDEX] = shared_l1` before `Heap_InitArena`. Validate
-    `Croi_AllocShared` from the kernel (write/read a low VA) + ideally from EL0.
+  - **H.7.7c shipped (`c081a96`): SASOS shared heap (`shared.c`).** Un-gated for
+    arm64; one `#if CARA_ARCH_ARM64` block in `Croi_Shared_Init` builds +
+    activates a kernel TTBR0 carrying the shared subtree before `Heap_InitArena`.
+    8 MiB arena at VA `0x100000000`; `Croi_AllocShared` round-trips. rv64 green;
+    ctest 32/32.
+  - **NEXT: H.7.7d — link `cara_sched` + `cara_syscall`; spawn a real task.**
+    The blockers (`cara_time`/`cara_log`/`shared.c`) are done; the remaining
+    `sched.c` extern is `Croi_ExecLib_InstallMapping` (`cara_exec_lib_image`, the
+    `0x4000_0000` library region the user-spawn path installs) — port it or stub
+    it for arm64. Then `add_subdirectory(croi/{kobj,loader,sched,ipc,syscall})`
+    (+ deps) in the arm64 branch, link them; provide `arch/arm64/context.c` with
+    `arch_ctx_init_kernel` (LR=`task_trampoline`, sp, tpidr) + `task_trampoline`
+    in `ctx_switch.S` (`bl Sched_Trampoline`); replace the boot.c ctx demo with
+    real `Sched_Init` + `Croi_SpawnKernelTask` + `Croi_Yield` (prove a
+    kernel→kernel yield through the real scheduler). Then `arch_ctx_init_user` +
+    `user_task_trampoline` (the real EL0 entry via `Sched_Current`) + a first
+    real U-mode program; drop `trampoline_demo.S` + the boot.c demos. H.7.7e+
+    libraries + a real app + an arm64 in-kernel test runner + boot-smoke parity
+    + `croi.lds` → `CARA_ARCH`-selected.
   - H.7.7d — link `cara_sched` + `cara_syscall` (+ `cara_exec_lib_image` or a
     stub); wire `arch_ctx_init_kernel/user` + `user_task_trampoline` +
     `task_trampoline`; drop the standalone boot.c demos; spawn a real task.
