@@ -104,6 +104,12 @@ if ! grep -qF "shared heap: ok" "${LOG}"; then
     echo "smoke_qemu_arm64: FAIL: SASOS shared heap did not come up" >&2
     fail=1
 fi
+# Proof the real cooperative scheduler runs: two kernel tasks were spawned,
+# switched to, ran, and exited through the scheduler.
+if ! grep -qF "sched: kernel tasks ok" "${LOG}"; then
+    echo "smoke_qemu_arm64: FAIL: scheduler did not run the kernel tasks" >&2
+    fail=1
+fi
 
 if [[ ${fail} -ne 0 ]]; then
     echo "----- boot stdio -----" >&2

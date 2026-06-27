@@ -22,4 +22,6 @@ target_sources(croi PRIVATE
     timer.c        # arch_timer_* (CNTV) + GICv2 + IRQ dispatch (H.7.5)
     psci.c         # PSCI power-off (H.7.5)
     trampoline_demo.S # TEMPORARY: validate the factored svc trampoline (H.7.6)
+    context.c      # arch_ctx_init_kernel/user + user_task_trampoline (H.7.7d)
+    exec_lib_stub.c   # TEMPORARY: Croi_ExecLib_InstallMapping stub (H.7.7d)
 )

@@ -21,6 +21,7 @@
 #include <cara/fdt.h>
 #include <cara/log.h> // structured logging (H.7.7b)
 #include <cara/mm.h>
+#include <cara/sched.h>  // cooperative scheduler (H.7.7d)
 #include <cara/shared.h> // SASOS shared heap (H.7.7c)
 #include <cara/time.h>   // portable Croi_Time layer (H.7.7a)
 #include <cara/trap.h>   // struct TrapFrame (for the demo Croi_Syscall_Dispatch)
@@ -72,6 +73,17 @@ static void ctx_demo_worker(void)
     // and reloads g_ctx_main, so main resumes right after its switch call.
     arch_ctx_switch(g_ctx_work, g_ctx_main, g_fp_work, g_fp_main);
     arch_halt(); // not reached in this one-shot demo
+}
+
+// ---- H.7.7d real-scheduler kernel-task demo -------------------------------
+static volatile int g_sched_demo_done;
+
+static void sched_demo_worker(void *arg)
+{
+    arch_console_puts((u64)(uptr)arg == 1 ? "arm64 boot: sched: worker A running\n"
+                                          : "arm64 boot: sched: worker B running\n");
+    g_sched_demo_done++;
+    // Return → task_trampoline → Sched_Trampoline → Croi_TaskExit.
 }
 
 // ---- H.7.4d enter-U-mode (EL0) round-trip demo ----------------------------
@@ -462,6 +474,23 @@ CARA_NORETURN void arm64_kernel_main(u64 dtb_phys)
             arch_console_puts("arm64 boot: FATAL: shared heap round-trip mismatch\n");
             arch_halt();
         }
+    }
+
+    // ---- Scheduler (H.7.7d). Init the real cooperative scheduler, spawn two
+    //      kernel tasks, lower kmain below them, and yield until both have run +
+    //      exited — exercising Sched_Init / Croi_SpawnKernelTask / the real
+    //      arch_ctx_switch path (task_trampoline → Sched_Trampoline → entry_fn →
+    //      Croi_TaskExit) on AArch64.
+    {
+        Sched_Init();
+        g_sched_demo_done = 0;
+        (void)Croi_SpawnKernelTask("wrk-a", 10, sched_demo_worker, (void *)(uptr)1);
+        (void)Croi_SpawnKernelTask("wrk-b", 10, sched_demo_worker, (void *)(uptr)2);
+        Croi_TaskSetSelfPriority(0); // below the workers so Yield switches to them
+        while (g_sched_demo_done < 2) {
+            Croi_Yield();
+        }
+        arch_console_puts("arm64 boot: sched: kernel tasks ok\n");
     }
 
     // ---- Timer + IRQ via the portable Croi_Time layer (H.7.5 / H.7.7a). Bring

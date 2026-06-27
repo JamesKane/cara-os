@@ -355,8 +355,7 @@ void Croi_Enable(void)
     for (u32 i = 0; i < n_text_pages; i++) {
         u64 src_pa = Mm_VirtToPhys((const void *)(uptr)(base_kva + (u64)i * CARA_PAGE_SIZE));
         u64 dst_va = CARA_USER_TEXT_BASE + (u64)i * CARA_PAGE_SIZE;
-        if (Page_Map(t->user_pt, dst_va, src_pa, PTE_V | PTE_R | PTE_X | PTE_U | PTE_A | PTE_D) !=
-            CARA_EOK) {
+        if (Page_Map(t->user_pt, dst_va, src_pa, PTE_USER_RX) != CARA_EOK) {
             // Failed mid-mapping; leak the partially-built PT for now.
             return nullptr;
         }

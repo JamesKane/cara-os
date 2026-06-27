@@ -40,7 +40,10 @@ if(CARA_TARGET STREQUAL "riscv64" AND CARA_ARCH STREQUAL "arm64")
     # kernel (sched, libraries, devices, userland) is enabled by later slices.
     add_subdirectory(croi/fdt)
     add_subdirectory(croi/mm)
-    add_subdirectory(croi/log) # H.7.7b: structured logging
+    add_subdirectory(croi/log)    # H.7.7b: structured logging
+    add_subdirectory(croi/kobj)   # H.7.7d: kobj + handle tables (sched dep)
+    add_subdirectory(croi/loader) # H.7.7d: ELF loader (sched dep)
+    add_subdirectory(croi/sched)  # H.7.7d: cooperative scheduler
     add_subdirectory(croi)
     return()
 endif()

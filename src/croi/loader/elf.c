@@ -74,17 +74,23 @@ static u64 align_up(u64 v, u64 a)
 
 static u64 prot_from_flags(u32 p_flags)
 {
-    u64 prot = PTE_V | PTE_U | PTE_A;
-    if (p_flags & PF_R) {
-        prot |= PTE_R;
+    // Select an arch-neutral composed user-protection mask by the segment's
+    // write/execute bits (loadable segments are always readable). The composed
+    // masks are the portable PTE interface — on RISC-V they expand to exactly
+    // the bits the old per-flag composition produced; on AArch64 they encode
+    // the equivalent AP/UXN/PXN. (PF_R is implied — every mask grants read.)
+    bool w = (p_flags & PF_W) != 0;
+    bool x = (p_flags & PF_X) != 0;
+    if (w && x) {
+        return PTE_USER_RWX;
     }
-    if (p_flags & PF_W) {
-        prot |= PTE_W | PTE_D;
+    if (w) {
+        return PTE_USER_RW;
     }
-    if (p_flags & PF_X) {
-        prot |= PTE_X;
+    if (x) {
+        return PTE_USER_RX;
     }
-    return prot;
+    return PTE_USER_RO;
 }
 
 static int validate_header(const struct Elf64Header *h, usize size)

@@ -109,6 +109,21 @@ arch_ctx_switch:
 .size   arch_ctx_switch, . - arch_ctx_switch
 
 
+// task_trampoline — the initial x30 (LR) for a freshly spawned kernel task
+// (set by arch_ctx_init_kernel). The first arch_ctx_switch into the task `ret`s
+// here; it forwards into Sched_Trampoline (C), which calls the task's entry_fn
+// then Croi_TaskExit. Mirrors arch/riscv64/ctx_switch.S.
+.balign 4
+.globl task_trampoline
+.type  task_trampoline, @function
+task_trampoline:
+    bl      Sched_Trampoline
+    // Sched_Trampoline always exits via Croi_TaskExit; if it ever returns,
+    // that is a kernel bug — fault deliberately.
+    brk     #0
+.size   task_trampoline, . - task_trampoline
+
+
 // Tiny NEON poke/peek for the H.7.4c FP-preservation test (boot.c). The kernel
 // is integer-only, so these let C set/read a NEON reg without emitting FP in C.
 .balign 4

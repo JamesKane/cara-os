@@ -250,13 +250,24 @@ so each slice is small and the gate is real.
     L1) the kernel builds + activates a kernel PT carrying the shared subtree
     before `Heap_InitArena` writes the window. Validated: 8 MiB arena at VA
     `0x100000000`, `Croi_AllocShared` returns a window VA, kernel round-trip OK.
-  - **H.7.7d — link `cara_sched` + first real U-mode program.** Also needs
-    `cara_exec_lib_image` (or a stub); wire `arch_ctx_init_kernel/user` +
-    `user_task_trampoline` + `task_trampoline`; drop the standalone boot.c demos;
-    spawn a real task.
-  - **H.7.7e+ — libraries + a real app + an arm64 in-kernel test runner +
-    boot-smoke parity (banner + `0 failed`); port `croi.lds` to a
-    `CARA_ARCH`-selected linker script.**
+  - **H.7.7d — link `cara_sched` + spawn a real kernel task (DONE).** Brought
+    `cara_kobj` + `cara_loader` + `cara_sched` into the arm64 link. New
+    `arch/arm64/context.c` (`arch_ctx_init_kernel`/`arch_ctx_init_user` +
+    `user_task_trampoline`, the EL0 entry) + `task_trampoline` in `ctx_switch.S`
+    (`bl Sched_Trampoline`). A temporary `exec_lib_stub.c` satisfies
+    `Croi_ExecLib_InstallMapping` (the user-spawn path; not exercised yet). The
+    portable `elf.c`/`sched.c` were refactored to compose page prot from the
+    **arch-neutral** `PTE_USER_*` masks instead of raw Sv39 bits (byte-identical
+    on RISC-V, since the masks expand to the same bits there). Validated by the
+    **real** scheduler: `Sched_Init` + two `Croi_SpawnKernelTask`s + `Croi_Yield`
+    — both workers run and exit through `task_trampoline`→`Sched_Trampoline`→
+    `Croi_TaskExit`.
+  - **H.7.7e+ — first real U-mode program + libraries + a real app.** Needs
+    `cara_syscall` (the dispatch table) + an arm64-built user program (userland
+    is RISC-V-built today); then the libraries (`cara_exec_lib_image` + the
+    lvo-gen'd vec tables, replacing the stub) and a real app; an arm64 in-kernel
+    test runner + boot-smoke parity (banner + `0 failed`); `croi.lds` →
+    `CARA_ARCH`-selected.
 
 ## 6. Per-slice gate
 

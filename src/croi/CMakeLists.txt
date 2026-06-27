@@ -21,9 +21,12 @@ if(CARA_ARCH STREQUAL "arm64")
     target_link_libraries(croi PRIVATE
         cara_kernel_flags
         cara_headers
-        cara_fdt   # H.7.2b: DTB parse
-        cara_mm    # H.7.2b: physmap + page allocator
-        cara_log   # H.7.7b: structured logging
+        cara_fdt    # H.7.2b: DTB parse
+        cara_mm     # H.7.2b: physmap + page allocator
+        cara_log    # H.7.7b: structured logging
+        cara_sched  # H.7.7d: cooperative scheduler
+        cara_loader # H.7.7d: ELF loader (sched dep)
+        cara_kobj   # H.7.7d: kobj + handle tables (sched dep)
     )
     target_link_options(croi PRIVATE
         -nostdlib
