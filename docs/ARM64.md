@@ -227,10 +227,30 @@ so each slice is small and the gate is real.
   AArch64 variant is validated by a demo trampoline (`trampoline_demo.S`) the
   svc demo calls (round-trips to 0x142). *First real U-mode program* needs the
   syscall table + scheduler, so it rides with H.7.7+ (below).
-- **H.7.7+ — full portable kernel + libraries + a real app.** Enable the
-  remaining shared libs + userland for AArch64, an arm64 in-kernel test runner,
-  and boot-smoke parity (banner + `0 failed`). Port `croi.lds` cleanly to a
-  `CARA_ARCH`-selected linker script.
+- **H.7.7 — full portable kernel + libraries + a real app (large sub-epic).**
+  The HAL (H.7.1–H.7.6) is done; H.7.7 ports the portable kernel on top of it.
+  The blockers, in dependency order (each its own slice):
+  - **H.7.7a — `cara_time` on arm64 (DONE).** The portable `time.c` (over the
+    `arch_timer_*`/`arch_irq_*` seams) is linked; the timer IRQ
+    (`arm64_irq_dispatch`) now routes to the real `Croi_Time_OnTimerTrap`; the
+    temporary `trap_demo.c` is deleted. Validated via the one-shot deadline API
+    (`Croi_Time_SetDeadline`/`DeadlineFired`) — uptime advances across 5
+    deadlines ("timer: deadlines ok").
+  - **H.7.7b — `cara_log` on arm64.** Link `log.c` (needs `Croi_Time_Now`, now
+    present); exclude the NS16550 sink (gate it RISC-V-only) and register a PL011
+    sink. Validate `LOG_*` output.
+  - **H.7.7c — the SASOS shared heap (`shared.c`).** Un-gate `shared.c`; it is
+    HAL-portable except the SASOS region is a low/TTBR0 VA, so on arm64 the
+    kernel needs an active TTBR0 carrying the shared subtree before
+    `Heap_InitArena` (build + activate a kernel PT with the shared mapping).
+    Validate `Croi_AllocShared` from the kernel + from EL0.
+  - **H.7.7d — link `cara_sched` + first real U-mode program.** Also needs
+    `cara_exec_lib_image` (or a stub); wire `arch_ctx_init_kernel/user` +
+    `user_task_trampoline` + `task_trampoline`; drop the standalone boot.c demos;
+    spawn a real task.
+  - **H.7.7e+ — libraries + a real app + an arm64 in-kernel test runner +
+    boot-smoke parity (banner + `0 failed`); port `croi.lds` to a
+    `CARA_ARCH`-selected linker script.**
 
 ## 6. Per-slice gate
 

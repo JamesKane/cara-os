@@ -13,6 +13,7 @@
 // the scheduler tick (Croi_Time_OnTimerTrap) once the scheduler is ported.
 
 #include <cara/arch.h>
+#include <cara/time.h> // Croi_Time_OnTimerTrap (portable time layer, H.7.7a)
 #include <cara/trap.h>
 #include <cara/types.h>
 
@@ -34,9 +35,6 @@ static volatile u32 *const gicc = (volatile u32 *)(uptr)(0x08010000ull + CARA_KE
 
 #define CNTV_CTL_ENABLE 1u // bit0 ENABLE, bit1 IMASK, bit2 ISTATUS (RO)
 #define CNTV_CTL_IMASK 2u
-
-static volatile u64 g_timer_ticks; // periodic tick counter (H.7.5 demo)
-static u64 g_timer_period;         // re-arm interval, in CNTVCT ticks
 
 // ---- arch_timer_* seam (cara/arch.h) --------------------------------------
 
@@ -82,23 +80,9 @@ void arm64_gic_init(void)
     gicd[GICD_ISENABLER + (ARM64_VIRT_TIMER_PPI / 32)] = 1u << (ARM64_VIRT_TIMER_PPI % 32);
 }
 
-// Start a periodic virtual-timer tick `period` CNTVCT ticks apart.
-void arm64_timer_periodic_start(u64 period);
-void arm64_timer_periodic_start(u64 period)
-{
-    g_timer_period = period;
-    g_timer_ticks = 0;
-    arch_timer_arm(arch_timer_ticks() + period);
-}
-
-u64 arm64_timer_count(void);
-u64 arm64_timer_count(void)
-{
-    return g_timer_ticks;
-}
-
 // IRQ entry — called from the IRQ vector (trap_entry.S) with x0 = TrapFrame*.
-// Acks the GIC, services the virtual-timer PPI (count + re-arm), and EOIs.
+// Acks the GIC, routes the virtual-timer PPI to the portable time layer
+// (Croi_Time_OnTimerTrap disarms the source + flags the deadline), and EOIs.
 void arm64_irq_dispatch(struct TrapFrame *frame);
 void arm64_irq_dispatch(struct TrapFrame *frame)
 {
@@ -109,11 +93,7 @@ void arm64_irq_dispatch(struct TrapFrame *frame)
         return; // spurious (1023) / special — no EOI
     }
     if (id == ARM64_VIRT_TIMER_PPI) {
-        g_timer_ticks++;
-        // Re-arm the next deadline (the level-triggered timer condition is
-        // cleared by moving CVAL ahead of the count).
-        u64 next = arch_timer_ticks() + g_timer_period;
-        __asm__ volatile("msr cntv_cval_el0, %0" : : "r"(next) : "memory");
+        Croi_Time_OnTimerTrap();
     }
     gicc[GICC_EOIR] = iar;
 }

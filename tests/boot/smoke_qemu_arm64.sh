@@ -87,9 +87,10 @@ if ! grep -qF "enter-U-mode: ok" "${LOG}"; then
     echo "smoke_qemu_arm64: FAIL: EL0 enter/return round-trip did not complete" >&2
     fail=1
 fi
-# Proof the timer + GIC IRQ path works: periodic CNTV interrupts were taken/acked.
-if ! grep -qF "timer: ticks ok" "${LOG}"; then
-    echo "smoke_qemu_arm64: FAIL: timer/IRQ ticks did not arrive" >&2
+# Proof the timer + GIC IRQ path + portable time layer work: the one-shot
+# deadline API drove several CNTV interrupts through Croi_Time_OnTimerTrap.
+if ! grep -qF "timer: deadlines ok" "${LOG}"; then
+    echo "smoke_qemu_arm64: FAIL: timer/IRQ deadlines did not arrive" >&2
     fail=1
 fi
 

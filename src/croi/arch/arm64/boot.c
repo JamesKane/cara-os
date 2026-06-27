@@ -20,6 +20,7 @@
 #include <cara/arch.h>
 #include <cara/fdt.h>
 #include <cara/mm.h>
+#include <cara/time.h> // portable Croi_Time layer (H.7.7a)
 #include <cara/trap.h> // struct TrapFrame (for the demo Croi_Syscall_Dispatch)
 #include <cara/types.h>
 #include <exec/tasks.h> // TASK_NSAVED / TASK_NFPSAVE (saved-area sizes)
@@ -55,8 +56,6 @@ extern u64 Cara_DemoEchoTrampoline(u64 arg);
 // Timer + GIC + PSCI (arch/arm64/timer.c, psci.c, H.7.5).
 extern void arm64_gic_init(void);
 extern u64 arm64_timer_freq(void);
-extern void arm64_timer_periodic_start(u64 period);
-extern u64 arm64_timer_count(void);
 extern void arm64_psci_init(bool use_hvc);
 CARA_NORETURN extern void arm64_psci_system_off(void);
 
@@ -403,23 +402,32 @@ CARA_NORETURN void arm64_kernel_main(u64 dtb_phys)
         }
     }
 
-    // ---- Timer + IRQ (H.7.5). Bring up the GIC, start a periodic virtual
-    //      timer, unmask IRQs, and wfi until a handful of timer interrupts have
-    //      been taken + acknowledged through the GIC (arm64_irq_dispatch).
+    // ---- Timer + IRQ via the portable Croi_Time layer (H.7.5 / H.7.7a). Bring
+    //      up the GIC, then drive the portable one-shot deadline API: each
+    //      SetDeadline arms the virtual timer, the IRQ (arm64_irq_dispatch →
+    //      Croi_Time_OnTimerTrap) flags it, and DeadlineFired clears it.
     {
         arm64_gic_init();
         u64 freq = arm64_timer_freq();
         put_line("arm64 boot: timer freq (Hz)   = ", freq);
-        u64 period = freq ? freq / 100 : 100000; // ~10 ms
-        arm64_timer_periodic_start(period);
-        arch_irq_enable();
-        while (arm64_timer_count() < 5) {
-            __asm__ volatile("wfi");
+        Croi_Time_Init(freq); // disarm + arch_irq_enable
+        u64 t0 = Croi_Time_Now();
+        for (int i = 0; i < 5; i++) {
+            Croi_Time_SetDeadline(Croi_Time_Now() + 10000000ull); // +10 ms
+            while (!Croi_Time_DeadlineFired()) {
+                __asm__ volatile("wfi");
+            }
         }
+        u64 t1 = Croi_Time_Now();
         arch_irq_disable();
-        arch_timer_disarm();
-        put_line("arm64 boot: timer ticks        = ", arm64_timer_count());
-        arch_console_puts("arm64 boot: timer: ticks ok\n");
+        put_line("arm64 boot: uptime ns (start) = ", t0);
+        put_line("arm64 boot: uptime ns (end)   = ", t1);
+        if (t1 > t0) {
+            arch_console_puts("arm64 boot: timer: deadlines ok\n");
+        } else {
+            arch_console_puts("arm64 boot: FATAL: time did not advance\n");
+            arch_halt();
+        }
     }
 
     arch_console_puts("CaraOS arm64 boot: ok (paged + mm + traps + pt + ctx + fp + EL0 + irq)\n");

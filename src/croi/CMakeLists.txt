@@ -15,6 +15,7 @@ if(CARA_ARCH STREQUAL "arm64")
     add_executable(croi
         string.c   # freestanding mem* the compiler emits + cara_mm needs
         trap.c     # H.7.3: the portable Croi_TrapDispatch (arch-neutral)
+        time.c     # H.7.7a: the portable Croi_Time layer (arch-neutral)
     )
     add_subdirectory(arch/arm64)   # contributes _start.S / firmware.c / cpu.c / boot.c
     target_link_libraries(croi PRIVATE
