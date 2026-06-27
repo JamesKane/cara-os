@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+c9a0c2d epic-H/H.7.7a ARM64 backend — portable cara_time layer
 30a9eaf epic-H/H.7.6  ARM64 backend — factor syscall-trampoline macro (svc)
 7443052 epic-H/H.7.5  ARM64 backend — timer + GIC IRQ + PSCI
 828a2f4 epic-H/H.7.4d ARM64 backend — enter-U-mode (EL0); H.7.4 complete
@@ -1429,20 +1430,24 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
   `riscv64`/`arm64` variants (`.inc` so it dodges the `*.h` clang-format glob).
   rv64 byte-identical (green); arm64 emits `mov x8,#N; svc #0; ret`, validated by
   a demo trampoline the svc demo calls.
-- **NEXT: H.7.7 — full kernel: port the scheduler's blockers + bring up real
-  U-mode.** The big remaining gap is that `cara_sched` (and the syscall table
-  `cara_syscall`) don't link on arm64 because of: (1) the SASOS shared heap
-  `shared.c` (RISC-V-only — uses `satp`/`sfence`; needs an AArch64 TTBR-based
-  equivalent + an `arch_*` hook or a `CARA_ARCH` split), (2) `cara_log`
-  (`LOG_*`), and (3) `cara_exec_lib_image` (the `0x4000_0000` library region the
-  spawn paths install). Port those, then link `cara_sched` + `cara_syscall`,
-  wire `arch_ctx_init_kernel/user` + `user_task_trampoline` (via `Sched_Current`)
-  + `task_trampoline`, delete the temporary `trap_demo.c` + `trampoline_demo.S` +
-  the boot.c demos, and reach the real `croi_entry` path (or an arm64 equivalent)
-  that spawns a U-mode task. Likely several slices (shared-heap port; sched/
-  syscall link + first real U-mode prog; then libs+app + an arm64 in-kernel test
-  runner + boot-smoke parity + `croi.lds` → `CARA_ARCH`-selected). Other deferred
-  options: more ports; background launch.
+- **H.7.7 — full kernel on arm64 (large sub-epic, in dependency-order slices).**
+  - **H.7.7a shipped (`c9a0c2d`): `cara_time`.** Portable `time.c` linked; the
+    timer IRQ (`arm64_irq_dispatch`) routes to the real `Croi_Time_OnTimerTrap`;
+    deleted `trap_demo.c`. Validated via the one-shot deadline API ("timer:
+    deadlines ok"; uptime advances). rv64 unaffected; ctest 32/32.
+  - **NEXT: H.7.7b — `cara_log`.** Link `log.c` (needs `Croi_Time_Now`, present).
+    Gate its NS16550 sink RISC-V-only (it references the `ns16550` driver, not in
+    the arm64 link) and register a PL011 sink instead; `Log_Init` needs the heap
+    (present). Validate `LOG_*` output reaches the console.
+  - H.7.7c — SASOS shared heap (`shared.c`): un-gate; HAL-portable except the
+    region is a low/TTBR0 VA, so on arm64 build+activate a kernel TTBR0 carrying
+    the shared subtree before `Heap_InitArena`. Validate `Croi_AllocShared`.
+  - H.7.7d — link `cara_sched` + `cara_syscall` (+ `cara_exec_lib_image` or a
+    stub); wire `arch_ctx_init_kernel/user` + `user_task_trampoline` +
+    `task_trampoline`; drop the standalone boot.c demos; spawn a real task.
+  - H.7.7e+ — libraries + a real app + an arm64 in-kernel test runner +
+    boot-smoke parity (banner + `0 failed`) + `croi.lds` → `CARA_ARCH`-selected.
+  Other deferred options: more ports; background launch.
 - **Deferred (tracked) substrate an app may force forward:** the input-
   handler chain (commodities' live half + intuition-as-handler),
   layers.library (window occlusion), DrawImage (planar→chunky), async
