@@ -98,6 +98,12 @@ if ! grep -qF "arm64 logging up" "${LOG}"; then
     echo "smoke_qemu_arm64: FAIL: cara_log did not emit through the sink" >&2
     fail=1
 fi
+# Proof the SASOS shared heap works: an alloc round-tripped through the RW+U
+# (low/TTBR0) window from the kernel.
+if ! grep -qF "shared heap: ok" "${LOG}"; then
+    echo "smoke_qemu_arm64: FAIL: SASOS shared heap did not come up" >&2
+    fail=1
+fi
 
 if [[ ${fail} -ne 0 ]]; then
     echo "----- boot stdio -----" >&2

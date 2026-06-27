@@ -242,11 +242,14 @@ so each slice is small and the gate is real.
     kernel registers a PL011 `LogSink` (`arm64_log_console_emit` → `arch_console`).
     `Log_Init` + `Log_RegisterSink` + a `LOG_INFO` record reach the console
     ("arm64 logging up").
-  - **H.7.7c — the SASOS shared heap (`shared.c`).** Un-gate `shared.c`; it is
-    HAL-portable except the SASOS region is a low/TTBR0 VA, so on arm64 the
-    kernel needs an active TTBR0 carrying the shared subtree before
-    `Heap_InitArena` (build + activate a kernel PT with the shared mapping).
-    Validate `Croi_AllocShared` from the kernel + from EL0.
+  - **H.7.7c — the SASOS shared heap (`shared.c`) (DONE).** Un-gated for arm64
+    (it's HAL-portable — `arch_mmu_*` / `arch_pte_*` / `Page_Map` / `Heap`). The
+    one AArch64 fix (a `#if CARA_ARCH_ARM64` block in `Croi_Shared_Init`): the
+    SASOS region is a low/TTBR0 VA, but `arch_mmu_boot_root()` is TTBR1, so after
+    the arena `Page_Map` loop (which uses TTBR1 as scratch to populate the shared
+    L1) the kernel builds + activates a kernel PT carrying the shared subtree
+    before `Heap_InitArena` writes the window. Validated: 8 MiB arena at VA
+    `0x100000000`, `Croi_AllocShared` returns a window VA, kernel round-trip OK.
   - **H.7.7d — link `cara_sched` + first real U-mode program.** Also needs
     `cara_exec_lib_image` (or a stub); wire `arch_ctx_init_kernel/user` +
     `user_task_trampoline` + `task_trampoline`; drop the standalone boot.c demos;

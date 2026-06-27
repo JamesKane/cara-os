@@ -86,6 +86,24 @@ static inline u64 make_intermediate(u64 child_pa)
     }
     arch_mmu_fence();
 
+#if defined(CARA_ARCH_ARM64)
+    // AArch64 splits translation: the shared window is a low (TTBR0) VA, but
+    // arch_mmu_boot_root() above is TTBR1 (the kernel half) — so installing the
+    // shared L2 there does NOT make the low window reachable. The kernel needs
+    // an active TTBR0 that maps it before Heap_InitArena (and Croi_AllocShared)
+    // touch the window. Build + activate a kernel page table carrying the shared
+    // subtree; the kernel runs on it from here, and per-task PTs install the
+    // same subtree via Croi_Shared_InstallMapping. (On RISC-V the single boot
+    // root already maps the window via the root[L2] install above.)
+    struct PageTable *kpt = Croi_NewKernelPT();
+    if (!kpt) {
+        LOG_FATAL("shmem", "kernel PT for shared window failed");
+        return CARA_ENOMEM;
+    }
+    kpt->root[CARA_SHARED_L2_INDEX] = make_intermediate(l1_phys);
+    arch_mmu_activate(kpt);
+#endif
+
     // 3. A bitmap allocator + slab heap over the arena. The window is
     //    pre-mapped 1:1 with the arena, so the heap's phys→VA is the fixed
     //    window offset (Heap_InitArena), and pointers it returns are the

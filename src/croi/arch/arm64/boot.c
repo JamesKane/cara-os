@@ -21,8 +21,9 @@
 #include <cara/fdt.h>
 #include <cara/log.h> // structured logging (H.7.7b)
 #include <cara/mm.h>
-#include <cara/time.h> // portable Croi_Time layer (H.7.7a)
-#include <cara/trap.h> // struct TrapFrame (for the demo Croi_Syscall_Dispatch)
+#include <cara/shared.h> // SASOS shared heap (H.7.7c)
+#include <cara/time.h>   // portable Croi_Time layer (H.7.7a)
+#include <cara/trap.h>   // struct TrapFrame (for the demo Croi_Syscall_Dispatch)
 #include <cara/types.h>
 #include <exec/tasks.h> // TASK_NSAVED / TASK_NFPSAVE (saved-area sizes)
 
@@ -433,6 +434,32 @@ CARA_NORETURN void arm64_kernel_main(u64 dtb_phys)
             arch_console_puts("arm64 boot: enter-U-mode: ok\n");
         } else {
             arch_console_puts("arm64 boot: FATAL: U-mode round-trip mismatch\n");
+            arch_halt();
+        }
+    }
+
+    // ---- SASOS shared heap (H.7.7c). Init the shared arena, then allocate from
+    //      it and round-trip a value through the returned low/TTBR0 VA — the
+    //      RW+U window both the kernel (here) and U-mode dereference. On arm64
+    //      Croi_Shared_Init activates a kernel TTBR0 carrying the shared subtree.
+    {
+        if (Croi_Shared_Init(&g_page_alloc) != CARA_EOK) {
+            arch_console_puts("arm64 boot: FATAL: Croi_Shared_Init failed\n");
+            arch_halt();
+        }
+        void *s = Croi_AllocShared(256);
+        if (!s) {
+            arch_console_puts("arm64 boot: FATAL: Croi_AllocShared failed\n");
+            arch_halt();
+        }
+        const u64 pattern = 0xCAFED00DFEEDFACEull;
+        *(volatile u64 *)s = pattern;
+        u64 rb = *(volatile u64 *)s;
+        put_line("arm64 boot: shared alloc @    = ", (u64)(uptr)s);
+        if (rb == pattern && (u64)(uptr)s >= CARA_SHARED_VA_BASE) {
+            arch_console_puts("arm64 boot: shared heap: ok\n");
+        } else {
+            arch_console_puts("arm64 boot: FATAL: shared heap round-trip mismatch\n");
             arch_halt();
         }
     }
