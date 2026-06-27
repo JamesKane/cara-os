@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+20f87b6 epic-H/H.7.7d ARM64 backend — link cara_sched; real kernel tasks
 c081a96 epic-H/H.7.7c ARM64 backend — SASOS shared heap (shared.c)
 598673e epic-H/H.7.7b ARM64 backend — cara_log (structured logging)
 c9a0c2d epic-H/H.7.7a ARM64 backend — portable cara_time layer
@@ -1445,20 +1446,26 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
     activates a kernel TTBR0 carrying the shared subtree before `Heap_InitArena`.
     8 MiB arena at VA `0x100000000`; `Croi_AllocShared` round-trips. rv64 green;
     ctest 32/32.
-  - **NEXT: H.7.7d — link `cara_sched` + `cara_syscall`; spawn a real task.**
-    The blockers (`cara_time`/`cara_log`/`shared.c`) are done; the remaining
-    `sched.c` extern is `Croi_ExecLib_InstallMapping` (`cara_exec_lib_image`, the
-    `0x4000_0000` library region the user-spawn path installs) — port it or stub
-    it for arm64. Then `add_subdirectory(croi/{kobj,loader,sched,ipc,syscall})`
-    (+ deps) in the arm64 branch, link them; provide `arch/arm64/context.c` with
-    `arch_ctx_init_kernel` (LR=`task_trampoline`, sp, tpidr) + `task_trampoline`
-    in `ctx_switch.S` (`bl Sched_Trampoline`); replace the boot.c ctx demo with
-    real `Sched_Init` + `Croi_SpawnKernelTask` + `Croi_Yield` (prove a
-    kernel→kernel yield through the real scheduler). Then `arch_ctx_init_user` +
-    `user_task_trampoline` (the real EL0 entry via `Sched_Current`) + a first
-    real U-mode program; drop `trampoline_demo.S` + the boot.c demos. H.7.7e+
-    libraries + a real app + an arm64 in-kernel test runner + boot-smoke parity
-    + `croi.lds` → `CARA_ARCH`-selected.
+  - **H.7.7d shipped (`20f87b6`): `cara_sched` + real kernel tasks.** Linked
+    `cara_kobj`/`cara_loader`/`cara_sched`; added `arch/arm64/context.c`
+    (`arch_ctx_init_*` + `user_task_trampoline`) + `task_trampoline` (`ctx_switch.S`)
+    + a temporary `exec_lib_stub.c`. Refactored portable `elf.c`/`sched.c` to use
+    the arch-neutral `PTE_USER_*` masks (byte-identical on rv64). `Sched_Init` +
+    2 `Croi_SpawnKernelTask`s + `Croi_Yield` run + exit through the real
+    scheduler. rv64 green (userland still loads); ctest 32/32.
+  - **NEXT: H.7.7e — first real U-mode program on arm64.** Needs `cara_syscall`
+    (the dispatch table — link `croi/syscall`; the portable `Croi_Syscall_Dispatch`
+    replaces the boot.c demo one, so drop that + `trampoline_demo.S`) + a real
+    U-mode program. Userland is RISC-V-built today, so either build a minimal
+    arm64 user program (its own `_start` + a `SYS_EXIT`/`SYS_LOG_WRITE` via the
+    factored `svc` trampolines) and embed it, or hand-assemble a tiny EL0 stub
+    loaded via `Croi_LoadElf`/the loader. Then `Croi_SpawnUserProc` →
+    `user_task_trampoline` runs it at EL0; the timer can preempt it (SPSR DAIF
+    clear). Then H.7.7f+ libraries (`cara_exec_lib_image` + the lvo-gen'd vec
+    tables, replacing the stub) + a real app; an arm64 in-kernel test runner
+    (the `.kernel_tests` registry + `runner.c`) + boot-smoke parity (banner +
+    `0 failed`); `croi.lds` → `CARA_ARCH`-selected. Other deferred: more ports;
+    background launch.
   - H.7.7d — link `cara_sched` + `cara_syscall` (+ `cara_exec_lib_image` or a
     stub); wire `arch_ctx_init_kernel/user` + `user_task_trampoline` +
     `task_trampoline`; drop the standalone boot.c demos; spawn a real task.
