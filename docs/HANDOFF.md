@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+598673e epic-H/H.7.7b ARM64 backend — cara_log (structured logging)
 c9a0c2d epic-H/H.7.7a ARM64 backend — portable cara_time layer
 30a9eaf epic-H/H.7.6  ARM64 backend — factor syscall-trampoline macro (svc)
 7443052 epic-H/H.7.5  ARM64 backend — timer + GIC IRQ + PSCI
@@ -1435,13 +1436,18 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
     timer IRQ (`arm64_irq_dispatch`) routes to the real `Croi_Time_OnTimerTrap`;
     deleted `trap_demo.c`. Validated via the one-shot deadline API ("timer:
     deadlines ok"; uptime advances). rv64 unaffected; ctest 32/32.
-  - **NEXT: H.7.7b — `cara_log`.** Link `log.c` (needs `Croi_Time_Now`, present).
-    Gate its NS16550 sink RISC-V-only (it references the `ns16550` driver, not in
-    the arm64 link) and register a PL011 sink instead; `Log_Init` needs the heap
-    (present). Validate `LOG_*` output reaches the console.
-  - H.7.7c — SASOS shared heap (`shared.c`): un-gate; HAL-portable except the
-    region is a low/TTBR0 VA, so on arm64 build+activate a kernel TTBR0 carrying
-    the shared subtree before `Heap_InitArena`. Validate `Croi_AllocShared`.
+  - **H.7.7b shipped (`598673e`): `cara_log`.** `log.c` linked; NS16550 sink
+    gated RISC-V-only; arm64 registers a PL011 `LogSink`. `LOG_INFO` reaches the
+    console ("arm64 logging up"). rv64 unaffected; ctest 32/32.
+  - **NEXT: H.7.7c — SASOS shared heap (`shared.c`).** Un-gate `shared.c` in
+    `mm/CMakeLists` for arm64 (it's HAL-portable: uses `arch_mmu_boot_root`/
+    `arch_mmu_fence`/`arch_pte_*`). The one arm64 fix: the SASOS region is a
+    low/TTBR0 VA, so `Heap_InitArena` writing to `CARA_SHARED_VA_BASE` faults
+    unless the active TTBR0 maps it — so under `#if CARA_ARCH_ARM64`, after the
+    arena `Page_Map` loop (which uses `arch_mmu_boot_root` [TTBR1] as scratch to
+    populate the shared L1 — fine), build + `arch_mmu_activate` a kernel PT with
+    `root[CARA_SHARED_L2_INDEX] = shared_l1` before `Heap_InitArena`. Validate
+    `Croi_AllocShared` from the kernel (write/read a low VA) + ideally from EL0.
   - H.7.7d — link `cara_sched` + `cara_syscall` (+ `cara_exec_lib_image` or a
     stub); wire `arch_ctx_init_kernel/user` + `user_task_trampoline` +
     `task_trampoline`; drop the standalone boot.c demos; spawn a real task.
