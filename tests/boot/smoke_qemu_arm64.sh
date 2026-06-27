@@ -93,6 +93,11 @@ if ! grep -qF "timer: deadlines ok" "${LOG}"; then
     echo "smoke_qemu_arm64: FAIL: timer/IRQ deadlines did not arrive" >&2
     fail=1
 fi
+# Proof structured logging works: a LOG_* record reached the console sink.
+if ! grep -qF "arm64 logging up" "${LOG}"; then
+    echo "smoke_qemu_arm64: FAIL: cara_log did not emit through the sink" >&2
+    fail=1
+fi
 
 if [[ ${fail} -ne 0 ]]; then
     echo "----- boot stdio -----" >&2

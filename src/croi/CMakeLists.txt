@@ -23,6 +23,7 @@ if(CARA_ARCH STREQUAL "arm64")
         cara_headers
         cara_fdt   # H.7.2b: DTB parse
         cara_mm    # H.7.2b: physmap + page allocator
+        cara_log   # H.7.7b: structured logging
     )
     target_link_options(croi PRIVATE
         -nostdlib

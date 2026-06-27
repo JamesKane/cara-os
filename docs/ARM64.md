@@ -236,9 +236,12 @@ so each slice is small and the gate is real.
     temporary `trap_demo.c` is deleted. Validated via the one-shot deadline API
     (`Croi_Time_SetDeadline`/`DeadlineFired`) — uptime advances across 5
     deadlines ("timer: deadlines ok").
-  - **H.7.7b — `cara_log` on arm64.** Link `log.c` (needs `Croi_Time_Now`, now
-    present); exclude the NS16550 sink (gate it RISC-V-only) and register a PL011
-    sink. Validate `LOG_*` output.
+  - **H.7.7b — `cara_log` on arm64 (DONE).** `log.c` linked (its deps —
+    `Croi_Time_Now`, the heap — are present; it has its own formatter). The
+    NS16550 sink is gated RISC-V-only (it calls the `ns16550` driver); the arm64
+    kernel registers a PL011 `LogSink` (`arm64_log_console_emit` → `arch_console`).
+    `Log_Init` + `Log_RegisterSink` + a `LOG_INFO` record reach the console
+    ("arm64 logging up").
   - **H.7.7c — the SASOS shared heap (`shared.c`).** Un-gate `shared.c`; it is
     HAL-portable except the SASOS region is a low/TTBR0 VA, so on arm64 the
     kernel needs an active TTBR0 carrying the shared subtree before

@@ -19,6 +19,7 @@
 #include <cara/alloc.h>
 #include <cara/arch.h>
 #include <cara/fdt.h>
+#include <cara/log.h> // structured logging (H.7.7b)
 #include <cara/mm.h>
 #include <cara/time.h> // portable Croi_Time layer (H.7.7a)
 #include <cara/trap.h> // struct TrapFrame (for the demo Croi_Syscall_Dispatch)
@@ -171,6 +172,23 @@ static void put_line(const char *label, u64 v)
     arch_console_puts("\n");
 }
 
+// LogSink that writes formatted records to the PL011 console (H.7.7b) — the
+// AArch64 counterpart of Log_Sink_NS16550_Emit (which drives the RISC-V UART).
+static void arm64_log_console_emit(const struct LogRecord *r, void *ctx)
+{
+    (void)ctx;
+    char buf[CARA_LOG_RECORD_BYTES + 64];
+    usize n = Log_FormatHuman(buf, sizeof buf, r, /*ansi=*/false);
+    for (usize i = 0; i < n; i++) {
+        if (buf[i] == '\n') {
+            arch_console_putc('\r');
+        }
+        arch_console_putc(buf[i]);
+    }
+}
+
+static struct LogSink g_console_sink; // persists for the kernel's lifetime
+
 // Scan low RAM below the kernel image for the FDT magic (devicetree spec: the
 // header's first big-endian u32 is 0xd00dfeed, i.e. 0xedfe0dd0 read little-
 // endian). QEMU places the DTB at the base of RAM. Returns the phys address, or
@@ -264,6 +282,23 @@ CARA_NORETURN void arm64_kernel_main(u64 dtb_phys)
         arch_halt();
     }
     put_line("arm64 boot: Croi_Alloc(128)  = ", (u64)(uptr)blk);
+
+    // ---- Structured logging (H.7.7b). Log_Init allocates the ring from the
+    //      heap (now active); register a PL011 console sink so LOG_* records
+    //      reach the console, then prove a record flows through.
+    if (Log_Init() != CARA_EOK) {
+        arch_console_puts("arm64 boot: FATAL: Log_Init failed\n");
+        arch_halt();
+    }
+    g_console_sink = (struct LogSink){ .emit = arm64_log_console_emit,
+                                       .ctx = nullptr,
+                                       .ansi_capable = false,
+                                       .min_level = (u8)LOG_LV_TRACE };
+    if (Log_RegisterSink(&g_console_sink) != CARA_EOK) {
+        arch_console_puts("arm64 boot: FATAL: Log_RegisterSink failed\n");
+        arch_halt();
+    }
+    LOG_INFO("boot", "arm64 logging up");
 
     // ---- Trap + syscall path (H.7.3). Install VBAR_EL1, then issue an svc
     //      from EL1 and check the round-trip: the vector saves a TrapFrame, the
