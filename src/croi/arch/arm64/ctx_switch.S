@@ -143,19 +143,27 @@ arm64_fp_read_v0:                   // → x0 = v0.d[0]
 .size   arm64_fp_read_v0, . - arm64_fp_read_v0
 
 
-// EL0 stub for the H.7.4d enter-U-mode demo (boot.c). Position-independent
-// (immediates + a PC-relative branch) so the kernel can copy these bytes into a
-// user page and eret to them at EL0: it issues the demo "exit" syscall
-// (x8 = 0xE0, x0 = 0x55 exit code) and then spins if it is ever resumed.
+// A tiny EL0 user program (H.7.7e). Position-independent (PC-relative `adr` +
+// immediates) so the scheduler can map these bytes at the user text VA and run
+// them at EL0: it writes a line via SYS_LOG_WRITE then exits via SYS_EXIT(0x77),
+// each through the AArch64 syscall ABI (x8 = number, x0..x5 args, svc #0).
+// Mapped read-execute, so the message in the text page is readable too.
 .balign 4
 .globl arm64_el0_stub
 .type  arm64_el0_stub, @function
 arm64_el0_stub:
-    mov     x0, #0x55               // exit code
-    mov     x8, #0xE0               // DEMO_SYS_EXIT
+    adr     x0, .Lustub_msg              // user VA of the message
+    mov     x1, #(.Lustub_msg_end - .Lustub_msg)
+    mov     x8, #1                       // SYS_LOG_WRITE
     svc     #0
-.Lel0_spin:
-    b       .Lel0_spin
+    mov     x0, #0x77                    // exit code
+    mov     x8, #2                       // SYS_EXIT
+    svc     #0
+.Lustub_spin:
+    b       .Lustub_spin                 // unreached: SYS_EXIT ends the task
+.Lustub_msg:
+    .ascii  "EL0 program ran\n"
+.Lustub_msg_end:
 .globl arm64_el0_stub_end
 arm64_el0_stub_end:
 .size   arm64_el0_stub, . - arm64_el0_stub

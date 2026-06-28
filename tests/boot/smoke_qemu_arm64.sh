@@ -10,8 +10,11 @@
 #   H.7.3  trap + syscall — an svc round-trips through VBAR_EL1 + the portable
 #          Croi_TrapDispatch ("trap: svc ok").
 #   H.7.4  per-task page tables, context switch, FP, and the EL1<->EL0 round-trip.
-#   H.7.5  timer + GICv2 IRQ ("timer: ticks ok") + a clean PSCI power-off (so the
-#          kernel exits QEMU instead of waiting for the timeout).
+#   H.7.5  timer + GICv2 IRQ + a clean PSCI power-off (so the kernel exits QEMU
+#          instead of waiting for the timeout).
+#   H.7.7  the portable kernel on the HAL: cara_time, cara_log, the SASOS shared
+#          heap, the cooperative scheduler ("sched: kernel tasks ok"), and a real
+#          U-mode program run by the scheduler ("EL0 program ran" / "user task: ok").
 # As later H.7.x slices reach the in-kernel test runner, this grows toward the
 # rv64 smoke's "0 failed" assertion.
 #
@@ -82,9 +85,10 @@ if ! grep -qF "fp: preserved ok" "${LOG}"; then
     echo "smoke_qemu_arm64: FAIL: FP not preserved across context switch" >&2
     fail=1
 fi
-# Proof enter-U-mode works: eret to EL0, the stub svc'd back, exit code returned.
-if ! grep -qF "enter-U-mode: ok" "${LOG}"; then
-    echo "smoke_qemu_arm64: FAIL: EL0 enter/return round-trip did not complete" >&2
+# Proof a real U-mode program runs via the scheduler: it printed via SYS_LOG_WRITE
+# at EL0 and exited via SYS_EXIT (Croi_TaskExit), returning control to the kernel.
+if ! grep -qF "EL0 program ran" "${LOG}" || ! grep -qF "user task: ok" "${LOG}"; then
+    echo "smoke_qemu_arm64: FAIL: U-mode program did not run + exit" >&2
     fail=1
 fi
 # Proof the timer + GIC IRQ path + portable time layer work: the one-shot
@@ -118,4 +122,4 @@ if [[ ${fail} -ne 0 ]]; then
     exit 1
 fi
 
-echo "smoke_qemu_arm64: ok (paging + FDT + mm + traps + PT + ctxsw + fp + EL0 + timer/IRQ + PSCI)"
+echo "smoke_qemu_arm64: ok (paging + mm + traps + PT + ctx + fp + timer/IRQ + PSCI + sched + U-mode)"

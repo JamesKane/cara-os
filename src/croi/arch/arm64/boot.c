@@ -23,6 +23,7 @@
 #include <cara/mm.h>
 #include <cara/sched.h>  // cooperative scheduler (H.7.7d)
 #include <cara/shared.h> // SASOS shared heap (H.7.7c)
+#include <cara/sysno.h>  // SYS_LOG_WRITE / SYS_EXIT (H.7.7e)
 #include <cara/time.h>   // portable Croi_Time layer (H.7.7a)
 #include <cara/trap.h>   // struct TrapFrame (for the demo Croi_Syscall_Dispatch)
 #include <cara/types.h>
@@ -86,65 +87,52 @@ static void sched_demo_worker(void *arg)
     // Return → task_trampoline → Sched_Trampoline → Croi_TaskExit.
 }
 
-// ---- H.7.4d enter-U-mode (EL0) round-trip demo ----------------------------
-// Build a user page table mapping an EL0 stub + stack, eret to EL0, and let the
-// stub svc back. The "exit" syscall handler switches back to the kernel boot
-// flow saved before the excursion — so this validates enter-U-mode + return
-// without the scheduler. (arch_ctx_init_user / user_task_trampoline read
-// Sched_Current and arrive with the scheduler integration.)
-#define DEMO_SYS_EXIT 0xE0ull
-#define DEMO_USER_EXIT_CODE 0x55ull
-#define DEMO_USER_CODE_VA 0x0000000000400000ull
-#define DEMO_USER_STACK_VA 0x0000000000500000ull
+// ---- U-mode (EL0) demo program + syscall dispatch (H.7.7e) -----------------
+// A real U-mode task, run by the scheduler (Croi_SpawnUserTask → the EL0
+// user_task_trampoline), executes the arm64_el0_stub program at EL0: it issues
+// SYS_LOG_WRITE then SYS_EXIT. The H.7.3 echo (num 0x42, from the EL1 svc
+// trampoline test) is still handled here. This is a stand-in for cara_syscall's
+// real table-driven Croi_Syscall_Dispatch, which arrives with the libraries
+// (H.7.7f+) — linking that today would pull in the whole library surface.
+#define DEMO_SYS_ECHO 0x42ull
+#define DEMO_USER_EXIT_CODE 0x77ull
 
-extern const u8 arm64_el0_stub[];     // EL0 stub bytes (arch/arm64/ctx_switch.S)
+extern const u8 arm64_el0_stub[];     // EL0 program bytes (arch/arm64/ctx_switch.S)
 extern const u8 arm64_el0_stub_end[]; // end marker
 
-static u64 g_kernel_resume[TASK_NSAVED]; // boot flow to resume after EL0
-static u64 g_kernel_resume_fp[TASK_NFPSAVE];
-static u64 g_enter_ctx[TASK_NSAVED]; // runs enter_el0_fn (does the eret)
-static u64 g_enter_fp[TASK_NFPSAVE];
-static u64 g_exit_throwaway[TASK_NSAVED]; // save area for the exit switch (unused)
-static u64 g_exit_throwaway_fp[TASK_NFPSAVE];
-static u8 g_enter_stack[8192] __attribute__((aligned(16)));
-static struct PageTable *g_user_pt;
 static volatile u64 g_user_exit_code;
 static volatile bool g_user_exited;
 
-// Demo syscall dispatcher. The portable Croi_TrapDispatch (src/croi/trap.c)
-// calls this on every svc. (Stands in for cara_syscall's real table-driven
-// Croi_Syscall_Dispatch until the scheduler integration.)
+// Minimal syscall dispatcher. The portable Croi_TrapDispatch (src/croi/trap.c)
+// calls this on every svc.
 i64 Croi_Syscall_Dispatch(struct TrapFrame *frame);
 i64 Croi_Syscall_Dispatch(struct TrapFrame *frame)
 {
     u64 num = arch_syscall_num(frame);
-    u64 a0 = arch_syscall_arg(frame, 0);
-    if (num == DEMO_SYS_EXIT) {
-        g_user_exit_code = a0;
-        g_user_exited = true;
-        // Resume the kernel boot flow saved before entering EL0; this abandons
-        // the trap frame on the EL1 stack (fine for the one-shot demo) and
-        // never returns to the trap-return path.
-        arch_ctx_switch(g_exit_throwaway, g_kernel_resume, g_exit_throwaway_fp, g_kernel_resume_fp);
+    switch (num) {
+    case SYS_LOG_WRITE: {
+        // (x0 = user VA of bytes, x1 = length). The faulting task's TTBR0 is
+        // active, so the kernel reads the user buffer directly (PAN=0).
+        const char *p = (const char *)(uptr)arch_syscall_arg(frame, 0);
+        u64 len = arch_syscall_arg(frame, 1);
+        for (u64 i = 0; i < len; i++) {
+            if (p[i] == '\n') {
+                arch_console_putc('\r');
+            }
+            arch_console_putc(p[i]);
+        }
+        return (i64)len;
     }
-    return (i64)(num + a0); // H.7.3 EL1 svc echo (num + arg0)
-}
-
-// Runs in g_enter_ctx: switch to the user address space and eret to EL0.
-CARA_NORETURN static void enter_el0_fn(void)
-{
-    arch_mmu_activate(g_user_pt);
-    u64 ustack_top = DEMO_USER_STACK_VA + CARA_PAGE_SIZE;
-    // SPSR_EL1: M[4:0]=0 (EL0t), DAIF all masked (no IRQ source until H.7.5).
-    __asm__ volatile("msr sp_el0, %[usp]\n\t"
-                     "msr elr_el1, %[entry]\n\t"
-                     "msr spsr_el1, %[spsr]\n\t"
-                     "isb\n\t"
-                     "eret\n"
-                     :
-                     : [usp] "r"(ustack_top), [entry] "r"(DEMO_USER_CODE_VA), [spsr] "r"(0x3c0ull)
-                     : "memory");
-    __builtin_unreachable();
+    case SYS_EXIT:
+        g_user_exit_code = arch_syscall_arg(frame, 0);
+        g_user_exited = true;
+        Croi_TaskExit(); // [[noreturn]] — schedules the next task; never returns
+        return 0;        // unreachable
+    case DEMO_SYS_ECHO:
+        return (i64)(num + arch_syscall_arg(frame, 0)); // H.7.3 EL1 svc echo
+    default:
+        return -1;
+    }
 }
 
 // QEMU `-M virt` (aarch64) RAM base + kernel load address (see kernel.lds).
@@ -406,50 +394,6 @@ CARA_NORETURN void arm64_kernel_main(u64 dtb_phys)
         }
     }
 
-    // ---- Enter U-mode (H.7.4d). Build a user PT mapping an EL0 stub + stack,
-    //      eret to EL0, and let the stub svc back. The exit-svc handler
-    //      (Croi_Syscall_Dispatch) switches back to the boot flow saved here.
-    {
-        g_user_pt = Croi_NewKernelPT();
-        u64 code_pa = Page_Alloc(&g_page_alloc, 1);
-        u64 stack_pa = Page_Alloc(&g_page_alloc, 1);
-        if (!g_user_pt || code_pa == 0 || stack_pa == 0) {
-            arch_console_puts("arm64 boot: FATAL: U-mode PT/page alloc failed\n");
-            arch_halt();
-        }
-        // Copy the EL0 stub into the code page (via the kernel direct map), then
-        // make it visible to instruction fetch (clean D, invalidate I).
-        u8 *code = (u8 *)Mm_PhysToVirt(code_pa);
-        usize stub_len = (usize)(arm64_el0_stub_end - arm64_el0_stub);
-        for (usize i = 0; i < stub_len; i++) {
-            code[i] = arm64_el0_stub[i];
-        }
-        __asm__ volatile("dc cvau, %0\n\tdsb ish\n\tic iallu\n\tdsb ish\n\tisb"
-                         :
-                         : "r"(code)
-                         : "memory");
-        if (Page_Map(g_user_pt, DEMO_USER_CODE_VA, code_pa, PTE_USER_RX) != CARA_EOK ||
-            Page_Map(g_user_pt, DEMO_USER_STACK_VA, stack_pa, PTE_USER_RW) != CARA_EOK) {
-            arch_console_puts("arm64 boot: FATAL: U-mode Page_Map failed\n");
-            arch_halt();
-        }
-
-        u64 etop = ((u64)(uptr)g_enter_stack + sizeof g_enter_stack) & ~15ull;
-        g_enter_ctx[ARM64_SR_X30] = (u64)(uptr)&enter_el0_fn;
-        g_enter_ctx[ARM64_SR_SP] = etop;
-        g_enter_ctx[ARM64_SR_TPIDR] = 0;
-        arch_console_puts("arm64 boot: entering EL0 user mode...\n");
-        arch_ctx_switch(g_kernel_resume, g_enter_ctx, g_kernel_resume_fp, g_enter_fp);
-        // Resumes here after the EL0 stub's exit-svc switches back.
-        put_line("arm64 boot: user exit code   = ", g_user_exit_code);
-        if (g_user_exited && g_user_exit_code == DEMO_USER_EXIT_CODE) {
-            arch_console_puts("arm64 boot: enter-U-mode: ok\n");
-        } else {
-            arch_console_puts("arm64 boot: FATAL: U-mode round-trip mismatch\n");
-            arch_halt();
-        }
-    }
-
     // ---- SASOS shared heap (H.7.7c). Init the shared arena, then allocate from
     //      it and round-trip a value through the returned low/TTBR0 VA — the
     //      RW+U window both the kernel (here) and U-mode dereference. On arm64
@@ -491,6 +435,36 @@ CARA_NORETURN void arm64_kernel_main(u64 dtb_phys)
             Croi_Yield();
         }
         arch_console_puts("arm64 boot: sched: kernel tasks ok\n");
+    }
+
+    // ---- First real U-mode program (H.7.7e). Spawn a U-mode task whose text is
+    //      the EL0 program (arm64_el0_stub), run by the real scheduler:
+    //      user_task_trampoline `eret`s to EL0, the program SYS_LOG_WRITEs a line
+    //      and SYS_EXITs, and the syscall dispatcher ends it via Croi_TaskExit —
+    //      back to kmain. Needs the scheduler (above) + the shared heap (the
+    //      Process lives there) to be up.
+    {
+        g_user_exited = false;
+        usize stub_len = (usize)(arm64_el0_stub_end - arm64_el0_stub);
+        // Croi_SpawnUserTask maps the page(s) containing the text at
+        // CARA_USER_TEXT_BASE, so the entry is offset by the program's position
+        // within its (kernel-image) page.
+        u64 entry = CARA_USER_TEXT_BASE + ((u64)(uptr)arm64_el0_stub & (CARA_PAGE_SIZE - 1));
+        struct Task *u = Croi_SpawnUserTask("u-demo", 10, arm64_el0_stub, stub_len, entry);
+        if (!u) {
+            arch_console_puts("arm64 boot: FATAL: Croi_SpawnUserTask failed\n");
+            arch_halt();
+        }
+        while (!g_user_exited) {
+            Croi_Yield();
+        }
+        put_line("arm64 boot: user exit code    = ", g_user_exit_code);
+        if (g_user_exit_code == DEMO_USER_EXIT_CODE) {
+            arch_console_puts("arm64 boot: user task: ok\n");
+        } else {
+            arch_console_puts("arm64 boot: FATAL: user task exit mismatch\n");
+            arch_halt();
+        }
     }
 
     // ---- Timer + IRQ via the portable Croi_Time layer (H.7.5 / H.7.7a). Bring

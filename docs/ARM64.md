@@ -262,12 +262,20 @@ so each slice is small and the gate is real.
     **real** scheduler: `Sched_Init` + two `Croi_SpawnKernelTask`s + `Croi_Yield`
     — both workers run and exit through `task_trampoline`→`Sched_Trampoline`→
     `Croi_TaskExit`.
-  - **H.7.7e+ — first real U-mode program + libraries + a real app.** Needs
-    `cara_syscall` (the dispatch table) + an arm64-built user program (userland
-    is RISC-V-built today); then the libraries (`cara_exec_lib_image` + the
-    lvo-gen'd vec tables, replacing the stub) and a real app; an arm64 in-kernel
-    test runner + boot-smoke parity (banner + `0 failed`); `croi.lds` →
-    `CARA_ARCH`-selected.
+  - **H.7.7e — first real U-mode program (DONE).** A real U-mode task, spawned
+    by the scheduler (`Croi_SpawnUserTask` → `user_task_trampoline` `eret`s to
+    EL0), runs a small EL0 program (`arm64_el0_stub`) that `SYS_LOG_WRITE`s a
+    line and `SYS_EXIT`s; a minimal syscall dispatcher handles those two (plus
+    the H.7.3 echo) and ends the task via `Croi_TaskExit`. This supersedes the
+    pre-scheduler H.7.4d EL0 bracket. The full `cara_syscall` table isn't linked
+    yet — its dispatch references every library impl, so it rides with the
+    libraries (H.7.7f+). (NB the program's entry VA is offset by its position in
+    the kernel-image page, since `Croi_SpawnUserTask` maps whole pages.)
+  - **H.7.7f+ — libraries + a real app + parity.** `cara_exec_lib_image` + the
+    lvo-gen'd vec tables (replacing `exec_lib_stub.c`) + the real `cara_syscall`;
+    then the V36+ libraries + a real app; an arm64-built userland; an arm64
+    in-kernel test runner + boot-smoke parity (banner + `0 failed`); `croi.lds`
+    → `CARA_ARCH`-selected.
 
 ## 6. Per-slice gate
 
