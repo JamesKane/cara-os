@@ -24,6 +24,7 @@ shipped**; **L1 (widen `exec.library`) is next**.
 Recent commits (newest first), all on `main`:
 
 ```
+0c6797a epic-H/H.7.7e ARM64 backend — first real U-mode program
 20f87b6 epic-H/H.7.7d ARM64 backend — link cara_sched; real kernel tasks
 c081a96 epic-H/H.7.7c ARM64 backend — SASOS shared heap (shared.c)
 598673e epic-H/H.7.7b ARM64 backend — cara_log (structured logging)
@@ -1453,18 +1454,23 @@ KERNEL_TEST) is now well-trodden (userhello/exec/intuition/clar/v36hello).
     the arch-neutral `PTE_USER_*` masks (byte-identical on rv64). `Sched_Init` +
     2 `Croi_SpawnKernelTask`s + `Croi_Yield` run + exit through the real
     scheduler. rv64 green (userland still loads); ctest 32/32.
-  - **NEXT: H.7.7e — first real U-mode program on arm64.** Needs `cara_syscall`
-    (the dispatch table — link `croi/syscall`; the portable `Croi_Syscall_Dispatch`
-    replaces the boot.c demo one, so drop that + `trampoline_demo.S`) + a real
-    U-mode program. Userland is RISC-V-built today, so either build a minimal
-    arm64 user program (its own `_start` + a `SYS_EXIT`/`SYS_LOG_WRITE` via the
-    factored `svc` trampolines) and embed it, or hand-assemble a tiny EL0 stub
-    loaded via `Croi_LoadElf`/the loader. Then `Croi_SpawnUserProc` →
-    `user_task_trampoline` runs it at EL0; the timer can preempt it (SPSR DAIF
-    clear). Then H.7.7f+ libraries (`cara_exec_lib_image` + the lvo-gen'd vec
-    tables, replacing the stub) + a real app; an arm64 in-kernel test runner
-    (the `.kernel_tests` registry + `runner.c`) + boot-smoke parity (banner +
-    `0 failed`); `croi.lds` → `CARA_ARCH`-selected. Other deferred: more ports;
+  - **H.7.7e shipped (`0c6797a`): first real U-mode program.** `arm64_el0_stub`
+    is now an EL0 program (`SYS_LOG_WRITE` + `SYS_EXIT`); `Croi_SpawnUserTask`
+    runs it as a real U-mode task via `user_task_trampoline`; the minimal
+    dispatcher handles those two syscalls (+ the H.7.3 echo) and ends it via
+    `Croi_TaskExit`. Superseded the H.7.4d EL0 bracket (deleted). "EL0 program
+    ran" + "user task: ok". rv64 unaffected; ctest 32/32.
+  - **NEXT: H.7.7f — the library surface + the real `cara_syscall`.** The big
+    remaining chunk: `cara_exec_lib_image` (the `0x4000_0000` RX region + the
+    lvo-gen'd `exec_lib_vec` + trampolines, replacing `exec_lib_stub.c`), then the
+    real `cara_syscall` dispatch table (which references every library impl, so it
+    pulls in exec/utility/dos/intuition/graphics/… — bring them in incrementally
+    or as a batch), then a real app + an arm64-built userland. Also: an arm64
+    in-kernel test runner (the `.kernel_tests` registry + `runner.c`) so boot-smoke
+    can assert `0 failed` (parity with rv64), and porting `croi.lds` to a
+    `CARA_ARCH`-selected linker script. This is a large multi-slice tail — the
+    HAL + core kernel (mm/time/log/shared/sched/U-mode) are all proven on arm64.
+    Other deferred options: more ports; background launch. Other deferred: more ports;
     background launch.
   - H.7.7d — link `cara_sched` + `cara_syscall` (+ `cara_exec_lib_image` or a
     stub); wire `arch_ctx_init_kernel/user` + `user_task_trampoline` +
